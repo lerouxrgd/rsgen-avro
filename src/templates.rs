@@ -61,11 +61,12 @@ lazy_static! {
     };
 }
 
-fn sanitize(s: &str) -> String {
-    if RESERVED.contains(s) {
-        s.to_string() + "_"
+fn sanitize(mut s: String) -> String {
+    if RESERVED.contains(&s) {
+        s.push_str("_");
+        s
     } else {
-        s.to_string()
+        s
     }
 }
 
@@ -131,7 +132,7 @@ impl Templater {
                 ctx.add("name", &name.to_camel_case());
                 let s: HashMap<_, _> = symbols
                     .iter()
-                    .map(|s| (sanitize(&s.to_camel_case()), s))
+                    .map(|s| (sanitize(s.to_camel_case()), s))
                     .collect();
                 ctx.add("symbols", &s);
                 Ok(self.tera.render(ENUM_TERA, &ctx).sync()?)
@@ -160,7 +161,7 @@ impl Templater {
                     ..
                 } in fields
                 {
-                    let name_std = sanitize(&name.to_snake_case());
+                    let name_std = sanitize(name.to_snake_case());
                     o.insert(name_std.clone(), name);
 
                     match schema {
@@ -213,12 +214,23 @@ impl Templater {
                             };
                         }
 
+                        Schema::Bytes => {
+                            f.insert(name_std.clone(), "Vec<u8>");
+                            match default {
+                                Some(Value::String(s)) => {
+                                    let bytes = s.clone().into_bytes();
+                                    d.insert(name_std.clone(), format!("vec!{:?}", bytes))
+                                }
+                                _ => d.insert(name_std.clone(), "vec![]".to_string()),
+                            };
+                        }
+
                         Schema::String => {
                             f.insert(name_std.clone(), "String");
                             if let Some(Value::String(s)) = default {
                                 d.insert(name_std.clone(), format!("\"{}\".to_owned()", s));
                             } else {
-                                d.insert(name_std.clone(), "Default::default()".to_string());
+                                d.insert(name_std.clone(), "String::default()".to_string());
                             }
                         }
 
@@ -270,9 +282,10 @@ mod tests {
          "type": "record",
          "name": "User",
          "fields": [
-             {"name": "as", "type": "string", "default": ""},
+             {"name": "as", "type": "string"},
              {"name": "favoriteNumber",  "type": "int", "default": 7},
-             {"name": "likes_pizza", "type": "boolean", "default": false}
+             {"name": "likes_pizza", "type": "boolean", "default": false},
+             {"name": "b", "type": "bytes", "default": "\u00FF"}
          ]
         }"#;
 
