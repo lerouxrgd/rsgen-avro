@@ -70,7 +70,7 @@ fn sanitize(mut s: String) -> String {
     }
 }
 
-/// Describes errors happened while templating Avro code.
+/// Describes errors happened while templating Rust code.
 #[derive(Fail, Debug)]
 #[fail(display = "Template failure: {}", _0)]
 pub struct TemplateError(String);
@@ -104,6 +104,25 @@ impl<T, E> ResultExt<T, E> for Result<T, E> {
         E: ::std::error::Error + Send + 'static,
     {
         self.map_err(SyncFailure::new)
+    }
+}
+
+#[derive(Debug)]
+pub struct GenState {
+    pub done: Option<String>,
+    pub remaining: Vec<Schema>,
+}
+
+impl GenState {
+    pub fn new() -> GenState {
+        GenState {
+            done: None,
+            remaining: vec![],
+        }
+    }
+
+    pub fn push_more(&mut self, schema: &Schema) {
+        self.remaining.push(schema.clone());
     }
 }
 
@@ -141,132 +160,190 @@ impl Templater {
         }
     }
 
-    pub fn str_record(&self, schema: &Schema) -> Result<String, Error> {
-        match schema {
-            Schema::Record {
-                name: Name { name, .. },
-                fields,
+    pub fn str_record(&self, schema: &Schema) -> Result<GenState, Error> {
+        if let Schema::Record {
+            name: Name { name, .. },
+            fields,
+            ..
+        } = schema
+        {
+            let mut state = GenState::new();
+            let mut ctx = Context::new();
+            ctx.add("name", &name.to_camel_case());
+
+            let mut f = HashMap::new(); // field name -> field type
+            let mut o = HashMap::new(); // field name -> original name
+            let mut d = HashMap::new(); // field name -> default value
+            for RecordField {
+                schema,
+                name,
+                default,
                 ..
-            } => {
-                let mut ctx = Context::new();
-                ctx.add("name", &name.to_camel_case());
+            } in fields
+            {
+                let name_std = sanitize(name.to_snake_case());
+                o.insert(name_std.clone(), name);
 
-                let mut f = HashMap::new(); // field name -> field type
-                let mut o = HashMap::new(); // field name -> original name
-                let mut d = HashMap::new(); // field name -> default value
-                for RecordField {
-                    schema,
-                    name,
-                    default,
-                    ..
-                } in fields
-                {
-                    let name_std = sanitize(name.to_snake_case());
-                    o.insert(name_std.clone(), name);
+                match schema {
+                    Schema::Boolean => {
+                        f.insert(name_std.clone(), "bool");
+                        if let Some(Value::Bool(b)) = default {
+                            d.insert(name_std.clone(), b.to_string());
+                        } else {
+                            d.insert(name_std.clone(), bool::default().to_string());
+                        }
+                    }
 
-                    match schema {
-                        Schema::Boolean => {
-                            f.insert(name_std.clone(), "bool");
-                            if let Some(Value::Bool(b)) = default {
-                                d.insert(name_std.clone(), b.to_string());
-                            } else {
-                                d.insert(name_std.clone(), bool::default().to_string());
+                    Schema::Int => {
+                        f.insert(name_std.clone(), "i32");
+                        match default {
+                            Some(Value::Number(n)) if n.is_i64() => {
+                                d.insert(name_std.clone(), n.to_string())
                             }
-                        }
+                            _ => d.insert(name_std.clone(), i32::default().to_string()),
+                        };
+                    }
 
-                        Schema::Int => {
-                            f.insert(name_std.clone(), "i32");
-                            match default {
-                                Some(Value::Number(n)) if n.is_i64() => {
-                                    d.insert(name_std.clone(), n.to_string())
-                                }
-                                _ => d.insert(name_std.clone(), i32::default().to_string()),
-                            };
-                        }
-
-                        Schema::Long => {
-                            f.insert(name_std.clone(), "i64");
-                            match default {
-                                Some(Value::Number(n)) if n.is_i64() => {
-                                    d.insert(name_std.clone(), n.to_string())
-                                }
-                                _ => d.insert(name_std.clone(), i64::default().to_string()),
-                            };
-                        }
-
-                        Schema::Float => {
-                            f.insert(name_std.clone(), "f32");
-                            match default {
-                                Some(Value::Number(n)) if n.is_f64() => {
-                                    d.insert(name_std.clone(), n.to_string())
-                                }
-                                _ => d.insert(name_std.clone(), f32::default().to_string()),
-                            };
-                        }
-
-                        Schema::Double => {
-                            f.insert(name_std.clone(), "f64");
-                            match default {
-                                Some(Value::Number(n)) if n.is_f64() => {
-                                    d.insert(name_std.clone(), n.to_string())
-                                }
-                                _ => d.insert(name_std.clone(), f64::default().to_string()),
-                            };
-                        }
-
-                        Schema::Bytes => {
-                            f.insert(name_std.clone(), "Vec<u8>");
-                            match default {
-                                Some(Value::String(s)) => {
-                                    let bytes = s.clone().into_bytes();
-                                    d.insert(name_std.clone(), format!("vec!{:?}", bytes))
-                                }
-                                _ => d.insert(name_std.clone(), "vec![]".to_string()),
-                            };
-                        }
-
-                        Schema::String => {
-                            f.insert(name_std.clone(), "String");
-                            if let Some(Value::String(s)) = default {
-                                d.insert(name_std.clone(), format!("\"{}\".to_owned()", s));
-                            } else {
-                                d.insert(name_std.clone(), "String::default()".to_string());
+                    Schema::Long => {
+                        f.insert(name_std.clone(), "i64");
+                        match default {
+                            Some(Value::Number(n)) if n.is_i64() => {
+                                d.insert(name_std.clone(), n.to_string())
                             }
-                        }
+                            _ => d.insert(name_std.clone(), i64::default().to_string()),
+                        };
+                    }
 
-                        Schema::Enum {
-                            name: Name { name: e_name, .. },
-                            symbols,
-                            ..
-                        } => {
-                            f.insert(name_std.clone(), e_name);
-                            if let Some(Value::String(s)) = default {
-                                d.insert(name_std.clone(), s.clone());
-                            } else if !symbols.is_empty() {
-                                d.insert(name_std.clone(), symbols[0].to_string());
-                            } else {
-                                err!("No symbol for emum: {:?}", name)?;
+                    Schema::Float => {
+                        f.insert(name_std.clone(), "f32");
+                        match default {
+                            Some(Value::Number(n)) if n.is_f64() => {
+                                d.insert(name_std.clone(), n.to_string())
                             }
+                            _ => d.insert(name_std.clone(), f32::default().to_string()),
+                        };
+                    }
+
+                    Schema::Double => {
+                        f.insert(name_std.clone(), "f64");
+                        match default {
+                            Some(Value::Number(n)) if n.is_f64() => {
+                                d.insert(name_std.clone(), n.to_string())
+                            }
+                            _ => d.insert(name_std.clone(), f64::default().to_string()),
+                        };
+                    }
+
+                    Schema::Bytes => {
+                        f.insert(name_std.clone(), "Vec<u8>");
+                        match default {
+                            Some(Value::String(s)) => {
+                                let bytes = s.clone().into_bytes();
+                                d.insert(name_std.clone(), format!("vec!{:?}", bytes))
+                            }
+                            _ => d.insert(name_std.clone(), "vec![]".to_string()),
+                        };
+                    }
+
+                    Schema::String => {
+                        f.insert(name_std.clone(), "String");
+                        if let Some(Value::String(s)) = default {
+                            d.insert(name_std.clone(), format!("\"{}\".to_owned()", s));
+                        } else {
+                            d.insert(name_std.clone(), "String::default()".to_string());
                         }
+                    }
 
-                        Schema::Record {
-                            name: Name { name: r_name, .. },
-                            ..
-                        } => {
-                            f.insert(name_std.clone(), r_name);
-                            d.insert(name_std.clone(), "Default::default()".to_string());
+                    Schema::Array(schema) => {
+                        match &**schema {
+                            Schema::Boolean => {
+                                f.insert(name_std.clone(), "Vec<bool>");
+                                if let Some(Value::Array(vals)) = default {
+                                    let vals = vals
+                                        .iter()
+                                        .map(|v| match v {
+                                            Value::Bool(b) => Ok(b.to_string()),
+                                            _ => err!("Invalid defaults: {:?}", v),
+                                        }).collect::<Result<Vec<String>, TemplateError>>()?
+                                        .as_slice()
+                                        .join(", ");
+                                    d.insert(name_std.clone(), format!("vec![{}]", vals));
+                                } else {
+                                    d.insert(name_std.clone(), "vec![]".to_string());
+                                }
+                            }
+
+                            Schema::Int => {
+                                f.insert(name_std.clone(), "Vec<i32>");
+                                if let Some(Value::Array(vals)) = default {
+                                    let vals = vals
+                                        .iter()
+                                        .map(|v| match v {
+                                            Value::Number(n) if n.is_i64() => Ok(n.to_string()),
+                                            _ => err!("Invalid defaults: {:?}", v),
+                                        }).collect::<Result<Vec<String>, TemplateError>>()?
+                                        .as_slice()
+                                        .join(", ");
+                                    d.insert(name_std.clone(), format!("vec![{}]", vals));
+                                } else {
+                                    d.insert(name_std.clone(), "vec![]".to_string());
+                                }
+                            }
+
+                            Schema::Long => (),
+                            Schema::Float => (),
+                            Schema::Double => (),
+                            Schema::Bytes => (),
+                            Schema::String => (),
+                            Schema::Array(..) => (),
+                            Schema::Map(..) => (),
+                            Schema::Union(..) => (),
+                            /// TODO leverage state.push_more(...)
+                            Schema::Record { .. } => (),
+                            Schema::Enum { .. } => (),
+                            Schema::Fixed { .. } => (),
+                            /// TODO what about Null ?
+                            _ => (),
                         }
+                    }
 
-                        _ => err!("Unhandled type: {:?}", schema)?,
-                    };
-                }
-                ctx.add("fields", &f);
-                ctx.add("originals", &o);
-                ctx.add("defaults", &d);
+                    Schema::Enum {
+                        name: Name { name: e_name, .. },
+                        symbols,
+                        ..
+                    } => {
+                        f.insert(name_std.clone(), e_name);
+                        if let Some(Value::String(s)) = default {
+                            d.insert(name_std.clone(), s.clone());
+                        } else if !symbols.is_empty() {
+                            d.insert(name_std.clone(), symbols[0].to_string());
+                        } else {
+                            err!("No symbol for emum: {:?}", name)?;
+                        }
+                    }
 
-                Ok(self.tera.render(RECORD_TERA, &ctx).sync()?)
+                    Schema::Record {
+                        name: Name { name: r_name, .. },
+                        ..
+                    } => {
+                        /// TODO use sanitized r_name
+                        // let r_name = sanitize(r_name.to_camel_case());
+                        f.insert(name_std.clone(), r_name);
+                        d.insert(name_std.clone(), format!("{}::default()", r_name));
+                    }
+
+                    _ => err!("Unhandled type: {:?}", schema)?,
+                };
             }
-            _ => err!("Requires Schema::Record, found {:?}", schema)?,
+            ctx.add("fields", &f);
+            ctx.add("originals", &o);
+            ctx.add("defaults", &d);
+
+            let done = self.tera.render(RECORD_TERA, &ctx).sync()?;
+            state.done = Some(done);
+            Ok(state)
+        } else {
+            err!("Requires Schema::Record, found {:?}", schema)?
         }
     }
 }
@@ -285,13 +362,15 @@ mod tests {
              {"name": "as", "type": "string"},
              {"name": "favoriteNumber",  "type": "int", "default": 7},
              {"name": "likes_pizza", "type": "boolean", "default": false},
-             {"name": "b", "type": "bytes", "default": "\u00FF"}
+             {"name": "b", "type": "bytes", "default": "\u00FF"},
+             {"name": "t-bool", "type": {"type": "array", "items": "boolean"}, "default": [true, false]},
+             {"name": "t-i32", "type": {"type": "array", "items": "int"}, "default": [12, -1]}
          ]
         }"#;
 
         let templater = Templater::new().unwrap();
         let schema = Schema::parse_str(&raw_schema).unwrap();
-        let res = templater.str_record(&schema).unwrap();
+        let res = templater.str_record(&schema).unwrap().done.unwrap();
         println!("{}", res);
     }
 

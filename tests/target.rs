@@ -5,20 +5,28 @@ extern crate serde_json;
 
 #[serde(default)]
 #[derive(Debug, Deserialize, Serialize)]
-struct User {
-    as_: String,
-    favorite_number: i32,
-    likes_pizza: bool,
-    b: Vec<u8>,
+pub struct User {
+    #[serde(rename = "as")]
+    pub as_: String,
+    pub b: Vec<u8>,
+    #[serde(rename = "favoriteNumber")]
+    pub favorite_number: i32,
+    pub likes_pizza: bool,
+    #[serde(rename = "t-bool")]
+    pub t_bool: Vec<bool>,
+    #[serde(rename = "t-i32")]
+    pub t_i32: Vec<i32>,
 }
 
 impl Default for User {
     fn default() -> User {
         User {
             as_: String::default(),
+            b: vec![195, 191],
             favorite_number: 7,
             likes_pizza: false,
-            b: vec![],
+            t_bool: vec![true, false],
+            t_i32: vec![12, -1],
         }
     }
 }

@@ -19,7 +19,7 @@ use failure::Error;
 
 use templates::*;
 
-/// Describes errors happened while generating Avro code.
+/// Describes errors happened while generating Rust code.
 #[derive(Fail, Debug)]
 #[fail(display = "Rsgen failure: {}", _0)]
 pub struct RsgenError(String);
@@ -146,7 +146,10 @@ fn gen_record(schema: &Schema, out: &mut Box<Write>, templater: &Templater) -> R
 
     while !q.is_empty() {
         let s = q.pop_front().unwrap();
-        let code = templater.str_record(&s)?;
+        let code = templater
+            .str_record(&s)?
+            .done
+            .ok_or_else(|| RsgenError::new("Invalid GenState, empty result"))?;
         out.write_all(code.as_bytes())?;
 
         match s {
