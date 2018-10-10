@@ -186,7 +186,7 @@ impl Templater {
 
                 match schema {
                     Schema::Boolean => {
-                        f.insert(name_std.clone(), "bool");
+                        f.insert(name_std.clone(), "bool".to_string());
                         if let Some(Value::Bool(b)) = default {
                             d.insert(name_std.clone(), b.to_string());
                         } else {
@@ -195,7 +195,7 @@ impl Templater {
                     }
 
                     Schema::Int => {
-                        f.insert(name_std.clone(), "i32");
+                        f.insert(name_std.clone(), "i32".to_string());
                         match default {
                             Some(Value::Number(n)) if n.is_i64() => {
                                 d.insert(name_std.clone(), n.to_string())
@@ -205,7 +205,7 @@ impl Templater {
                     }
 
                     Schema::Long => {
-                        f.insert(name_std.clone(), "i64");
+                        f.insert(name_std.clone(), "i64".to_string());
                         match default {
                             Some(Value::Number(n)) if n.is_i64() => {
                                 d.insert(name_std.clone(), n.to_string())
@@ -215,7 +215,7 @@ impl Templater {
                     }
 
                     Schema::Float => {
-                        f.insert(name_std.clone(), "f32");
+                        f.insert(name_std.clone(), "f32".to_string());
                         match default {
                             Some(Value::Number(n)) if n.is_f64() => {
                                 d.insert(name_std.clone(), n.to_string())
@@ -225,7 +225,7 @@ impl Templater {
                     }
 
                     Schema::Double => {
-                        f.insert(name_std.clone(), "f64");
+                        f.insert(name_std.clone(), "f64".to_string());
                         match default {
                             Some(Value::Number(n)) if n.is_f64() => {
                                 d.insert(name_std.clone(), n.to_string())
@@ -235,7 +235,7 @@ impl Templater {
                     }
 
                     Schema::Bytes => {
-                        f.insert(name_std.clone(), "Vec<u8>");
+                        f.insert(name_std.clone(), "Vec<u8>".to_string());
                         match default {
                             Some(Value::String(s)) => {
                                 let bytes = s.clone().into_bytes();
@@ -246,7 +246,7 @@ impl Templater {
                     }
 
                     Schema::String => {
-                        f.insert(name_std.clone(), "String");
+                        f.insert(name_std.clone(), "String".to_string());
                         if let Some(Value::String(s)) = default {
                             d.insert(name_std.clone(), format!("\"{}\".to_owned()", s));
                         } else {
@@ -257,7 +257,7 @@ impl Templater {
                     Schema::Array(schema) => {
                         match &**schema {
                             Schema::Boolean => {
-                                f.insert(name_std.clone(), "Vec<bool>");
+                                f.insert(name_std.clone(), "Vec<bool>".to_string());
                                 if let Some(Value::Array(vals)) = default {
                                     let vals = vals
                                         .iter()
@@ -274,7 +274,7 @@ impl Templater {
                             }
 
                             Schema::Int => {
-                                f.insert(name_std.clone(), "Vec<i32>");
+                                f.insert(name_std.clone(), "Vec<i32>".to_string());
                                 if let Some(Value::Array(vals)) = default {
                                     let vals = vals
                                         .iter()
@@ -290,11 +290,94 @@ impl Templater {
                                 }
                             }
 
-                            Schema::Long => (),
-                            Schema::Float => (),
-                            Schema::Double => (),
-                            Schema::Bytes => (),
-                            Schema::String => (),
+                            Schema::Long => {
+                                f.insert(name_std.clone(), "Vec<i64>".to_string());
+                                if let Some(Value::Array(vals)) = default {
+                                    let vals = vals
+                                        .iter()
+                                        .map(|v| match v {
+                                            Value::Number(n) if n.is_i64() => Ok(n.to_string()),
+                                            _ => err!("Invalid defaults: {:?}", v),
+                                        }).collect::<Result<Vec<String>, TemplateError>>()?
+                                        .as_slice()
+                                        .join(", ");
+                                    d.insert(name_std.clone(), format!("vec![{}]", vals));
+                                } else {
+                                    d.insert(name_std.clone(), "vec![]".to_string());
+                                }
+                            }
+
+                            Schema::Float => {
+                                f.insert(name_std.clone(), "Vec<f32>".to_string());
+                                if let Some(Value::Array(vals)) = default {
+                                    let vals = vals
+                                        .iter()
+                                        .map(|v| match v {
+                                            Value::Number(n) if n.is_f64() => Ok(n.to_string()),
+                                            _ => err!("Invalid defaults: {:?}", v),
+                                        }).collect::<Result<Vec<String>, TemplateError>>()?
+                                        .as_slice()
+                                        .join(", ");
+                                    d.insert(name_std.clone(), format!("vec![{}]", vals));
+                                } else {
+                                    d.insert(name_std.clone(), "vec![]".to_string());
+                                }
+                            }
+
+                            Schema::Double => {
+                                f.insert(name_std.clone(), "Vec<f64>".to_string());
+                                if let Some(Value::Array(vals)) = default {
+                                    let vals = vals
+                                        .iter()
+                                        .map(|v| match v {
+                                            Value::Number(n) if n.is_f64() => Ok(n.to_string()),
+                                            _ => err!("Invalid defaults: {:?}", v),
+                                        }).collect::<Result<Vec<String>, TemplateError>>()?
+                                        .as_slice()
+                                        .join(", ");
+                                    d.insert(name_std.clone(), format!("vec![{}]", vals));
+                                } else {
+                                    d.insert(name_std.clone(), "vec![]".to_string());
+                                }
+                            }
+
+                            Schema::Bytes => {
+                                f.insert(name_std.clone(), "Vec<Vec<u8>>".to_string());
+                                if let Some(Value::Array(vals)) = default {
+                                    let vals = vals
+                                        .iter()
+                                        .map(|v| match v {
+                                            Value::String(s) => {
+                                                let bytes = s.clone().into_bytes();
+                                                Ok(format!("vec!{:?}", bytes))
+                                            }
+                                            _ => err!("Invalid defaults: {:?}", v),
+                                        }).collect::<Result<Vec<String>, TemplateError>>()?
+                                        .as_slice()
+                                        .join(", ");
+                                    d.insert(name_std.clone(), format!("vec![{}]", vals));
+                                } else {
+                                    d.insert(name_std.clone(), "vec![]".to_string());
+                                }
+                            }
+
+                            Schema::String => {
+                                f.insert(name_std.clone(), "Vec<String>".to_string());
+                                if let Some(Value::Array(vals)) = default {
+                                    let vals = vals
+                                        .iter()
+                                        .map(|v| match v {
+                                            Value::String(s) => Ok(s.clone()),
+                                            _ => err!("Invalid defaults: {:?}", v),
+                                        }).collect::<Result<Vec<String>, TemplateError>>()?
+                                        .as_slice()
+                                        .join(", ");
+                                    d.insert(name_std.clone(), format!("vec![{}]", vals));
+                                } else {
+                                    d.insert(name_std.clone(), "vec![]".to_string());
+                                }
+                            }
+
                             Schema::Array(..) => (),
                             Schema::Map(..) => (),
                             Schema::Union(..) => (),
@@ -312,6 +395,7 @@ impl Templater {
                         symbols,
                         ..
                     } => {
+                        let e_name = sanitize(e_name.to_camel_case());
                         f.insert(name_std.clone(), e_name);
                         if let Some(Value::String(s)) = default {
                             d.insert(name_std.clone(), s.clone());
@@ -326,9 +410,8 @@ impl Templater {
                         name: Name { name: r_name, .. },
                         ..
                     } => {
-                        /// TODO use sanitized r_name
-                        // let r_name = sanitize(r_name.to_camel_case());
-                        f.insert(name_std.clone(), r_name);
+                        let r_name = sanitize(r_name.to_camel_case());
+                        f.insert(name_std.clone(), r_name.clone());
                         d.insert(name_std.clone(), format!("{}::default()", r_name));
                     }
 
