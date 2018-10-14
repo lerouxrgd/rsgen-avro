@@ -16,7 +16,10 @@ pub struct User {
     pub t_bool: Vec<bool>,
     #[serde(rename = "t-i32")]
     pub t_i32: Vec<i32>,
+    pub m: Md5,
 }
+
+pub type Md5 = [u8; 2];
 
 impl Default for User {
     fn default() -> User {
@@ -27,6 +30,7 @@ impl Default for User {
             likes_pizza: false,
             t_bool: vec![true, false],
             t_i32: vec![12, -1],
+            m: Md5::default(),
         }
     }
 }

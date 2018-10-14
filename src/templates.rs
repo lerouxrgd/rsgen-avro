@@ -45,6 +45,11 @@ pub enum {{ name }} {
 }
 ";
 
+pub const FIXED_TERA: &str = "fixed.tera";
+pub const FIXED_TEMPLATE: &str = "
+pub type {{ name }} = [u8; {{ size }}];
+";
+
 lazy_static! {
     static ref RESERVED: HashSet<String> = {
         let s: HashSet<_> = vec![
@@ -137,26 +142,46 @@ impl Templater {
         let mut tera = Tera::new("/dev/null/*").sync()?;
         tera.add_raw_template(RECORD_TERA, RECORD_TEMPLATE).sync()?;
         tera.add_raw_template(ENUM_TERA, ENUM_TEMPLATE).sync()?;
+        tera.add_raw_template(FIXED_TERA, FIXED_TEMPLATE).sync()?;
         Ok(Templater { tera })
     }
 
+    pub fn str_fixed(&self, schema: &Schema) -> Result<String, Error> {
+        if let Schema::Fixed {
+            name: Name { name, .. },
+            size,
+        } = schema
+        {
+            let mut ctx = Context::new();
+            ctx.add("name", &name.to_camel_case());
+            ctx.add("size", size);
+
+            Ok(self.tera.render(FIXED_TERA, &ctx).sync()?)
+        } else {
+            err!("Requires Schema::Fixed, found {:?}", schema)?
+        }
+    }
+
     pub fn str_enum(&self, schema: &Schema) -> Result<String, Error> {
-        match schema {
-            Schema::Enum {
-                name: Name { name, .. },
-                symbols,
-                ..
-            } => {
-                let mut ctx = Context::new();
-                ctx.add("name", &name.to_camel_case());
-                let s: HashMap<_, _> = symbols
-                    .iter()
-                    .map(|s| (sanitize(s.to_camel_case()), s))
-                    .collect();
-                ctx.add("symbols", &s);
-                Ok(self.tera.render(ENUM_TERA, &ctx).sync()?)
+        if let Schema::Enum {
+            name: Name { name, .. },
+            symbols,
+            ..
+        } = schema
+        {
+            if symbols.len() == 0 {
+                err!("No symbol for emum: {:?}", name)?
             }
-            _ => err!("Requires Schema::Enum, found {:?}", schema)?,
+            let mut ctx = Context::new();
+            ctx.add("name", &name.to_camel_case());
+            let s: HashMap<_, _> = symbols
+                .iter()
+                .map(|s| (sanitize(s.to_camel_case()), s))
+                .collect();
+            ctx.add("symbols", &s);
+            Ok(self.tera.render(ENUM_TERA, &ctx).sync()?)
+        } else {
+            err!("Requires Schema::Enum, found {:?}", schema)?
         }
     }
 
@@ -236,12 +261,11 @@ impl Templater {
 
                     Schema::Bytes => {
                         f.insert(name_std.clone(), "Vec<u8>".to_string());
-                        match default {
-                            Some(Value::String(s)) => {
-                                let bytes = s.clone().into_bytes();
-                                d.insert(name_std.clone(), format!("vec!{:?}", bytes))
-                            }
-                            _ => d.insert(name_std.clone(), "vec![]".to_string()),
+                        if let Some(Value::String(s)) = default {
+                            let bytes = s.clone().into_bytes();
+                            d.insert(name_std.clone(), format!("vec!{:?}", bytes))
+                        } else {
+                            d.insert(name_std.clone(), "vec![]".to_string())
                         };
                     }
 
@@ -397,13 +421,32 @@ impl Templater {
                     } => {
                         let e_name = sanitize(e_name.to_camel_case());
                         f.insert(name_std.clone(), e_name);
+
                         if let Some(Value::String(s)) = default {
                             d.insert(name_std.clone(), s.clone());
                         } else if !symbols.is_empty() {
                             d.insert(name_std.clone(), symbols[0].to_string());
                         } else {
-                            err!("No symbol for emum: {:?}", name)?;
+                            err!("No symbol for emum: {:?}", name)?
                         }
+                    }
+
+                    Schema::Fixed {
+                        name: Name { name: f_name, .. },
+                        size,
+                    } => {
+                        let f_name = sanitize(f_name.to_camel_case());
+                        f.insert(name_std.clone(), f_name.clone());
+
+                        if let Some(Value::String(s)) = default {
+                            let bytes: Vec<u8> = s.clone().into_bytes();
+                            if bytes.len() != *size {
+                                err!("Invalid defaults: {:?}", bytes)?
+                            }
+                            d.insert(name_std.clone(), format!("{:?}", bytes))
+                        } else {
+                            d.insert(name_std.clone(), format!("{}::default()", f_name))
+                        };
                     }
 
                     Schema::Record {
@@ -468,6 +511,20 @@ mod tests {
         let templater = Templater::new().unwrap();
         let schema = Schema::parse_str(&raw_schema).unwrap();
         let res = templater.str_enum(&schema).unwrap();
+        println!("{}", res);
+    }
+
+    #[test]
+    fn teri() {
+        let raw_schema = r#"
+        {"type": "fixed",
+         "name": "Md5",
+         "size": 2
+        }"#;
+
+        let templater = Templater::new().unwrap();
+        let schema = Schema::parse_str(&raw_schema).unwrap();
+        let res = templater.str_fixed(&schema).unwrap();
         println!("{}", res);
     }
 }
