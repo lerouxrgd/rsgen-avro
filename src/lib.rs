@@ -14,7 +14,7 @@ use std::collections::VecDeque;
 use std::fs::File;
 use std::io::prelude::*;
 
-use avro_rs::Schema;
+use avro_rs::{schema::RecordField, Schema};
 use failure::Error;
 
 use templates::*;
@@ -146,10 +146,7 @@ fn gen_record(schema: &Schema, out: &mut Box<Write>, templater: &Templater) -> R
 
     while !q.is_empty() {
         let s = q.pop_front().unwrap();
-        let code = templater
-            .str_record(&s)?
-            .done
-            .ok_or_else(|| RsgenError::new("Invalid GenState, empty result"))?;
+        let code = templater.str_record(&s)?;
         out.write_all(code.as_bytes())?;
 
         match s {
@@ -171,6 +168,51 @@ fn gen_record(schema: &Schema, out: &mut Box<Write>, templater: &Templater) -> R
         }
     }
     Ok(())
+}
+
+fn deps_stack(schema: &Schema) -> Vec<&Schema> {
+    let mut res = Vec::new();
+    let mut q = VecDeque::new();
+
+    q.push_back(schema);
+    while !q.is_empty() {
+        let s = q.pop_front().unwrap();
+        res.push(s);
+
+        match s {
+            Schema::Fixed { .. } => res.push(s),
+            Schema::Enum { .. } => res.push(s),
+            Schema::Record { fields, .. } => {
+                for RecordField { schema: sr, .. } in fields {
+                    match sr {
+                        Schema::Fixed { .. } => res.push(sr),
+                        Schema::Enum { .. } => res.push(sr),
+                        Schema::Record { .. } => q.push_back(sr),
+                        Schema::Map(sc) | Schema::Array(sc) => match &**sc {
+                            Schema::Fixed { .. }
+                            | Schema::Enum { .. }
+                            | Schema::Record { .. }
+                            | Schema::Map(..)
+                            | Schema::Array(..) => q.push_back(&**sc),
+                            _ => (),
+                        },
+                        _ => (),
+                    };
+                }
+            }
+            Schema::Map(sc) | Schema::Array(sc) => match &**sc {
+                Schema::Fixed { .. }
+                | Schema::Enum { .. }
+                | Schema::Record { .. }
+                | Schema::Map(..)
+                | Schema::Array(..) => q.push_back(&**sc),
+                _ => (),
+            },
+            _ => (),
+        }
+    }
+
+    res
 }
 
 #[cfg(test)]
@@ -206,5 +248,40 @@ mod tests {
         let schema = Schema::parse_str(&raw_schema).unwrap();
         let g = Generator::new(Source::Schema(&schema)).unwrap();
         g.gen(&mut out).unwrap();
+    }
+
+    #[test]
+    fn deps() {
+        let raw_schema = r#"
+{"type": "record",
+ "name": "User",
+ "fields": [
+   {"name": "name", "type": "string", "default": "unknown"},
+   {"name": "address",
+    "type": {
+      "type": "record",
+      "name": "Address",
+      "fields": [
+        {"name": "city", "type": "string", "default": "unknown"},
+        {"name": "country",
+         "type": {"type": "enum", "name": "Country", "symbols": ["FR", "JP"]}
+        }
+      ]
+    }
+   },
+   {"name": "likes_pizza", "type": "boolean", "default": false}
+ ]
+}
+"#;
+
+        let schema = Schema::parse_str(&raw_schema).unwrap();
+        let mut deps = deps_stack(&schema);
+        let depss = deps
+            .iter()
+            .map(|s| format!("{:?}", s))
+            .collect::<Vec<String>>()
+            .as_slice()
+            .join("\n\n");
+        println!("{}", depss);
     }
 }

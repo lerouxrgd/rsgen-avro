@@ -112,25 +112,6 @@ impl<T, E> ResultExt<T, E> for Result<T, E> {
     }
 }
 
-#[derive(Debug)]
-pub struct GenState {
-    pub done: Option<String>,
-    pub remaining: Vec<Schema>,
-}
-
-impl GenState {
-    pub fn new() -> GenState {
-        GenState {
-            done: None,
-            remaining: vec![],
-        }
-    }
-
-    pub fn push_more(&mut self, schema: &Schema) {
-        self.remaining.push(schema.clone());
-    }
-}
-
 pub struct Templater {
     tera: Tera,
 }
@@ -185,14 +166,13 @@ impl Templater {
         }
     }
 
-    pub fn str_record(&self, schema: &Schema) -> Result<GenState, Error> {
+    pub fn str_record(&self, schema: &Schema) -> Result<String, Error> {
         if let Schema::Record {
             name: Name { name, .. },
             fields,
             ..
         } = schema
         {
-            let mut state = GenState::new();
             let mut ctx = Context::new();
             ctx.add("name", &name.to_camel_case());
 
@@ -405,7 +385,6 @@ impl Templater {
                             Schema::Array(..) => (),
                             Schema::Map(..) => (),
                             Schema::Union(..) => (),
-                            /// TODO leverage state.push_more(...)
                             Schema::Record { .. } => (),
                             Schema::Enum { .. } => (),
                             Schema::Fixed { .. } => (),
@@ -465,9 +444,7 @@ impl Templater {
             ctx.add("originals", &o);
             ctx.add("defaults", &d);
 
-            let done = self.tera.render(RECORD_TERA, &ctx).sync()?;
-            state.done = Some(done);
-            Ok(state)
+            Ok(self.tera.render(RECORD_TERA, &ctx).sync()?)
         } else {
             err!("Requires Schema::Record, found {:?}", schema)?
         }
@@ -496,7 +473,7 @@ mod tests {
 
         let templater = Templater::new().unwrap();
         let schema = Schema::parse_str(&raw_schema).unwrap();
-        let res = templater.str_record(&schema).unwrap().done.unwrap();
+        let res = templater.str_record(&schema).unwrap();
         println!("{}", res);
     }
 
