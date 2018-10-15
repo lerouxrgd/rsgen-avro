@@ -258,6 +258,7 @@ impl Templater {
                         }
                     }
 
+                    /// TODO extract defaults in a fn returning (String, String)
                     Schema::Array(schema) => {
                         match &**schema {
                             Schema::Boolean => {

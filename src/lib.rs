@@ -33,6 +33,7 @@ impl RsgenError {
     }
 }
 
+/// TODO consider not only &str for File and Dir ?
 pub enum Source<'a> {
     Schema(&'a Schema),
     Str(&'a str),
@@ -40,6 +41,7 @@ pub enum Source<'a> {
     Dir(&'a str),
 }
 
+/// TODO should not contain a Source
 pub struct Generator<'a> {
     src: Source<'a>,
     templater: Templater,
@@ -54,7 +56,11 @@ impl<'a> Generator<'a> {
         GeneratorBuilder::new(src)
     }
 
+    /// TODO should take an input Source and an output Box<Write>
     pub fn gen(&self, out: &mut Box<Write>) -> Result<(), Error> {
+        /// TODO stop using gen_record
+        ///      instead, depile appropriate deps_stack and generate code
+        /// TODO consider using some stateful Defaults struct
         match &self.src {
             Source::Schema(schema) => {
                 gen_record(schema, out, &self.templater)?;
@@ -275,7 +281,7 @@ mod tests {
 "#;
 
         let schema = Schema::parse_str(&raw_schema).unwrap();
-        let mut deps = deps_stack(&schema);
+        let deps = deps_stack(&schema);
         let depss = deps
             .iter()
             .map(|s| format!("{:?}", s))

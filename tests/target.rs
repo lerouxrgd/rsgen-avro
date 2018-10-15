@@ -4,6 +4,18 @@ extern crate serde_derive;
 extern crate serde_json;
 
 #[serde(default)]
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct Aaa {
+    pub a: i32,
+}
+
+#[serde(default)]
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct Bbb {
+    pub b: Aaa,
+}
+
+#[serde(default)]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct User {
     #[serde(rename = "as")]
@@ -17,6 +29,9 @@ pub struct User {
     #[serde(rename = "t-i32")]
     pub t_i32: Vec<i32>,
     pub m: Md5,
+    pub aaa: Aaa,
+    pub bbb: Bbb,
+    pub map: ::std::collections::HashMap<String, i32>,
 }
 
 pub type Md5 = [u8; 2];
@@ -31,6 +46,21 @@ impl Default for User {
             t_bool: vec![true, false],
             t_i32: vec![12, -1],
             m: Md5::default(),
+            aaa: Aaa::default(),
+            bbb: {
+                let mut x = Bbb::default();
+                x.b = {
+                    let mut x = Aaa::default();
+                    x.a = 12;
+                    x
+                };
+                x
+            },
+            map: {
+                use std::collections::HashMap;
+                let x: HashMap<_, _> = HashMap::new();
+                x
+            },
         }
     }
 }
