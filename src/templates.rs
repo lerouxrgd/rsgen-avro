@@ -116,8 +116,6 @@ pub struct Templater {
     tera: Tera,
 }
 
-/// TODO handle arrays
-/// TODO handle ["null", ...]
 impl Templater {
     pub fn new() -> Result<Templater, Error> {
         let mut tera = Tera::new("/dev/null/*").sync()?;
@@ -191,71 +189,76 @@ impl Templater {
 
                 match schema {
                     Schema::Boolean => {
+                        let default = match default {
+                            Some(Value::Bool(b)) => b.to_string(),
+                            None => bool::default().to_string(),
+                            _ => err!("Invalid default: {:?}", default)?,
+                        };
                         f.insert(name_std.clone(), "bool".to_string());
-                        if let Some(Value::Bool(b)) = default {
-                            d.insert(name_std.clone(), b.to_string());
-                        } else {
-                            d.insert(name_std.clone(), bool::default().to_string());
-                        }
+                        d.insert(name_std.clone(), default);
                     }
 
                     Schema::Int => {
-                        f.insert(name_std.clone(), "i32".to_string());
-                        match default {
-                            Some(Value::Number(n)) if n.is_i64() => {
-                                d.insert(name_std.clone(), n.to_string())
-                            }
-                            _ => d.insert(name_std.clone(), i32::default().to_string()),
+                        let default = match default {
+                            Some(Value::Number(n)) if n.is_i64() => n.to_string(),
+                            None => i32::default().to_string(),
+                            _ => err!("Invalid default: {:?}", default)?,
                         };
+                        f.insert(name_std.clone(), "i32".to_string());
+                        d.insert(name_std.clone(), default);
                     }
 
                     Schema::Long => {
-                        f.insert(name_std.clone(), "i64".to_string());
-                        match default {
-                            Some(Value::Number(n)) if n.is_i64() => {
-                                d.insert(name_std.clone(), n.to_string())
-                            }
-                            _ => d.insert(name_std.clone(), i64::default().to_string()),
+                        let default = match default {
+                            Some(Value::Number(n)) if n.is_i64() => n.to_string(),
+                            None => i64::default().to_string(),
+                            _ => err!("Invalid default: {:?}", default)?,
                         };
+                        f.insert(name_std.clone(), "i64".to_string());
+                        d.insert(name_std.clone(), default);
                     }
 
                     Schema::Float => {
-                        f.insert(name_std.clone(), "f32".to_string());
-                        match default {
-                            Some(Value::Number(n)) if n.is_f64() => {
-                                d.insert(name_std.clone(), n.to_string())
-                            }
-                            _ => d.insert(name_std.clone(), f32::default().to_string()),
+                        let default = match default {
+                            Some(Value::Number(n)) if n.is_f64() => n.to_string(),
+                            None => f32::default().to_string(),
+                            _ => err!("Invalid default: {:?}", default)?,
                         };
+                        f.insert(name_std.clone(), "f32".to_string());
+                        d.insert(name_std.clone(), default);
                     }
 
                     Schema::Double => {
-                        f.insert(name_std.clone(), "f64".to_string());
-                        match default {
-                            Some(Value::Number(n)) if n.is_f64() => {
-                                d.insert(name_std.clone(), n.to_string())
-                            }
-                            _ => d.insert(name_std.clone(), f64::default().to_string()),
+                        let default = match default {
+                            Some(Value::Number(n)) if n.is_f64() => n.to_string(),
+                            None => f64::default().to_string(),
+                            _ => err!("Invalid default: {:?}", default)?,
                         };
+                        f.insert(name_std.clone(), "f64".to_string());
+                        d.insert(name_std.clone(), default);
                     }
 
                     Schema::Bytes => {
-                        f.insert(name_std.clone(), "Vec<u8>".to_string());
-                        if let Some(Value::String(s)) = default {
-                            let bytes = s.clone().into_bytes();
-                            d.insert(name_std.clone(), format!("vec!{:?}", bytes))
-                        } else {
-                            d.insert(name_std.clone(), "vec![]".to_string())
+                        let default = match default {
+                            Some(Value::String(s)) => {
+                                let bytes = s.clone().into_bytes();
+                                format!("vec!{:?}", bytes)
+                            }
+                            None => "vec![]".to_string(),
+                            _ => err!("Invalid default: {:?}", default)?,
                         };
+                        f.insert(name_std.clone(), "Vec<u8>".to_string());
+                        d.insert(name_std.clone(), default);
                     }
 
                     Schema::String => {
+                        let default = match default {
+                            Some(Value::String(s)) => format!("\"{}\".to_owned()", s),
+                            None => "String::default()".to_string(),
+                            _ => err!("Invalid default: {:?}", default)?,
+                        };
                         f.insert(name_std.clone(), "String".to_string());
-                        if let Some(Value::String(s)) = default {
-                            d.insert(name_std.clone(), format!("\"{}\".to_owned()", s));
-                        } else {
-                            d.insert(name_std.clone(), "String::default()".to_string());
-                        }
+                        d.insert(name_std.clone(), default);
                     }
 
                     Schema::Fixed {
@@ -263,17 +266,19 @@ impl Templater {
                         size,
                     } => {
                         let f_name = sanitize(f_name.to_camel_case());
-                        f.insert(name_std.clone(), f_name.clone());
-
-                        if let Some(Value::String(s)) = default {
-                            let bytes: Vec<u8> = s.clone().into_bytes();
-                            if bytes.len() != *size {
-                                err!("Invalid defaults: {:?}", bytes)?
+                        let default = match default {
+                            Some(Value::String(s)) => {
+                                let bytes: Vec<u8> = s.clone().into_bytes();
+                                if bytes.len() != *size {
+                                    err!("Invalid default: {:?}", bytes)?
+                                }
+                                format!("{:?}", bytes)
                             }
-                            d.insert(name_std.clone(), format!("{:?}", bytes))
-                        } else {
-                            d.insert(name_std.clone(), format!("{}::default()", f_name))
+                            None => format!("{}::default()", f_name),
+                            _ => err!("Invalid default: {:?}", default)?,
                         };
+                        f.insert(name_std.clone(), f_name.clone());
+                        d.insert(name_std.clone(), default);
                     }
 
                     /// TODO save name_std-> type_str in some GenState
@@ -319,15 +324,13 @@ impl Templater {
                         ..
                     } => {
                         let e_name = sanitize(e_name.to_camel_case());
+                        let default = match default {
+                            Some(Value::String(s)) => s.clone(),
+                            None if !symbols.is_empty() => sanitize(symbols[0].to_camel_case()),
+                            _ => err!("Invalid default: {:?}", default)?,
+                        };
                         f.insert(name_std.clone(), e_name);
-
-                        if let Some(Value::String(s)) = default {
-                            d.insert(name_std.clone(), s.clone());
-                        } else if !symbols.is_empty() {
-                            d.insert(name_std.clone(), symbols[0].to_string());
-                        } else {
-                            err!("No symbol for emum: {:?}", name)?
-                        }
+                        d.insert(name_std.clone(), default);
                     }
 
                     Schema::Union(union) => {
@@ -354,17 +357,18 @@ impl Templater {
                                 Schema::Union(_) => err!("Unsupported nested Schema::Union")?,
                                 Schema::Null => err!("Invalid use of Schema::Null")?,
                             };
-                            f.insert(name_std.clone(), format!("Option<{}>", type_opt));
 
-                            let default_opt = match default {
+                            let default = match default {
                                 None => "None".to_string(),
                                 Some(Value::String(s)) if s == "null" => "None".to_string(),
                                 Some(Value::String(s)) if s != "null" => {
-                                    err!("Invalid defaults: {:?}", s)?
+                                    err!("Invalid default: {:?}", s)?
                                 }
-                                _ => err!("Invalid defaults: {:?}", default)?,
+                                _ => err!("Invalid default: {:?}", default)?,
                             };
-                            d.insert(name_std.clone(), default_opt);
+
+                            f.insert(name_std.clone(), format!("Option<{}>", type_opt));
+                            d.insert(name_std.clone(), default);
                         } else {
                             err!("Unsupported Schema:::Union {:?}", union.variants())?
                         }
