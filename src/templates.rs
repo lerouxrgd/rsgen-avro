@@ -258,29 +258,59 @@ impl Templater {
                         }
                     }
 
-                    Schema::Array(schema) => {
-                        match &**schema {
-                            Schema::Boolean
-                            | Schema::Int
-                            | Schema::Long
-                            | Schema::Float
-                            | Schema::Double
-                            | Schema::Bytes
-                            | Schema::String => {
-                                let (type_str, default_str) = default_array(&**schema, default)?;
-                                f.insert(name_std.clone(), type_str);
-                                d.insert(name_std.clone(), default_str);
-                            }
+                    Schema::Fixed {
+                        name: Name { name: f_name, .. },
+                        size,
+                    } => {
+                        let f_name = sanitize(f_name.to_camel_case());
+                        f.insert(name_std.clone(), f_name.clone());
 
-                            Schema::Array(..) => (),
-                            Schema::Map(..) => (),
-                            Schema::Union(..) => (),
-                            Schema::Record { .. } => (),
-                            Schema::Enum { .. } => (),
-                            Schema::Fixed { .. } => (),
-                            /// TODO what about Null ?
-                            _ => (),
+                        if let Some(Value::String(s)) = default {
+                            let bytes: Vec<u8> = s.clone().into_bytes();
+                            if bytes.len() != *size {
+                                err!("Invalid defaults: {:?}", bytes)?
+                            }
+                            d.insert(name_std.clone(), format!("{:?}", bytes))
+                        } else {
+                            d.insert(name_std.clone(), format!("{}::default()", f_name))
+                        };
+                    }
+
+                    /// TODO save name_std-> type_str in some GenState
+                    ///      for potentially recursive array/map ?
+                    Schema::Array(schema) => match &**schema {
+                        Schema::Boolean
+                        | Schema::Int
+                        | Schema::Long
+                        | Schema::Float
+                        | Schema::Double
+                        | Schema::Bytes
+                        | Schema::String
+                        | Schema::Fixed { .. } => {
+                            let (type_str, default_str) = default_array(&**schema, default)?;
+                            f.insert(name_std.clone(), type_str);
+                            d.insert(name_std.clone(), default_str);
                         }
+
+                        Schema::Array(..) => (),
+                        Schema::Map(..) => (),
+                        Schema::Record { .. } => (),
+                        Schema::Enum { .. } => (),
+                        Schema::Union(..) => (),
+
+                        Schema::Null => err!("Invalid use of Schema::Null")?,
+                    },
+
+                    /// TODO add support
+                    Schema::Map(schema) => err!("Unhandled type: {:?}", schema)?,
+
+                    Schema::Record {
+                        name: Name { name: r_name, .. },
+                        ..
+                    } => {
+                        let r_name = sanitize(r_name.to_camel_case());
+                        f.insert(name_std.clone(), r_name.clone());
+                        d.insert(name_std.clone(), format!("{}::default()", r_name));
                     }
 
                     Schema::Enum {
@@ -300,34 +330,47 @@ impl Templater {
                         }
                     }
 
-                    Schema::Fixed {
-                        name: Name { name: f_name, .. },
-                        size,
-                    } => {
-                        let f_name = sanitize(f_name.to_camel_case());
-                        f.insert(name_std.clone(), f_name.clone());
+                    Schema::Union(union) => {
+                        if let [Schema::Null, schema] = union.variants() {
+                            let type_opt = match schema {
+                                Schema::Boolean => "bool".to_string(),
+                                Schema::Int => "i32".to_string(),
+                                Schema::Long => "i64".to_string(),
+                                Schema::Float => "f32".to_string(),
+                                Schema::Double => "f64".to_string(),
+                                Schema::Bytes => "Vec<u8>".to_string(),
+                                Schema::String => "String".to_string(),
+                                Schema::Fixed {
+                                    name: Name { name: f_name, .. },
+                                    ..
+                                } => sanitize(f_name.to_camel_case()),
 
-                        if let Some(Value::String(s)) = default {
-                            let bytes: Vec<u8> = s.clone().into_bytes();
-                            if bytes.len() != *size {
-                                err!("Invalid defaults: {:?}", bytes)?
-                            }
-                            d.insert(name_std.clone(), format!("{:?}", bytes))
+                                /// TODO add support
+                                Schema::Array(..) => unreachable!(),
+                                Schema::Map(..) => unreachable!(),
+                                Schema::Record { .. } => unreachable!(),
+                                Schema::Enum { .. } => unreachable!(),
+
+                                Schema::Union(_) => err!("Unsupported nested Schema::Union")?,
+                                Schema::Null => err!("Invalid use of Schema::Null")?,
+                            };
+                            f.insert(name_std.clone(), format!("Option<{}>", type_opt));
+
+                            let default_opt = match default {
+                                None => "None".to_string(),
+                                Some(Value::String(s)) if s == "null" => "None".to_string(),
+                                Some(Value::String(s)) if s != "null" => {
+                                    err!("Invalid defaults: {:?}", s)?
+                                }
+                                _ => err!("Invalid defaults: {:?}", default)?,
+                            };
+                            d.insert(name_std.clone(), default_opt);
                         } else {
-                            d.insert(name_std.clone(), format!("{}::default()", f_name))
-                        };
+                            err!("Unsupported Schema:::Union {:?}", union.variants())?
+                        }
                     }
 
-                    Schema::Record {
-                        name: Name { name: r_name, .. },
-                        ..
-                    } => {
-                        let r_name = sanitize(r_name.to_camel_case());
-                        f.insert(name_std.clone(), r_name.clone());
-                        d.insert(name_std.clone(), format!("{}::default()", r_name));
-                    }
-
-                    _ => err!("Unhandled type: {:?}", schema)?,
+                    Schema::Null => err!("Invalid use of Schema::Null")?,
                 };
             }
             ctx.add("fields", &f);
@@ -472,14 +515,43 @@ fn default_array(schema: &Schema, default: &Option<Value>) -> Result<(String, St
             Ok((type_str, default_str))
         }
 
+        Schema::Fixed {
+            name: Name { name: f_name, .. },
+            size,
+        } => {
+            let f_name = sanitize(f_name.to_camel_case());
+            let type_str = format!("Vec<{}>", f_name);
+            let default_str = if let Some(Value::Array(vals)) = default {
+                let vals = vals
+                    .iter()
+                    .map(|v| match v {
+                        Value::String(s) => {
+                            let bytes: Vec<u8> = s.clone().into_bytes();
+                            if bytes.len() != *size {
+                                err!("Invalid defaults: {:?}", bytes)
+                            } else {
+                                Ok(format!("{:?}", bytes))
+                            }
+                        }
+                        _ => err!("Invalid defaults: {:?}", v),
+                    }).collect::<Result<Vec<String>, TemplateError>>()?
+                    .as_slice()
+                    .join(", ");
+                format!("vec![{}]", vals)
+            } else {
+                "vec![]".to_string()
+            };
+            Ok((type_str, default_str))
+        }
+
+        /// TODO add support
         Schema::Array(..) => unreachable!(),
         Schema::Map(..) => unreachable!(),
-        Schema::Union(..) => unreachable!(),
         Schema::Record { .. } => unreachable!(),
         Schema::Enum { .. } => unreachable!(),
-        Schema::Fixed { .. } => unreachable!(),
-        /// TODO what about Null ?
-        _ => unreachable!(),
+        Schema::Union(..) => unreachable!(),
+
+        Schema::Null => err!("Invalid use of Schema::Null")?,
     }
 }
 
