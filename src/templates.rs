@@ -134,7 +134,6 @@ impl Templater {
             let mut ctx = Context::new();
             ctx.add("name", &name.to_camel_case());
             ctx.add("size", size);
-
             Ok(self.tera.render(FIXED_TERA, &ctx).sync()?)
         } else {
             err!("Requires Schema::Fixed, found {:?}", schema)?
@@ -306,8 +305,29 @@ impl Templater {
                         Schema::Null => err!("Invalid use of Schema::Null")?,
                     },
 
-                    /// TODO add support
-                    Schema::Map(schema) => err!("Unhandled type: {:?}", schema)?,
+                    Schema::Map(schema) => match &**schema {
+                        Schema::Boolean
+                        | Schema::Int
+                        | Schema::Long
+                        | Schema::Float
+                        | Schema::Double
+                        | Schema::Bytes
+                        | Schema::String
+                        | Schema::Fixed { .. } => {
+                            let (type_str, default_str) = default_map(&**schema, default)?;
+                            f.insert(name_std.clone(), type_str);
+                            d.insert(name_std.clone(), default_str);
+                        }
+
+                        /// TODO add support
+                        Schema::Array(..) => (),
+                        Schema::Map(..) => (),
+                        Schema::Record { .. } => (),
+                        Schema::Enum { .. } => (),
+                        Schema::Union(..) => (),
+
+                        Schema::Null => err!("Invalid use of Schema::Null")?,
+                    },
 
                     Schema::Record {
                         name: Name { name: r_name, .. },
@@ -559,6 +579,40 @@ fn default_array(schema: &Schema, default: &Option<Value>) -> Result<(String, St
     }
 }
 
+fn type_map(t: &str) -> String {
+    format!("::std::collections::HashMap<String, {}>", t)
+}
+
+fn default_map(schema: &Schema, _: &Option<Value>) -> Result<(String, String), Error> {
+    let default_str = "::std::collections::HashMap::new()".to_string();
+    let type_str = match schema {
+        Schema::Boolean => type_map("bool"),
+        Schema::Int => type_map("i32"),
+        Schema::Long => type_map("i64"),
+        Schema::Float => type_map("f32"),
+        Schema::Double => type_map("f64"),
+        Schema::Bytes => type_map("Vec<u8>"),
+        Schema::String => type_map("String"),
+        Schema::Fixed {
+            name: Name { name: f_name, .. },
+            ..
+        } => {
+            let f_name = sanitize(f_name.to_camel_case());
+            type_map(&f_name)
+        }
+
+        /// TODO add support
+        Schema::Array(..) => unreachable!(),
+        Schema::Map(..) => unreachable!(),
+        Schema::Record { .. } => unreachable!(),
+        Schema::Enum { .. } => unreachable!(),
+        Schema::Union(..) => unreachable!(),
+
+        Schema::Null => err!("Invalid use of Schema::Null")?,
+    };
+    Ok((type_str, default_str))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -574,8 +628,9 @@ mod tests {
              {"name": "favoriteNumber",  "type": "int", "default": 7},
              {"name": "likes_pizza", "type": "boolean", "default": false},
              {"name": "b", "type": "bytes", "default": "\u00FF"},
-             {"name": "t-bool", "type": {"type": "array", "items": "boolean"}, "default": [true, false]},
-             {"name": "t-i32", "type": {"type": "array", "items": "int"}, "default": [12, -1]}
+             {"name": "a-bool", "type": {"type": "array", "items": "boolean"}, "default": [true, false]},
+             {"name": "a-i32", "type": {"type": "array", "items": "int"}, "default": [12, -1]},
+             {"name": "m-f64", "type": {"type": "map", "values": "double"}}
          ]
         }"#;
 

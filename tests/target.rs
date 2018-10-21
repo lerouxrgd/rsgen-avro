@@ -56,11 +56,7 @@ impl Default for User {
                 };
                 x
             },
-            map: {
-                use std::collections::HashMap;
-                let x: HashMap<_, _> = HashMap::new();
-                x
-            },
+            map: ::std::collections::HashMap::new(),
         }
     }
 }
@@ -79,11 +75,13 @@ mod tests {
 
     #[test]
     fn validate() {
-        // let user: User = Default::default();
-        // println!("{:?}", user);
+        // let u: User = Default::default();
+        // println!("{:?}", u);
+
         let json = r#"{}"#;
         let u: User = serde_json::from_str(json).unwrap();
         println!("{:?}", u);
+
         let s = serde_json::to_string(&u).unwrap();
         println!("{}", s);
     }
