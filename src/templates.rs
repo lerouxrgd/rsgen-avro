@@ -121,8 +121,8 @@ impl<'a> GenState<'a> {
         GenState(HashMap::new())
     }
 
-    pub fn put_type<'b: 'a>(&mut self, schema: &'b Schema, t: &String) {
-        self.0.insert(ByAddress(schema), t.clone());
+    pub fn put_type<'b: 'a>(&mut self, schema: &'b Schema, t: String) {
+        self.0.insert(ByAddress(schema), t);
     }
 
     pub fn get_type(&self, schema: &'a Schema) -> Option<&String> {
@@ -304,7 +304,7 @@ impl Templater {
 
                     /// TODO save name_std-> type_str in some GenState
                     ///      for potentially recursive array/map ?
-                    Schema::Array(schema) => match &**schema {
+                    Schema::Array(s) => match &**s {
                         Schema::Boolean
                         | Schema::Int
                         | Schema::Long
@@ -312,15 +312,15 @@ impl Templater {
                         | Schema::Double
                         | Schema::Bytes
                         | Schema::String
-                        | Schema::Fixed { .. } => {
-                            let (type_str, default_str) =
-                                default_array(&**schema, default, &*gen_state)?;
-                            gen_state.put_type(&**schema, &type_str);
+                        | Schema::Fixed { .. }
+                        | Schema::Array(..) => {
+                            let type_str = array_type(&**s, &*gen_state)?;
+                            let default_str = array_default(&**s, default)?;
+                            gen_state.put_type(schema, type_str.clone());
                             f.insert(name_std.clone(), type_str);
                             d.insert(name_std.clone(), default_str);
                         }
 
-                        Schema::Array(..) => (),
                         Schema::Map(..) => (),
                         Schema::Record { .. } => (),
                         Schema::Enum { .. } => (),
@@ -337,14 +337,14 @@ impl Templater {
                         | Schema::Double
                         | Schema::Bytes
                         | Schema::String
-                        | Schema::Fixed { .. } => {
+                        | Schema::Fixed { .. }
+                        | Schema::Array(..) => {
                             let (type_str, default_str) = default_map(&**schema, default)?;
                             f.insert(name_std.clone(), type_str);
                             d.insert(name_std.clone(), default_str);
                         }
 
                         /// TODO add support
-                        Schema::Array(..) => (),
                         Schema::Map(..) => (),
                         Schema::Record { .. } => (),
                         Schema::Enum { .. } => (),
@@ -432,14 +432,48 @@ impl Templater {
     }
 }
 
-fn default_array(
-    schema: &Schema,
-    default: &Option<Value>,
-    gen_state: &GenState,
-) -> Result<(String, String), Error> {
+/// `schema` is a Schema::Array(..) inner schema
+pub fn array_type(schema: &Schema, gen_state: &GenState) -> Result<String, Error> {
+    let type_str = match schema {
+        Schema::Boolean => "Vec<bool>".to_string(),
+        Schema::Int => "Vec<i32>".to_string(),
+        Schema::Long => "Vec<i64>".to_string(),
+        Schema::Float => "Vec<f32>".to_string(),
+        Schema::Double => "Vec<f64>".to_string(),
+        Schema::Bytes => "Vec<Vec<u8>>".to_string(),
+        Schema::String => "Vec<String>".to_string(),
+        Schema::Fixed {
+            name: Name { name: f_name, .. },
+            ..
+        } => {
+            let f_name = sanitize(f_name.to_camel_case());
+            format!("Vec<{}>", f_name)
+        }
+        Schema::Array(..) => {
+            let nested_type = gen_state.get_type(schema).ok_or_else(|| {
+                TemplateError(format!(
+                    "Didn't find schema {:?} in state {:?}",
+                    schema, &gen_state
+                ))
+            })?;
+            format!("Vec<{}>", nested_type)
+        }
+
+        /// TODO add support
+        Schema::Map(..) => unreachable!(),
+        Schema::Record { .. } => unreachable!(),
+        Schema::Enum { .. } => unreachable!(),
+        Schema::Union(..) => unreachable!(),
+
+        Schema::Null => err!("Invalid use of Schema::Null")?,
+    };
+    Ok(type_str)
+}
+
+/// `schema` is a Schema::Array(..) inner schema
+fn array_default(schema: &Schema, default: &Option<Value>) -> Result<String, Error> {
     match schema {
         Schema::Boolean => {
-            let type_str = "Vec<bool>".to_string();
             let default_str = if let Some(Value::Array(vals)) = default {
                 let vals = vals
                     .iter()
@@ -453,11 +487,10 @@ fn default_array(
             } else {
                 "vec![]".to_string()
             };
-            Ok((type_str, default_str))
+            Ok(default_str)
         }
 
         Schema::Int => {
-            let type_str = "Vec<i32>".to_string();
             let default_str = if let Some(Value::Array(vals)) = default {
                 let vals = vals
                     .iter()
@@ -471,11 +504,10 @@ fn default_array(
             } else {
                 "vec![]".to_string()
             };
-            Ok((type_str, default_str))
+            Ok(default_str)
         }
 
         Schema::Long => {
-            let type_str = "Vec<i64>".to_string();
             let default_str = if let Some(Value::Array(vals)) = default {
                 let vals = vals
                     .iter()
@@ -489,11 +521,10 @@ fn default_array(
             } else {
                 "vec![]".to_string()
             };
-            Ok((type_str, default_str))
+            Ok(default_str)
         }
 
         Schema::Float => {
-            let type_str = "Vec<f32>".to_string();
             let default_str = if let Some(Value::Array(vals)) = default {
                 let vals = vals
                     .iter()
@@ -507,11 +538,10 @@ fn default_array(
             } else {
                 "vec![]".to_string()
             };
-            Ok((type_str, default_str))
+            Ok(default_str)
         }
 
         Schema::Double => {
-            let type_str = "Vec<f64>".to_string();
             let default_str = if let Some(Value::Array(vals)) = default {
                 let vals = vals
                     .iter()
@@ -525,11 +555,10 @@ fn default_array(
             } else {
                 "vec![]".to_string()
             };
-            Ok((type_str, default_str))
+            Ok(default_str)
         }
 
         Schema::Bytes => {
-            let type_str = "Vec<Vec<u8>>".to_string();
             let default_str = if let Some(Value::Array(vals)) = default {
                 let vals = vals
                     .iter()
@@ -546,11 +575,10 @@ fn default_array(
             } else {
                 "vec![]".to_string()
             };
-            Ok((type_str, default_str))
+            Ok(default_str)
         }
 
         Schema::String => {
-            let type_str = "Vec<String>".to_string();
             let default_str = if let Some(Value::Array(vals)) = default {
                 let vals = vals
                     .iter()
@@ -564,15 +592,10 @@ fn default_array(
             } else {
                 "vec![]".to_string()
             };
-            Ok((type_str, default_str))
+            Ok(default_str)
         }
 
-        Schema::Fixed {
-            name: Name { name: f_name, .. },
-            size,
-        } => {
-            let f_name = sanitize(f_name.to_camel_case());
-            let type_str = format!("Vec<{}>", f_name);
+        Schema::Fixed { size, .. } => {
             let default_str = if let Some(Value::Array(vals)) = default {
                 let vals = vals
                     .iter()
@@ -593,11 +616,15 @@ fn default_array(
             } else {
                 "vec![]".to_string()
             };
-            Ok((type_str, default_str))
+            Ok(default_str)
+        }
+
+        Schema::Array(..) => {
+            let default_str = "vec![]".to_string();
+            Ok(default_str)
         }
 
         /// TODO add support
-        Schema::Array(..) => unreachable!(),
         Schema::Map(..) => unreachable!(),
         Schema::Record { .. } => unreachable!(),
         Schema::Enum { .. } => unreachable!(),

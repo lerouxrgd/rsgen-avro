@@ -87,14 +87,10 @@ impl Generator {
         Ok(())
     }
 
-    fn gen_in_order<'a, 'b: 'a>(
-        &self,
-        schema: &'b Schema,
-        output: &mut Box<Write>,
-    ) -> Result<(), Error> {
-        /// TODO consider using some stateful Namimg/Defaults struct while templating
+    fn gen_in_order(&self, schema: &Schema, output: &mut Box<Write>) -> Result<(), Error> {
         let gs = RefCell::new(GenState::new());
         let mut deps = deps_stack(schema);
+
         while let Some(s) = deps.pop() {
             match s {
                 Schema::Fixed { .. } => {
@@ -109,8 +105,12 @@ impl Generator {
 
                 Schema::Record { .. } => {
                     let code = &self.templater.str_record(&s, gs.borrow_mut())?;
-                    // let code = &self.templater.str_record(&s, &mut *gs)?;
                     output.write_all(code.as_bytes())?
+                }
+
+                Schema::Array(inner) => {
+                    let type_str = array_type(inner, &*gs.borrow())?;
+                    (*gs.borrow_mut()).put_type(&s, type_str)
                 }
 
                 _ => Err(RsgenError::new(format!("Not a valid root schema: {:?}", s)))?,
@@ -118,6 +118,51 @@ impl Generator {
         }
         Ok(())
     }
+}
+
+fn deps_stack(schema: &Schema) -> Vec<&Schema> {
+    let mut deps = Vec::new();
+    let mut q = VecDeque::new();
+
+    q.push_back(schema);
+    while !q.is_empty() {
+        let s = q.pop_front().unwrap();
+
+        match s {
+            Schema::Fixed { .. } => deps.push(s),
+            Schema::Enum { .. } => deps.push(s),
+            Schema::Record { fields, .. } => {
+                deps.push(s);
+                for RecordField { schema: sr, .. } in fields {
+                    match sr {
+                        Schema::Fixed { .. } => deps.push(sr),
+                        Schema::Enum { .. } => deps.push(sr),
+                        Schema::Record { .. } => q.push_back(sr),
+                        Schema::Map(sc) | Schema::Array(sc) => match &**sc {
+                            Schema::Fixed { .. }
+                            | Schema::Enum { .. }
+                            | Schema::Record { .. }
+                            | Schema::Map(..)
+                            | Schema::Array(..) => q.push_back(&**sc),
+                            _ => (),
+                        },
+                        _ => (),
+                    };
+                }
+            }
+            Schema::Map(sc) | Schema::Array(sc) => match &**sc {
+                Schema::Fixed { .. }
+                | Schema::Enum { .. }
+                | Schema::Record { .. }
+                | Schema::Map(..)
+                | Schema::Array(..) => q.push_back(&**sc),
+                _ => deps.push(s),
+            },
+            _ => (),
+        }
+    }
+
+    deps
 }
 
 pub struct GeneratorBuilder {
@@ -157,51 +202,6 @@ impl GeneratorBuilder {
     }
 }
 
-fn deps_stack(schema: &Schema) -> Vec<&Schema> {
-    let mut deps = Vec::new();
-    let mut q = VecDeque::new();
-
-    q.push_back(schema);
-    while !q.is_empty() {
-        let s = q.pop_front().unwrap();
-        deps.push(s);
-
-        match s {
-            Schema::Fixed { .. } => deps.push(s),
-            Schema::Enum { .. } => deps.push(s),
-            Schema::Record { fields, .. } => {
-                for RecordField { schema: sr, .. } in fields {
-                    match sr {
-                        Schema::Fixed { .. } => deps.push(sr),
-                        Schema::Enum { .. } => deps.push(sr),
-                        Schema::Record { .. } => q.push_back(sr),
-                        Schema::Map(sc) | Schema::Array(sc) => match &**sc {
-                            Schema::Fixed { .. }
-                            | Schema::Enum { .. }
-                            | Schema::Record { .. }
-                            | Schema::Map(..)
-                            | Schema::Array(..) => q.push_back(&**sc),
-                            _ => (),
-                        },
-                        _ => (),
-                    };
-                }
-            }
-            Schema::Map(sc) | Schema::Array(sc) => match &**sc {
-                Schema::Fixed { .. }
-                | Schema::Enum { .. }
-                | Schema::Record { .. }
-                | Schema::Map(..)
-                | Schema::Array(..) => q.push_back(&**sc),
-                _ => (),
-            },
-            _ => (),
-        }
-    }
-
-    deps
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -211,17 +211,19 @@ mod tests {
     #[test]
     fn record() {
         let raw_schema = r#"
-        {"namespace": "example.avro",
-         "type": "record",
-         "name": "User",
-         "fields": [
-             {"name": "name", "type": "string", "default": ""},
-             {"name": "favorite_number",  "type": "int", "default": 7},
-             {"name": "likes_pizza", "type": "boolean", "default": false},
-             {"name": "a-i32", "type": {"type": "array", "items": "int"}, "default": [12, -1]}
-         ]
-        }
-        "#;
+{"namespace": "example.avro",
+ "type": "record",
+ "name": "User",
+ "fields": [
+   {"name": "name", "type": "string", "default": ""},
+   {"name": "favorite_number",  "type": "int", "default": 7},
+   {"name": "likes_pizza", "type": "boolean", "default": false},
+   {"name": "aa-i32",
+    "type": {"type": "array", "items": {"type": "array", "items": "int"}},
+    "default": [[0], [12, -1]]}
+ ]
+}
+"#;
 
         /// TODO put that example in some doc
         // let mut out = Box::new(
@@ -266,6 +268,7 @@ mod tests {
 
         let schema = Schema::parse_str(&raw_schema).unwrap();
         let deps = deps_stack(&schema);
+
         let depss = deps
             .iter()
             .map(|s| format!("{:?}", s))
