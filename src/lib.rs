@@ -1,4 +1,5 @@
 extern crate avro_rs;
+extern crate by_address;
 extern crate failure;
 extern crate heck;
 #[macro_use]
@@ -10,6 +11,7 @@ extern crate tera;
 
 mod templates;
 
+use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::fs::File;
 use std::io::prelude::*;
@@ -85,13 +87,18 @@ impl Generator {
         Ok(())
     }
 
-    fn gen_in_order(&self, schema: &Schema, output: &mut Box<Write>) -> Result<(), Error> {
+    fn gen_in_order<'a, 'b: 'a>(
+        &self,
+        schema: &'b Schema,
+        output: &mut Box<Write>,
+    ) -> Result<(), Error> {
         /// TODO consider using some stateful Namimg/Defaults struct while templating
+        let gs = RefCell::new(GenState::new());
         let mut deps = deps_stack(schema);
         while let Some(s) = deps.pop() {
             match s {
                 Schema::Fixed { .. } => {
-                    let code = &self.templater.str_record(&s)?;
+                    let code = &self.templater.str_fixed(&s)?;
                     output.write_all(code.as_bytes())?
                 }
 
@@ -101,7 +108,8 @@ impl Generator {
                 }
 
                 Schema::Record { .. } => {
-                    let code = &self.templater.str_record(&s)?;
+                    let code = &self.templater.str_record(&s, gs.borrow_mut())?;
+                    // let code = &self.templater.str_record(&s, &mut *gs)?;
                     output.write_all(code.as_bytes())?
                 }
 
@@ -209,7 +217,8 @@ mod tests {
          "fields": [
              {"name": "name", "type": "string", "default": ""},
              {"name": "favorite_number",  "type": "int", "default": 7},
-             {"name": "likes_pizza", "type": "boolean", "default": false}
+             {"name": "likes_pizza", "type": "boolean", "default": false},
+             {"name": "a-i32", "type": {"type": "array", "items": "int"}, "default": [12, -1]}
          ]
         }
         "#;

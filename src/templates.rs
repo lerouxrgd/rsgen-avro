@@ -1,8 +1,9 @@
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::cell::RefMut;
+use std::collections::{HashMap, HashSet};
 
 use avro_rs::schema::{Name, RecordField};
 use avro_rs::Schema;
+use by_address::ByAddress;
 use failure::{Error, SyncFailure};
 use heck::{CamelCase, SnakeCase};
 use serde_json::Value;
@@ -112,6 +113,23 @@ impl<T, E> ResultExt<T, E> for Result<T, E> {
     }
 }
 
+#[derive(Debug)]
+pub struct GenState<'a>(HashMap<ByAddress<&'a Schema>, String>);
+
+impl<'a> GenState<'a> {
+    pub fn new() -> GenState<'a> {
+        GenState(HashMap::new())
+    }
+
+    pub fn put_type<'b: 'a>(&mut self, schema: &'b Schema, t: &String) {
+        self.0.insert(ByAddress(schema), t.clone());
+    }
+
+    pub fn get_type(&self, schema: &'a Schema) -> Option<&String> {
+        self.0.get(&ByAddress(schema))
+    }
+}
+
 pub struct Templater {
     tera: Tera,
 }
@@ -132,7 +150,7 @@ impl Templater {
         } = schema
         {
             let mut ctx = Context::new();
-            ctx.add("name", &name.to_camel_case());
+            ctx.add("name", &sanitize(name.to_camel_case()));
             ctx.add("size", size);
             Ok(self.tera.render(FIXED_TERA, &ctx).sync()?)
         } else {
@@ -151,7 +169,7 @@ impl Templater {
                 err!("No symbol for emum: {:?}", name)?
             }
             let mut ctx = Context::new();
-            ctx.add("name", &name.to_camel_case());
+            ctx.add("name", &sanitize(name.to_camel_case()));
             let s: HashMap<_, _> = symbols
                 .iter()
                 .map(|s| (sanitize(s.to_camel_case()), s))
@@ -163,7 +181,11 @@ impl Templater {
         }
     }
 
-    pub fn str_record(&self, schema: &Schema) -> Result<String, Error> {
+    pub fn str_record<'a, 'b: 'a>(
+        &self,
+        schema: &'b Schema,
+        mut gen_state: RefMut<'a, GenState<'a>>,
+    ) -> Result<String, Error> {
         if let Schema::Record {
             name: Name { name, .. },
             fields,
@@ -291,7 +313,9 @@ impl Templater {
                         | Schema::Bytes
                         | Schema::String
                         | Schema::Fixed { .. } => {
-                            let (type_str, default_str) = default_array(&**schema, default)?;
+                            let (type_str, default_str) =
+                                default_array(&**schema, default, &*gen_state)?;
+                            gen_state.put_type(&**schema, &type_str);
                             f.insert(name_std.clone(), type_str);
                             d.insert(name_std.clone(), default_str);
                         }
@@ -408,7 +432,11 @@ impl Templater {
     }
 }
 
-fn default_array(schema: &Schema, default: &Option<Value>) -> Result<(String, String), Error> {
+fn default_array(
+    schema: &Schema,
+    default: &Option<Value>,
+    gen_state: &GenState,
+) -> Result<(String, String), Error> {
     match schema {
         Schema::Boolean => {
             let type_str = "Vec<bool>".to_string();
@@ -636,7 +664,8 @@ mod tests {
 
         let templater = Templater::new().unwrap();
         let schema = Schema::parse_str(&raw_schema).unwrap();
-        let res = templater.str_record(&schema).unwrap();
+        let gs = ::std::cell::RefCell::new(GenState::new());
+        let res = templater.str_record(&schema, gs.borrow_mut()).unwrap();
         println!("{}", res);
     }
 
