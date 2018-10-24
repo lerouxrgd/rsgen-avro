@@ -600,15 +600,37 @@ fn array_default(inner: &Schema, default: &Option<Value>) -> Result<String, Erro
             Ok(default_str)
         }
 
-        /// TODO could try recursion here
-        Schema::Array(..) => {
-            let default_str = "vec![]".to_string();
+        Schema::Array(s) => {
+            let default_str = if let Some(Value::Array(vals)) = default {
+                let vals = vals
+                    .iter()
+                    .map(|v| {
+                        let nested = array_default(s, &Some(v.clone()))?;
+                        Ok(nested)
+                    }).collect::<Result<Vec<String>, Error>>()?
+                    .as_slice()
+                    .join(", ");
+                format!("vec![{}]", vals)
+            } else {
+                "vec![]".to_string()
+            };
             Ok(default_str)
         }
 
-        /// TODO could try recursion here
-        Schema::Map(..) => {
-            let default_str = "vec![]".to_string();
+        Schema::Map(s) => {
+            let default_str = if let Some(Value::Array(vals)) = default {
+                let vals = vals
+                    .iter()
+                    .map(|v| {
+                        let nested = map_default(s, &Some(v.clone()))?;
+                        Ok(nested)
+                    }).collect::<Result<Vec<String>, Error>>()?
+                    .as_slice()
+                    .join(", ");
+                format!("vec![{}]", vals)
+            } else {
+                "vec![]".to_string()
+            };
             Ok(default_str)
         }
 
