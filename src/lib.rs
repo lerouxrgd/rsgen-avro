@@ -113,6 +113,11 @@ impl Generator {
                     (*gs.borrow_mut()).put_type(&s, type_str)
                 }
 
+                Schema::Map(inner) => {
+                    let type_str = map_type(inner, &*gs.borrow())?;
+                    (*gs.borrow_mut()).put_type(&s, type_str)
+                }
+
                 _ => Err(RsgenError::new(format!("Not a valid root schema: {:?}", s)))?,
             }
         }

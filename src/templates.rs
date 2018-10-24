@@ -302,55 +302,30 @@ impl Templater {
                         d.insert(name_std.clone(), default);
                     }
 
-                    /// TODO save name_std-> type_str in some GenState
-                    ///      for potentially recursive array/map ?
-                    Schema::Array(s) => match &**s {
-                        Schema::Boolean
-                        | Schema::Int
-                        | Schema::Long
-                        | Schema::Float
-                        | Schema::Double
-                        | Schema::Bytes
-                        | Schema::String
-                        | Schema::Fixed { .. }
-                        | Schema::Array(..) => {
-                            let type_str = array_type(&**s, &*gen_state)?;
-                            let default_str = array_default(&**s, default)?;
+                    Schema::Array(inner) => match &**inner {
+                        Schema::Null => err!("Invalid use of Schema::Null")?,
+                        /// TODO add support
+                        Schema::Union(..) => (),
+                        _ => {
+                            let type_str = array_type(&**inner, &*gen_state)?;
+                            let default_str = array_default(&**inner, default)?;
                             gen_state.put_type(schema, type_str.clone());
                             f.insert(name_std.clone(), type_str);
                             d.insert(name_std.clone(), default_str);
                         }
-
-                        Schema::Map(..) => (),
-                        Schema::Record { .. } => (),
-                        Schema::Enum { .. } => (),
-                        Schema::Union(..) => (),
-
-                        Schema::Null => err!("Invalid use of Schema::Null")?,
                     },
 
-                    Schema::Map(schema) => match &**schema {
-                        Schema::Boolean
-                        | Schema::Int
-                        | Schema::Long
-                        | Schema::Float
-                        | Schema::Double
-                        | Schema::Bytes
-                        | Schema::String
-                        | Schema::Fixed { .. }
-                        | Schema::Array(..) => {
-                            let (type_str, default_str) = default_map(&**schema, default)?;
+                    Schema::Map(inner) => match &**inner {
+                        Schema::Null => err!("Invalid use of Schema::Null")?,
+                        /// TODO add support
+                        Schema::Union(..) => (),
+                        _ => {
+                            let type_str = map_type(&**inner, &*gen_state)?;
+                            let default_str = map_default(&**inner, default)?;
+                            gen_state.put_type(schema, type_str.clone());
                             f.insert(name_std.clone(), type_str);
                             d.insert(name_std.clone(), default_str);
                         }
-
-                        /// TODO add support
-                        Schema::Map(..) => (),
-                        Schema::Record { .. } => (),
-                        Schema::Enum { .. } => (),
-                        Schema::Union(..) => (),
-
-                        Schema::Null => err!("Invalid use of Schema::Null")?,
                     },
 
                     Schema::Record {
@@ -432,9 +407,8 @@ impl Templater {
     }
 }
 
-/// `schema` is a Schema::Array(..) inner schema
-pub fn array_type(schema: &Schema, gen_state: &GenState) -> Result<String, Error> {
-    let type_str = match schema {
+pub fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String, Error> {
+    let type_str = match inner {
         Schema::Boolean => "Vec<bool>".to_string(),
         Schema::Int => "Vec<i32>".to_string(),
         Schema::Long => "Vec<i64>".to_string(),
@@ -442,6 +416,7 @@ pub fn array_type(schema: &Schema, gen_state: &GenState) -> Result<String, Error
         Schema::Double => "Vec<f64>".to_string(),
         Schema::Bytes => "Vec<Vec<u8>>".to_string(),
         Schema::String => "Vec<String>".to_string(),
+
         Schema::Fixed {
             name: Name { name: f_name, .. },
             ..
@@ -449,20 +424,27 @@ pub fn array_type(schema: &Schema, gen_state: &GenState) -> Result<String, Error
             let f_name = sanitize(f_name.to_camel_case());
             format!("Vec<{}>", f_name)
         }
-        Schema::Array(..) => {
-            let nested_type = gen_state.get_type(schema).ok_or_else(|| {
+
+        Schema::Array(..) | Schema::Map(..) => {
+            let nested_type = gen_state.get_type(inner).ok_or_else(|| {
                 TemplateError(format!(
                     "Didn't find schema {:?} in state {:?}",
-                    schema, &gen_state
+                    inner, &gen_state
                 ))
             })?;
             format!("Vec<{}>", nested_type)
         }
 
+        Schema::Record {
+            name: Name { name, .. },
+            ..
+        }
+        | Schema::Enum {
+            name: Name { name, .. },
+            ..
+        } => format!("Vec<{}>", &sanitize(name.to_camel_case())),
+
         /// TODO add support
-        Schema::Map(..) => unreachable!(),
-        Schema::Record { .. } => unreachable!(),
-        Schema::Enum { .. } => unreachable!(),
         Schema::Union(..) => unreachable!(),
 
         Schema::Null => err!("Invalid use of Schema::Null")?,
@@ -470,9 +452,8 @@ pub fn array_type(schema: &Schema, gen_state: &GenState) -> Result<String, Error
     Ok(type_str)
 }
 
-/// `schema` is a Schema::Array(..) inner schema
-fn array_default(schema: &Schema, default: &Option<Value>) -> Result<String, Error> {
-    match schema {
+fn array_default(inner: &Schema, default: &Option<Value>) -> Result<String, Error> {
+    match inner {
         Schema::Boolean => {
             let default_str = if let Some(Value::Array(vals)) = default {
                 let vals = vals
@@ -619,53 +600,111 @@ fn array_default(schema: &Schema, default: &Option<Value>) -> Result<String, Err
             Ok(default_str)
         }
 
+        /// TODO could try recursion here
         Schema::Array(..) => {
             let default_str = "vec![]".to_string();
             Ok(default_str)
         }
 
+        /// TODO could try recursion here
+        Schema::Map(..) => {
+            let default_str = "vec![]".to_string();
+            Ok(default_str)
+        }
+
+        Schema::Record { .. } => {
+            let default_str = "vec![]".to_string();
+            Ok(default_str)
+        }
+
+        Schema::Enum { symbols, .. } => {
+            let valids: HashSet<_> = symbols
+                .iter()
+                .map(|s| sanitize(s.to_camel_case()))
+                .collect();
+            let default_str = if let Some(Value::Array(vals)) = default {
+                let vals = vals
+                    .iter()
+                    .map(|v| match v {
+                        Value::String(s) => {
+                            let s = sanitize(s.to_camel_case());
+                            if !valids.contains(&s) {
+                                err!("Invalid defaults: {:?}", s)
+                            } else {
+                                Ok(s)
+                            }
+                        }
+                        _ => err!("Invalid defaults: {:?}", v),
+                    }).collect::<Result<Vec<String>, TemplateError>>()?
+                    .as_slice()
+                    .join(", ");
+                format!("vec![{}]", vals)
+            } else {
+                "vec![]".to_string()
+            };
+
+            Ok(default_str)
+        }
+
         /// TODO add support
-        Schema::Map(..) => unreachable!(),
-        Schema::Record { .. } => unreachable!(),
-        Schema::Enum { .. } => unreachable!(),
         Schema::Union(..) => unreachable!(),
 
         Schema::Null => err!("Invalid use of Schema::Null")?,
     }
 }
 
-fn type_map(t: &str) -> String {
+fn map_of(t: &str) -> String {
     format!("::std::collections::HashMap<String, {}>", t)
 }
 
-fn default_map(schema: &Schema, _: &Option<Value>) -> Result<(String, String), Error> {
-    let default_str = "::std::collections::HashMap::new()".to_string();
-    let type_str = match schema {
-        Schema::Boolean => type_map("bool"),
-        Schema::Int => type_map("i32"),
-        Schema::Long => type_map("i64"),
-        Schema::Float => type_map("f32"),
-        Schema::Double => type_map("f64"),
-        Schema::Bytes => type_map("Vec<u8>"),
-        Schema::String => type_map("String"),
+pub fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String, Error> {
+    let type_str = match inner {
+        Schema::Boolean => map_of("bool"),
+        Schema::Int => map_of("i32"),
+        Schema::Long => map_of("i64"),
+        Schema::Float => map_of("f32"),
+        Schema::Double => map_of("f64"),
+        Schema::Bytes => map_of("Vec<u8>"),
+        Schema::String => map_of("String"),
+
         Schema::Fixed {
             name: Name { name: f_name, .. },
             ..
         } => {
             let f_name = sanitize(f_name.to_camel_case());
-            type_map(&f_name)
+            map_of(&f_name)
         }
 
+        Schema::Array(..) | Schema::Map(..) => {
+            let nested_type = gen_state.get_type(inner).ok_or_else(|| {
+                TemplateError(format!(
+                    "Didn't find schema {:?} in state {:?}",
+                    inner, &gen_state
+                ))
+            })?;
+            map_of(nested_type)
+        }
+
+        Schema::Record {
+            name: Name { name, .. },
+            ..
+        }
+        | Schema::Enum {
+            name: Name { name, .. },
+            ..
+        } => map_of(&sanitize(name.to_camel_case())),
+
         /// TODO add support
-        Schema::Array(..) => unreachable!(),
-        Schema::Map(..) => unreachable!(),
-        Schema::Record { .. } => unreachable!(),
-        Schema::Enum { .. } => unreachable!(),
         Schema::Union(..) => unreachable!(),
 
         Schema::Null => err!("Invalid use of Schema::Null")?,
     };
-    Ok((type_str, default_str))
+    Ok(type_str)
+}
+
+fn map_default(_: &Schema, _: &Option<Value>) -> Result<String, Error> {
+    let default_str = "::std::collections::HashMap::new()".to_string();
+    Ok(default_str)
 }
 
 #[cfg(test)]
