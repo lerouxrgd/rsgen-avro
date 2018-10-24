@@ -96,34 +96,28 @@ impl Generator {
                     let code = &self.templater.str_fixed(&s)?;
                     output.write_all(code.as_bytes())?
                 }
-
                 Schema::Enum { .. } => {
                     let code = &self.templater.str_enum(&s)?;
                     output.write_all(code.as_bytes())?
                 }
-
                 Schema::Record { .. } => {
                     let code = &self.templater.str_record(&s, &gs)?;
                     output.write_all(code.as_bytes())?
                 }
-
                 Schema::Array(inner) => {
                     let type_str = array_type(inner, &gs)?;
                     gs.put_type(&s, type_str)
                 }
-
                 Schema::Map(inner) => {
                     let type_str = map_type(inner, &gs)?;
                     gs.put_type(&s, type_str)
                 }
-
                 Schema::Union(union) => {
                     if let [Schema::Null, inner] = union.variants() {
                         let type_str = option_type(inner, &gs)?;
                         gs.put_type(&s, type_str)
                     }
                 }
-
                 _ => Err(RsgenError::new(format!("Not a valid root schema: {:?}", s)))?,
             }
         }
@@ -150,6 +144,7 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
                         Schema::Fixed { .. } => deps.push(sr),
                         Schema::Enum { .. } => deps.push(sr),
                         Schema::Record { .. } => q.push_back(sr),
+
                         Schema::Map(sc) | Schema::Array(sc) => match &**sc {
                             Schema::Fixed { .. }
                             | Schema::Enum { .. }
