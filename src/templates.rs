@@ -1,4 +1,3 @@
-use std::cell::RefMut;
 use std::collections::{HashMap, HashSet};
 
 use avro_rs::schema::{Name, RecordField};
@@ -181,11 +180,7 @@ impl Templater {
         }
     }
 
-    pub fn str_record<'a, 'b: 'a>(
-        &self,
-        schema: &'b Schema,
-        mut gen_state: RefMut<'a, GenState<'a>>,
-    ) -> Result<String, Error> {
+    pub fn str_record(&self, schema: &Schema, gen_state: &GenState) -> Result<String, Error> {
         if let Schema::Record {
             name: Name { name, .. },
             fields,
@@ -304,12 +299,9 @@ impl Templater {
 
                     Schema::Array(inner) => match &**inner {
                         Schema::Null => err!("Invalid use of Schema::Null")?,
-                        /// TODO add support
-                        Schema::Union(..) => (),
                         _ => {
                             let type_str = array_type(&**inner, &*gen_state)?;
                             let default_str = array_default(&**inner, default)?;
-                            gen_state.put_type(schema, type_str.clone());
                             f.insert(name_std.clone(), type_str);
                             d.insert(name_std.clone(), default_str);
                         }
@@ -317,12 +309,9 @@ impl Templater {
 
                     Schema::Map(inner) => match &**inner {
                         Schema::Null => err!("Invalid use of Schema::Null")?,
-                        /// TODO add support
-                        Schema::Union(..) => (),
                         _ => {
                             let type_str = map_type(&**inner, &*gen_state)?;
                             let default_str = map_default(&**inner, default)?;
-                            gen_state.put_type(schema, type_str.clone());
                             f.insert(name_std.clone(), type_str);
                             d.insert(name_std.clone(), default_str);
                         }
@@ -353,41 +342,11 @@ impl Templater {
                     }
 
                     Schema::Union(union) => {
-                        if let [Schema::Null, schema] = union.variants() {
-                            let type_opt = match schema {
-                                Schema::Boolean => "bool".to_string(),
-                                Schema::Int => "i32".to_string(),
-                                Schema::Long => "i64".to_string(),
-                                Schema::Float => "f32".to_string(),
-                                Schema::Double => "f64".to_string(),
-                                Schema::Bytes => "Vec<u8>".to_string(),
-                                Schema::String => "String".to_string(),
-                                Schema::Fixed {
-                                    name: Name { name: f_name, .. },
-                                    ..
-                                } => sanitize(f_name.to_camel_case()),
-
-                                /// TODO add support
-                                Schema::Array(..) => unreachable!(),
-                                Schema::Map(..) => unreachable!(),
-                                Schema::Record { .. } => unreachable!(),
-                                Schema::Enum { .. } => unreachable!(),
-
-                                Schema::Union(_) => err!("Unsupported nested Schema::Union")?,
-                                Schema::Null => err!("Invalid use of Schema::Null")?,
-                            };
-
-                            let default = match default {
-                                None => "None".to_string(),
-                                Some(Value::String(s)) if s == "null" => "None".to_string(),
-                                Some(Value::String(s)) if s != "null" => {
-                                    err!("Invalid default: {:?}", s)?
-                                }
-                                _ => err!("Invalid default: {:?}", default)?,
-                            };
-
-                            f.insert(name_std.clone(), format!("Option<{}>", type_opt));
-                            d.insert(name_std.clone(), default);
+                        if let [Schema::Null, inner] = union.variants() {
+                            let type_str = option_type(inner, &*gen_state)?;
+                            let default_str = option_default(inner, default)?;
+                            f.insert(name_std.clone(), type_str);
+                            d.insert(name_std.clone(), default_str);
                         } else {
                             err!("Unsupported Schema:::Union {:?}", union.variants())?
                         }
@@ -425,7 +384,7 @@ pub fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String, Error>
             format!("Vec<{}>", f_name)
         }
 
-        Schema::Array(..) | Schema::Map(..) => {
+        Schema::Array(..) | Schema::Map(..) | Schema::Union(..) => {
             let nested_type = gen_state.get_type(inner).ok_or_else(|| {
                 TemplateError(format!(
                     "Didn't find schema {:?} in state {:?}",
@@ -443,9 +402,6 @@ pub fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String, Error>
             name: Name { name, .. },
             ..
         } => format!("Vec<{}>", &sanitize(name.to_camel_case())),
-
-        /// TODO add support
-        Schema::Union(..) => unreachable!(),
 
         Schema::Null => err!("Invalid use of Schema::Null")?,
     };
@@ -668,8 +624,7 @@ fn array_default(inner: &Schema, default: &Option<Value>) -> Result<String, Erro
             Ok(default_str)
         }
 
-        /// TODO add support
-        Schema::Union(..) => unreachable!(),
+        Schema::Union(..) => Ok("None".to_string()),
 
         Schema::Null => err!("Invalid use of Schema::Null")?,
     }
@@ -697,7 +652,7 @@ pub fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String, Error> {
             map_of(&f_name)
         }
 
-        Schema::Array(..) | Schema::Map(..) => {
+        Schema::Array(..) | Schema::Map(..) | Schema::Union(..) => {
             let nested_type = gen_state.get_type(inner).ok_or_else(|| {
                 TemplateError(format!(
                     "Didn't find schema {:?} in state {:?}",
@@ -716,9 +671,6 @@ pub fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String, Error> {
             ..
         } => map_of(&sanitize(name.to_camel_case())),
 
-        /// TODO add support
-        Schema::Union(..) => unreachable!(),
-
         Schema::Null => err!("Invalid use of Schema::Null")?,
     };
     Ok(type_str)
@@ -726,6 +678,58 @@ pub fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String, Error> {
 
 fn map_default(_: &Schema, _: &Option<Value>) -> Result<String, Error> {
     let default_str = "::std::collections::HashMap::new()".to_string();
+    Ok(default_str)
+}
+
+pub fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String, Error> {
+    let type_str = match inner {
+        Schema::Boolean => "Option<bool>".to_string(),
+        Schema::Int => "Option<i32>".to_string(),
+        Schema::Long => "Option<i64>".to_string(),
+        Schema::Float => "Option<f32>".to_string(),
+        Schema::Double => "Option<f64>".to_string(),
+        Schema::Bytes => "Option<Vec<u8>>".to_string(),
+        Schema::String => "Option<String>".to_string(),
+
+        Schema::Fixed {
+            name: Name { name: f_name, .. },
+            ..
+        } => {
+            let f_name = sanitize(f_name.to_camel_case());
+            format!("Option<{}>", f_name)
+        }
+
+        Schema::Array(..) | Schema::Map(..) | Schema::Union(..) => {
+            let nested_type = gen_state.get_type(inner).ok_or_else(|| {
+                TemplateError(format!(
+                    "Didn't find schema {:?} in state {:?}",
+                    inner, &gen_state
+                ))
+            })?;
+            format!("Option<{}>", nested_type)
+        }
+
+        Schema::Record {
+            name: Name { name, .. },
+            ..
+        }
+        | Schema::Enum {
+            name: Name { name, .. },
+            ..
+        } => format!("Option<{}>", &sanitize(name.to_camel_case())),
+
+        Schema::Null => err!("Invalid use of Schema::Null")?,
+    };
+    Ok(type_str)
+}
+
+fn option_default(_: &Schema, default: &Option<Value>) -> Result<String, Error> {
+    let default_str = match default {
+        None => "None".to_string(),
+        Some(Value::String(s)) if s == "null" => "None".to_string(),
+        Some(Value::String(s)) if s != "null" => err!("Invalid default: {:?}", s)?,
+        _ => err!("Invalid default: {:?}", default)?,
+    };
     Ok(default_str)
 }
 
@@ -752,8 +756,8 @@ mod tests {
 
         let templater = Templater::new().unwrap();
         let schema = Schema::parse_str(&raw_schema).unwrap();
-        let gs = ::std::cell::RefCell::new(GenState::new());
-        let res = templater.str_record(&schema, gs.borrow_mut()).unwrap();
+        let gs = GenState::new();
+        let res = templater.str_record(&schema, &gs).unwrap();
         println!("{}", res);
     }
 

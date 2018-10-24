@@ -1,9 +1,9 @@
 extern crate avro_rs;
 extern crate by_address;
 extern crate failure;
-extern crate heck;
 #[macro_use]
 extern crate failure_derive;
+extern crate heck;
 #[macro_use]
 extern crate lazy_static;
 extern crate serde_json;
@@ -104,7 +104,7 @@ impl Generator {
                 }
 
                 Schema::Record { .. } => {
-                    let code = &self.templater.str_record(&s, gs.borrow_mut())?;
+                    let code = &self.templater.str_record(&s, &gs.borrow())?;
                     output.write_all(code.as_bytes())?
                 }
 
@@ -116,6 +116,13 @@ impl Generator {
                 Schema::Map(inner) => {
                     let type_str = map_type(inner, &*gs.borrow())?;
                     (*gs.borrow_mut()).put_type(&s, type_str)
+                }
+
+                Schema::Union(union) => {
+                    if let [Schema::Null, inner] = union.variants() {
+                        let type_str = option_type(inner, &*gs.borrow())?;
+                        (*gs.borrow_mut()).put_type(&s, type_str)
+                    }
                 }
 
                 _ => Err(RsgenError::new(format!("Not a valid root schema: {:?}", s)))?,
@@ -138,6 +145,7 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
             Schema::Enum { .. } => deps.push(s),
             Schema::Record { fields, .. } => {
                 deps.push(s);
+
                 for RecordField { schema: sr, .. } in fields {
                     match sr {
                         Schema::Fixed { .. } => deps.push(sr),
@@ -148,21 +156,52 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
                             | Schema::Enum { .. }
                             | Schema::Record { .. }
                             | Schema::Map(..)
-                            | Schema::Array(..) => q.push_back(&**sc),
+                            | Schema::Array(..)
+                            | Schema::Union(..) => q.push_back(&**sc),
                             _ => (),
                         },
+
+                        Schema::Union(union) => {
+                            if let [Schema::Null, sc] = union.variants() {
+                                match sc {
+                                    Schema::Fixed { .. }
+                                    | Schema::Enum { .. }
+                                    | Schema::Record { .. }
+                                    | Schema::Map(..)
+                                    | Schema::Array(..)
+                                    | Schema::Union(..) => q.push_back(sc),
+                                    _ => (),
+                                }
+                            }
+                        }
                         _ => (),
                     };
                 }
             }
+
             Schema::Map(sc) | Schema::Array(sc) => match &**sc {
                 Schema::Fixed { .. }
                 | Schema::Enum { .. }
                 | Schema::Record { .. }
                 | Schema::Map(..)
-                | Schema::Array(..) => q.push_back(&**sc),
+                | Schema::Array(..)
+                | Schema::Union(..) => q.push_back(&**sc),
                 _ => deps.push(s),
             },
+
+            Schema::Union(union) => {
+                if let [Schema::Null, sc] = union.variants() {
+                    match sc {
+                        Schema::Fixed { .. }
+                        | Schema::Enum { .. }
+                        | Schema::Record { .. }
+                        | Schema::Map(..)
+                        | Schema::Array(..)
+                        | Schema::Union(..) => q.push_back(sc),
+                        _ => deps.push(s),
+                    }
+                }
+            }
             _ => (),
         }
     }
