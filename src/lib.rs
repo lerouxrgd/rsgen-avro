@@ -11,7 +11,6 @@ extern crate tera;
 
 mod templates;
 
-use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::fs::File;
 use std::io::prelude::*;
@@ -88,7 +87,7 @@ impl Generator {
     }
 
     fn gen_in_order(&self, schema: &Schema, output: &mut Box<Write>) -> Result<(), Error> {
-        let gs = RefCell::new(GenState::new());
+        let mut gs = GenState::new();
         let mut deps = deps_stack(schema);
 
         while let Some(s) = deps.pop() {
@@ -104,24 +103,24 @@ impl Generator {
                 }
 
                 Schema::Record { .. } => {
-                    let code = &self.templater.str_record(&s, &gs.borrow())?;
+                    let code = &self.templater.str_record(&s, &gs)?;
                     output.write_all(code.as_bytes())?
                 }
 
                 Schema::Array(inner) => {
-                    let type_str = array_type(inner, &*gs.borrow())?;
-                    (*gs.borrow_mut()).put_type(&s, type_str)
+                    let type_str = array_type(inner, &gs)?;
+                    gs.put_type(&s, type_str)
                 }
 
                 Schema::Map(inner) => {
-                    let type_str = map_type(inner, &*gs.borrow())?;
-                    (*gs.borrow_mut()).put_type(&s, type_str)
+                    let type_str = map_type(inner, &gs)?;
+                    gs.put_type(&s, type_str)
                 }
 
                 Schema::Union(union) => {
                     if let [Schema::Null, inner] = union.variants() {
-                        let type_str = option_type(inner, &*gs.borrow())?;
-                        (*gs.borrow_mut()).put_type(&s, type_str)
+                        let type_str = option_type(inner, &gs)?;
+                        gs.put_type(&s, type_str)
                     }
                 }
 
