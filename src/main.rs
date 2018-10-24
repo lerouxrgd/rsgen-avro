@@ -11,12 +11,12 @@ const USAGE: &'static str = "
 Naval Fate.
 
 Usage:
-  avrogen ship new <name>...
-  avrogen ship <name> move <x> <y> [--speed=<kn>]
-  avrogen ship shoot <x> <y>
-  avrogen mine (set|remove) <x> <y> [--moored | --drifting]
-  avrogen (-h | --help)
-  avrogen --version
+  rsgen-avro ship new <name>...
+  rsgen-avro ship <name> move <x> <y> [--speed=<kn>]
+  rsgen-avro ship shoot <x> <y>
+  rsgen-avro mine (set|remove) <x> <y> [--moored | --drifting]
+  rsgen-avro (-h | --help)
+  rsgen-avro --version
 
 Options:
   -h --help     Show this screen.
@@ -45,9 +45,9 @@ struct Args {
 
 const USAGE: &'static str = "
 Usage:
-  avrogen code --schemas=PATH --output=PATH
-  avrogen (-h | --help)
-  avrogen --version
+  rsgen-avro code --schemas=PATH --output=PATH
+  rsgen-avro (-h | --help)
+  rsgen-avro --version
 
 Options:
   -h --help       Show this screen.
