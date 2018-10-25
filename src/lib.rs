@@ -204,38 +204,23 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
 }
 
 pub struct GeneratorBuilder {
-    // derive_deser: Option<bool>,
-    templater: Option<Templater>,
+    precision: Option<usize>,
 }
 
 impl GeneratorBuilder {
     pub fn new() -> GeneratorBuilder {
-        GeneratorBuilder {
-            // derive_deser: Some(true),
-            templater: None,
-        }
+        GeneratorBuilder { precision: None }
     }
 
-    pub fn templater(mut self, templater: Templater) -> GeneratorBuilder {
-        self.templater = Some(templater);
+    pub fn precision(mut self, precision: usize) -> GeneratorBuilder {
+        self.precision = Some(precision);
         self
     }
 
-    // pub fn derive_deser(mut self, derive_deser: bool) -> GeneratorBuilder<'a> {
-    //     self.derive_deser = Some(derive_deser);
-    //     self
-    // }
-
     pub fn build(self) -> Result<Generator, Error> {
-        // let derive_deser = self
-        //     .derive_deser
-        //     .ok_or_else(|| RsgenError::new("`derive_deser` is not set"));
-
-        let templater = self
-            .templater
-            .ok_or_else(|| Templater::new())
-            .or_else(|e| e)?;
-
+        let precision = self.precision.unwrap_or(3);
+        let mut templater = Templater::new()?;
+        templater.precision = precision;
         Ok(Generator { templater })
     }
 }
@@ -243,7 +228,6 @@ impl GeneratorBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs::OpenOptions;
     use std::io::stdout;
 
     #[test]
@@ -256,6 +240,7 @@ mod tests {
    {"name": "name", "type": "string", "default": ""},
    {"name": "favorite_number",  "type": "int", "default": 7},
    {"name": "likes_pizza", "type": "boolean", "default": false},
+   {"name": "oye", "type": "float", "default": 1.1},
    {"name": "aa-i32",
     "type": {"type": "array", "items": {"type": "array", "items": "int"}},
     "default": [[0], [12, -1]]}
@@ -268,7 +253,7 @@ mod tests {
         let schema = Schema::parse_str(&raw_schema).unwrap();
         let source = Source::Schema(&schema);
 
-        let g = Generator::new().unwrap();
+        let g = Generator::builder().precision(2).build().unwrap();
         g.gen(&source, &mut out).unwrap();
     }
 

@@ -48,18 +48,22 @@ struct Args {
 }
 */
 
+/// TODO some option to add serde import headers (default include)
+/// TODO some option to a/r output file (default override)
+
 const USAGE: &'static str = "
 Usage:
-  rsgen-avro [--schema=FILE | --schemas=DIR] --output=FILE
+  rsgen-avro (--schema=FILE | --schemas=DIR) --output=FILE [--precision=<p>]
   rsgen-avro (-h | --help)
   rsgen-avro --version
 
 Options:
-  -h --help      Show this screen.
-  --version      Show version.
-  --schema=FILE  File containing an Avro schema in json format.
-  --schemas=DIR  Directory containing Avro schemas in json format.
-  --output=FILE  File where Rust code will be generated. Use '-' for stdout.
+  -h --help       Show this screen.
+  --version       Show version.
+  --schema=FILE   File containing an Avro schema in json format.
+  --schemas=DIR   Directory containing Avro schemas in json format.
+  --output=FILE   File where Rust code will be generated. Use '-' for stdout.
+  --precison=<p>  Precision for f32/f64 default values that aren't round numbers [default: 3].
 ";
 
 #[derive(Debug, Deserialize)]
@@ -67,6 +71,7 @@ struct CmdArgs {
     flag_schema: String,
     flag_schemas: String,
     flag_output: String,
+    flag_precision: Option<usize>,
 }
 
 fn main() {
@@ -98,10 +103,13 @@ fn main() {
         )
     };
 
-    let g = Generator::new().unwrap_or_else(|e| {
-        eprintln!("Problem during prepartion: {}", e);
-        process::exit(1);
-    });
+    let g = Generator::builder()
+        .precision(args.flag_precision.unwrap_or(3))
+        .build()
+        .unwrap_or_else(|e| {
+            eprintln!("Problem during prepartion: {}", e);
+            process::exit(1);
+        });
 
     g.gen(&source, &mut out).unwrap_or_else(|e| {
         eprintln!("Problem during code generation: {}", e);
