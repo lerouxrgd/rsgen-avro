@@ -149,8 +149,8 @@ impl Templater {
         } = schema
         {
             let mut ctx = Context::new();
-            ctx.add("name", &sanitize(name.to_camel_case()));
-            ctx.add("size", size);
+            ctx.insert("name", &sanitize(name.to_camel_case()));
+            ctx.insert("size", size);
             Ok(self.tera.render(FIXED_TERA, &ctx).sync()?)
         } else {
             err!("Requires Schema::Fixed, found {:?}", schema)?
@@ -168,12 +168,12 @@ impl Templater {
                 err!("No symbol for emum: {:?}", name)?
             }
             let mut ctx = Context::new();
-            ctx.add("name", &sanitize(name.to_camel_case()));
+            ctx.insert("name", &sanitize(name.to_camel_case()));
             let s: HashMap<_, _> = symbols
                 .iter()
                 .map(|s| (sanitize(s.to_camel_case()), s))
                 .collect();
-            ctx.add("symbols", &s);
+            ctx.insert("symbols", &s);
             Ok(self.tera.render(ENUM_TERA, &ctx).sync()?)
         } else {
             err!("Requires Schema::Enum, found {:?}", schema)?
@@ -188,7 +188,7 @@ impl Templater {
         } = schema
         {
             let mut ctx = Context::new();
-            ctx.add("name", &name.to_camel_case());
+            ctx.insert("name", &name.to_camel_case());
 
             let mut f = HashMap::new(); // field name -> field type
             let mut o = HashMap::new(); // field name -> original name
@@ -355,9 +355,9 @@ impl Templater {
                     Schema::Null => err!("Invalid use of Schema::Null")?,
                 };
             }
-            ctx.add("fields", &f);
-            ctx.add("originals", &o);
-            ctx.add("defaults", &d);
+            ctx.insert("fields", &f);
+            ctx.insert("originals", &o);
+            ctx.insert("defaults", &d);
 
             Ok(self.tera.render(RECORD_TERA, &ctx).sync()?)
         } else {
@@ -408,226 +408,97 @@ pub fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String, Error>
     Ok(type_str)
 }
 
-fn array_default(inner: &Schema, default: &Option<Value>) -> Result<String, Error> {
-    match inner {
-        Schema::Boolean => {
-            let default_str = if let Some(Value::Array(vals)) = default {
-                let vals = vals
-                    .iter()
-                    .map(|v| match v {
-                        Value::Bool(b) => Ok(b.to_string()),
-                        _ => err!("Invalid defaults: {:?}", v),
-                    }).collect::<Result<Vec<String>, TemplateError>>()?
-                    .as_slice()
-                    .join(", ");
-                format!("vec![{}]", vals)
-            } else {
-                "vec![]".to_string()
-            };
-            Ok(default_str)
-        }
+fn array_default(inner: &Schema, default: &Option<Value>) -> Result<String, TemplateError> {
+    let a: Box<Fn(&Value) -> Result<String, TemplateError>> = match inner {
+        Schema::Null => err!("Invalid use of Schema::Null")?,
 
-        Schema::Int => {
-            let default_str = if let Some(Value::Array(vals)) = default {
-                let vals = vals
-                    .iter()
-                    .map(|v| match v {
-                        Value::Number(n) if n.is_i64() => Ok(n.to_string()),
-                        _ => err!("Invalid defaults: {:?}", v),
-                    }).collect::<Result<Vec<String>, TemplateError>>()?
-                    .as_slice()
-                    .join(", ");
-                format!("vec![{}]", vals)
-            } else {
-                "vec![]".to_string()
-            };
-            Ok(default_str)
-        }
+        Schema::Boolean => Box::new(|v: &Value| match v {
+            Value::Bool(b) => Ok(b.to_string()),
+            _ => err!("Invalid defaults: {:?}", v),
+        }),
 
-        Schema::Long => {
-            let default_str = if let Some(Value::Array(vals)) = default {
-                let vals = vals
-                    .iter()
-                    .map(|v| match v {
-                        Value::Number(n) if n.is_i64() => Ok(n.to_string()),
-                        _ => err!("Invalid defaults: {:?}", v),
-                    }).collect::<Result<Vec<String>, TemplateError>>()?
-                    .as_slice()
-                    .join(", ");
-                format!("vec![{}]", vals)
-            } else {
-                "vec![]".to_string()
-            };
-            Ok(default_str)
-        }
+        Schema::Int => Box::new(|v: &Value| match v {
+            Value::Number(n) if n.is_i64() => Ok(n.to_string()),
+            _ => err!("Invalid defaults: {:?}", v),
+        }),
 
-        Schema::Float => {
-            let default_str = if let Some(Value::Array(vals)) = default {
-                let vals = vals
-                    .iter()
-                    .map(|v| match v {
-                        Value::Number(n) if n.is_f64() => Ok(n.to_string()),
-                        _ => err!("Invalid defaults: {:?}", v),
-                    }).collect::<Result<Vec<String>, TemplateError>>()?
-                    .as_slice()
-                    .join(", ");
-                format!("vec![{}]", vals)
-            } else {
-                "vec![]".to_string()
-            };
-            Ok(default_str)
-        }
+        Schema::Long => Box::new(|v: &Value| match v {
+            Value::Number(n) if n.is_i64() => Ok(n.to_string()),
+            _ => err!("Invalid defaults: {:?}", v),
+        }),
 
-        Schema::Double => {
-            let default_str = if let Some(Value::Array(vals)) = default {
-                let vals = vals
-                    .iter()
-                    .map(|v| match v {
-                        Value::Number(n) if n.is_f64() => Ok(n.to_string()),
-                        _ => err!("Invalid defaults: {:?}", v),
-                    }).collect::<Result<Vec<String>, TemplateError>>()?
-                    .as_slice()
-                    .join(", ");
-                format!("vec![{}]", vals)
-            } else {
-                "vec![]".to_string()
-            };
-            Ok(default_str)
-        }
+        Schema::Float | Schema::Double => Box::new(|v: &Value| match v {
+            Value::Number(n) if n.is_f64() => Ok(n.to_string()),
+            _ => err!("Invalid defaults: {:?}", v),
+        }),
 
-        Schema::Bytes => {
-            let default_str = if let Some(Value::Array(vals)) = default {
-                let vals = vals
-                    .iter()
-                    .map(|v| match v {
-                        Value::String(s) => {
-                            let bytes = s.clone().into_bytes();
-                            Ok(format!("vec!{:?}", bytes))
-                        }
-                        _ => err!("Invalid defaults: {:?}", v),
-                    }).collect::<Result<Vec<String>, TemplateError>>()?
-                    .as_slice()
-                    .join(", ");
-                format!("vec![{}]", vals)
-            } else {
-                "vec![]".to_string()
-            };
-            Ok(default_str)
-        }
+        Schema::Bytes => Box::new(|v: &Value| match v {
+            Value::String(s) => {
+                let bytes = s.clone().into_bytes();
+                Ok(format!("vec!{:?}", bytes))
+            }
+            _ => err!("Invalid defaults: {:?}", v),
+        }),
 
-        Schema::String => {
-            let default_str = if let Some(Value::Array(vals)) = default {
-                let vals = vals
-                    .iter()
-                    .map(|v| match v {
-                        Value::String(s) => Ok(s.clone()),
-                        _ => err!("Invalid defaults: {:?}", v),
-                    }).collect::<Result<Vec<String>, TemplateError>>()?
-                    .as_slice()
-                    .join(", ");
-                format!("vec![{}]", vals)
-            } else {
-                "vec![]".to_string()
-            };
-            Ok(default_str)
-        }
+        Schema::String => Box::new(|v: &Value| match v {
+            Value::String(s) => Ok(s.clone()),
+            _ => err!("Invalid defaults: {:?}", v),
+        }),
 
-        Schema::Fixed { size, .. } => {
-            let default_str = if let Some(Value::Array(vals)) = default {
-                let vals = vals
-                    .iter()
-                    .map(|v| match v {
-                        Value::String(s) => {
-                            let bytes: Vec<u8> = s.clone().into_bytes();
-                            if bytes.len() != *size {
-                                err!("Invalid defaults: {:?}", bytes)
-                            } else {
-                                Ok(format!("{:?}", bytes))
-                            }
-                        }
-                        _ => err!("Invalid defaults: {:?}", v),
-                    }).collect::<Result<Vec<String>, TemplateError>>()?
-                    .as_slice()
-                    .join(", ");
-                format!("vec![{}]", vals)
-            } else {
-                "vec![]".to_string()
-            };
-            Ok(default_str)
-        }
+        Schema::Fixed { size, .. } => Box::new(move |v: &Value| match v {
+            Value::String(s) => {
+                let bytes: Vec<u8> = s.clone().into_bytes();
+                if bytes.len() == *size {
+                    Ok(format!("{:?}", bytes))
+                } else {
+                    err!("Invalid defaults: {:?}", bytes)
+                }
+            }
+            _ => err!("Invalid defaults: {:?}", v),
+        }),
 
-        Schema::Array(s) => {
-            let default_str = if let Some(Value::Array(vals)) = default {
-                let vals = vals
-                    .iter()
-                    .map(|v| {
-                        let nested = array_default(s, &Some(v.clone()))?;
-                        Ok(nested)
-                    }).collect::<Result<Vec<String>, Error>>()?
-                    .as_slice()
-                    .join(", ");
-                format!("vec![{}]", vals)
-            } else {
-                "vec![]".to_string()
-            };
-            Ok(default_str)
-        }
+        Schema::Array(s) => Box::new(move |v: &Value| Ok(array_default(s, &Some(v.clone()))?)),
 
-        Schema::Map(s) => {
-            let default_str = if let Some(Value::Array(vals)) = default {
-                let vals = vals
-                    .iter()
-                    .map(|v| {
-                        let nested = map_default(s, &Some(v.clone()))?;
-                        Ok(nested)
-                    }).collect::<Result<Vec<String>, Error>>()?
-                    .as_slice()
-                    .join(", ");
-                format!("vec![{}]", vals)
-            } else {
-                "vec![]".to_string()
-            };
-            Ok(default_str)
-        }
-
-        Schema::Record { .. } => {
-            let default_str = "vec![]".to_string();
-            Ok(default_str)
-        }
+        Schema::Map(s) => Box::new(move |v: &Value| Ok(map_default(s, &Some(v.clone()))?)),
 
         Schema::Enum { symbols, .. } => {
             let valids: HashSet<_> = symbols
                 .iter()
                 .map(|s| sanitize(s.to_camel_case()))
                 .collect();
-            let default_str = if let Some(Value::Array(vals)) = default {
-                let vals = vals
-                    .iter()
-                    .map(|v| match v {
-                        Value::String(s) => {
-                            let s = sanitize(s.to_camel_case());
-                            if !valids.contains(&s) {
-                                err!("Invalid defaults: {:?}", s)
-                            } else {
-                                Ok(s)
-                            }
-                        }
-                        _ => err!("Invalid defaults: {:?}", v),
-                    }).collect::<Result<Vec<String>, TemplateError>>()?
-                    .as_slice()
-                    .join(", ");
-                format!("vec![{}]", vals)
-            } else {
-                "vec![]".to_string()
-            };
-
-            Ok(default_str)
+            Box::new(move |v: &Value| match v {
+                Value::String(s) => {
+                    let s = sanitize(s.to_camel_case());
+                    if valids.contains(&s) {
+                        Ok(s)
+                    } else {
+                        err!("Invalid defaults: {:?}", s)
+                    }
+                }
+                _ => err!("Invalid defaults: {:?}", v),
+            })
         }
 
-        Schema::Union(..) => Ok("None".to_string()),
+        Schema::Union(..) => Box::new(|_| Ok("None".to_string())),
 
-        Schema::Null => err!("Invalid use of Schema::Null")?,
-    }
+        Schema::Record {
+            name: Name { name, .. },
+            ..
+        } => Box::new(move |_| Ok(format!("{}::default()", sanitize(name.to_camel_case())))),
+    };
+
+    let default_str = if let Some(Value::Array(vals)) = default {
+        let vals = vals
+            .iter()
+            .map(&*a)
+            .collect::<Result<Vec<String>, TemplateError>>()?
+            .as_slice()
+            .join(", ");
+        format!("vec![{}]", vals)
+    } else {
+        "vec![]".to_string()
+    };
+    Ok(default_str)
 }
 
 fn map_of(t: &str) -> String {
@@ -676,7 +547,7 @@ pub fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String, Error> {
     Ok(type_str)
 }
 
-fn map_default(_: &Schema, _: &Option<Value>) -> Result<String, Error> {
+fn map_default(_: &Schema, _: &Option<Value>) -> Result<String, TemplateError> {
     let default_str = "::std::collections::HashMap::new()".to_string();
     Ok(default_str)
 }
