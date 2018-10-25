@@ -263,14 +263,6 @@ mod tests {
 }
 "#;
 
-        /// TODO put that example in some doc
-        // let mut out = Box::new(
-        //     OpenOptions::new()
-        //         .write(true)
-        //         .create(true)
-        //         .open("coucou.rs")
-        //         .unwrap(),
-        // ) as Box<Write>;
         let mut out: Box<Write> = Box::new(stdout());
 
         let schema = Schema::parse_str(&raw_schema).unwrap();

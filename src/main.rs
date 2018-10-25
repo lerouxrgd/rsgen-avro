@@ -3,8 +3,13 @@ extern crate serde_derive;
 extern crate docopt;
 extern crate rsgen_avro;
 
-use docopt::Docopt;
+use std::fs::OpenOptions;
+use std::io::prelude::*;
+use std::io::stdout;
 use std::process;
+
+use docopt::Docopt;
+use rsgen_avro::{Generator, Source};
 
 /*
 const USAGE: &'static str = "
@@ -45,20 +50,21 @@ struct Args {
 
 const USAGE: &'static str = "
 Usage:
-  rsgen-avro code --schemas=PATH --output=PATH
+  rsgen-avro [--schema=FILE | --schemas=DIR] --output=FILE
   rsgen-avro (-h | --help)
   rsgen-avro --version
 
 Options:
-  -h --help       Show this screen.
-  --version       Show version.
-  --schemas=PATH  Directory containing Avro schemas in json format.
-  --output=PATH   Directory where code will be generated.
+  -h --help      Show this screen.
+  --version      Show version.
+  --schema=FILE  File containing an Avro schema in json format.
+  --schemas=DIR  Directory containing Avro schemas in json format.
+  --output=FILE  File where Rust code will be generated. Use '-' for stdout.
 ";
 
 #[derive(Debug, Deserialize)]
 struct CmdArgs {
-    cmd_code: bool,
+    flag_schema: String,
     flag_schemas: String,
     flag_output: String,
 }
@@ -67,10 +73,38 @@ fn main() {
     let args: CmdArgs = Docopt::new(USAGE)
         .and_then(|d| d.deserialize())
         .unwrap_or_else(|e| e.exit());
-    if args.cmd_code {
-        // TODO use &args.flag_schemas, &args.flag_output
+
+    let source = if &args.flag_schema != "" {
+        Source::FilePath(&args.flag_schema)
+    } else if &args.flag_schemas != "" {
+        Source::DirPath(&args.flag_schemas)
     } else {
-        println!("{}", USAGE);
+        eprintln!("Wrong schema source: {:?}", &args);
         process::exit(1);
-    }
+    };
+
+    let mut out: Box<Write> = if &args.flag_output == "-" {
+        Box::new(stdout())
+    } else {
+        Box::new(
+            OpenOptions::new()
+                .write(true)
+                .create(true)
+                .open(&args.flag_output)
+                .unwrap_or_else(|e| {
+                    eprintln!("Output file error: {}", e);
+                    process::exit(1);
+                }),
+        )
+    };
+
+    let g = Generator::new().unwrap_or_else(|e| {
+        eprintln!("Problem during prepartion: {}", e);
+        process::exit(1);
+    });
+
+    g.gen(&source, &mut out).unwrap_or_else(|e| {
+        eprintln!("Problem during code generation: {}", e);
+        process::exit(1);
+    });
 }
