@@ -409,7 +409,7 @@ pub fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String, Error>
 }
 
 fn array_default(inner: &Schema, default: &Option<Value>) -> Result<String, TemplateError> {
-    let a: Box<Fn(&Value) -> Result<String, TemplateError>> = match inner {
+    let to_default_str: Box<Fn(&Value) -> Result<String, TemplateError>> = match inner {
         Schema::Null => err!("Invalid use of Schema::Null")?,
 
         Schema::Boolean => Box::new(|v: &Value| match v {
@@ -490,7 +490,7 @@ fn array_default(inner: &Schema, default: &Option<Value>) -> Result<String, Temp
     let default_str = if let Some(Value::Array(vals)) = default {
         let vals = vals
             .iter()
-            .map(&*a)
+            .map(&*to_default_str)
             .collect::<Result<Vec<String>, TemplateError>>()?
             .as_slice()
             .join(", ");
