@@ -150,6 +150,7 @@ pub enum Source<'a> {
 /// It is stateless can be reused many times.
 pub struct Generator {
     templater: Templater,
+    no_extern: bool,
 }
 
 impl Generator {
@@ -166,6 +167,10 @@ impl Generator {
     /// Generates Rust code from an Avro schema `Source`.
     /// Writes all generated types to the ouput.
     pub fn gen(&self, source: &Source, output: &mut Box<Write>) -> Result<(), Error> {
+        if !self.no_extern {
+            output.write_all(HEADER.as_bytes())?;
+        }
+
         match source {
             Source::Schema(schema) => self.gen_in_order(schema, output)?,
 
@@ -343,27 +348,39 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
 
 /// A builder class to customize `Generator`
 pub struct GeneratorBuilder {
-    precision: Option<usize>,
+    precision: usize,
+    no_extern: bool,
 }
 
 impl GeneratorBuilder {
     /// Creates a new `GeneratorBuilder`
     pub fn new() -> GeneratorBuilder {
-        GeneratorBuilder { precision: None }
+        GeneratorBuilder {
+            precision: 3,
+            no_extern: false,
+        }
     }
 
     /// Sets the precision for default values of f32/f64 fields
     pub fn precision(mut self, precision: usize) -> GeneratorBuilder {
-        self.precision = Some(precision);
+        self.precision = precision;
+        self
+    }
+
+    /// Disables `extern crate ...` from the first generated lines
+    pub fn no_extern(mut self, no_extern: bool) -> GeneratorBuilder {
+        self.no_extern = no_extern;
         self
     }
 
     /// Create a `Generator` with the builder parameters
     pub fn build(self) -> Result<Generator, Error> {
-        let precision = self.precision.unwrap_or(3);
         let mut templater = Templater::new()?;
-        templater.precision = precision;
-        Ok(Generator { templater })
+        templater.precision = self.precision;
+        Ok(Generator {
+            templater,
+            no_extern: self.no_extern,
+        })
     }
 }
 

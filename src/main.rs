@@ -48,12 +48,9 @@ struct Args {
 }
 */
 
-/// TODO implement --no-header
-/// TODO implement --append
-
 const USAGE: &'static str = "
 Usage:
-  rsgen-avro (--schema=FILE | --schemas=DIR) --output=FILE [--append --no-header -p <p>]
+  rsgen-avro (--schema=FILE | --schemas=DIR) --output=FILE [--append --no-extern -p <p>]
   rsgen-avro (-h | --help)
   rsgen-avro --version
 
@@ -64,6 +61,8 @@ Options:
   --schemas=DIR   Directory containing Avro schemas in json format.
   --output=FILE   File where Rust code will be generated. Use '-' for stdout.
   -p <p>          Precision for f32/f64 default values that aren't round numbers [default: 3].
+  --append        Only appends to output. By default, tries to overwrite.
+  --no-extern     Don't add 'extern crate ...' at the top. By default, will be added.
 ";
 
 #[derive(Debug, Deserialize)]
@@ -72,6 +71,8 @@ struct CmdArgs {
     flag_schemas: String,
     flag_output: String,
     flag_p: Option<usize>,
+    flag_append: bool,
+    flag_no_extern: bool,
 }
 
 fn main() {
@@ -91,20 +92,21 @@ fn main() {
     let mut out: Box<Write> = if &args.flag_output == "-" {
         Box::new(stdout())
     } else {
-        Box::new(
-            OpenOptions::new()
-                .write(true)
-                .create(true)
-                .open(&args.flag_output)
-                .unwrap_or_else(|e| {
-                    eprintln!("Output file error: {}", e);
-                    process::exit(1);
-                }),
-        )
+        let mut open_opts = OpenOptions::new();
+        if args.flag_append {
+            open_opts.write(true).create(true).append(true)
+        } else {
+            open_opts.write(true).create(true).truncate(true)
+        };
+        Box::new(open_opts.open(&args.flag_output).unwrap_or_else(|e| {
+            eprintln!("Output file error: {}", e);
+            process::exit(1);
+        }))
     };
 
     let g = Generator::builder()
         .precision(args.flag_p.unwrap_or(3))
+        .no_extern(args.flag_no_extern)
         .build()
         .unwrap_or_else(|e| {
             eprintln!("Problem during prepartion: {}", e);

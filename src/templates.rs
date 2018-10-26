@@ -9,6 +9,11 @@ use heck::{CamelCase, SnakeCase};
 use serde_json::Value;
 use tera::{Context, Tera};
 
+pub const HEADER: &str = "#[macro_use]
+extern crate serde_derive;
+extern crate serde;
+";
+
 /// TODO include doc from schema, if any
 pub const RECORD_TERA: &str = "record.tera";
 pub const RECORD_TEMPLATE: &str = "
