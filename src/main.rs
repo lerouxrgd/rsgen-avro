@@ -48,12 +48,12 @@ struct Args {
 }
 */
 
-/// TODO some option to add serde import headers (default include)
-/// TODO some option to a/r output file (default override)
+/// TODO implement --no-header
+/// TODO implement --append
 
 const USAGE: &'static str = "
 Usage:
-  rsgen-avro (--schema=FILE | --schemas=DIR) --output=FILE [--precision=<p>]
+  rsgen-avro (--schema=FILE | --schemas=DIR) --output=FILE [--append --no-header -p <p>]
   rsgen-avro (-h | --help)
   rsgen-avro --version
 
@@ -63,7 +63,7 @@ Options:
   --schema=FILE   File containing an Avro schema in json format.
   --schemas=DIR   Directory containing Avro schemas in json format.
   --output=FILE   File where Rust code will be generated. Use '-' for stdout.
-  --precison=<p>  Precision for f32/f64 default values that aren't round numbers [default: 3].
+  -p <p>          Precision for f32/f64 default values that aren't round numbers [default: 3].
 ";
 
 #[derive(Debug, Deserialize)]
@@ -71,7 +71,7 @@ struct CmdArgs {
     flag_schema: String,
     flag_schemas: String,
     flag_output: String,
-    flag_precision: Option<usize>,
+    flag_p: Option<usize>,
 }
 
 fn main() {
@@ -104,7 +104,7 @@ fn main() {
     };
 
     let g = Generator::builder()
-        .precision(args.flag_precision.unwrap_or(3))
+        .precision(args.flag_p.unwrap_or(3))
         .build()
         .unwrap_or_else(|e| {
             eprintln!("Problem during prepartion: {}", e);

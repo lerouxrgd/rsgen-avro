@@ -1,3 +1,44 @@
+//! # rsgen-avro
+//!
+//! **[Apache Avro](https://avro.apache.org/)** is a data serialization system which provides
+//! rich data structures and a compact, fast, binary data format.
+//!
+//! All data in Avro is schematized, as in the following example:
+//!
+//! ```text
+//! {
+//!     "type": "record",
+//!     "name": "test",
+//!     "fields": [
+//!         {"name": "a", "type": "long", "default": 42},
+//!         {"name": "b", "type": "string"}
+//!     ]
+//! }
+//! ```
+//!
+//! **The [avro-rs](https://github.com/flavray/avro-rs)** crate provides a way to
+//! read and write Avro data with both Avro-specialized and Rust serde-compatible types.
+//!
+//! **[rsgen-avro]** provides a way to generate Rust serde-compatible types based on Avro schemas.
+//!
+//! # Installing the client
+//!
+//! # Using the library
+//!
+//! Add to your Cargo.toml:
+//!
+//! ```text
+//! [dependencies]
+//! rsgen-avro = "x.y.z"
+//! ```
+//!
+//! To use the library,  just add at the top of the crate:
+//!
+//! ```
+//! extern crate rsgen_avro;
+//! ```
+//!
+
 extern crate avro_rs;
 extern crate by_address;
 extern crate failure;

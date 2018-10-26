@@ -1,3 +1,4 @@
+//! Logic for templating Rust types and default values from Avro schema
 use std::collections::{HashMap, HashSet};
 
 use avro_rs::schema::{Name, RecordField};
@@ -8,6 +9,7 @@ use heck::{CamelCase, SnakeCase};
 use serde_json::Value;
 use tera::{Context, Tera};
 
+/// TODO include doc from schema, if any
 pub const RECORD_TERA: &str = "record.tera";
 pub const RECORD_TEMPLATE: &str = "
 #[serde(default)]
