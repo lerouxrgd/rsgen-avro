@@ -19,7 +19,7 @@
 //! **The [avro-rs](https://github.com/flavray/avro-rs)** crate provides a way to
 //! read and write Avro data with both Avro-specialized and Rust serde-compatible types.
 //!
-//! **[rsgen-avro]** provides a way to generate Rust serde-compatible types based on Avro schemas.
+//! **[rsgen-avro]** provides a way to generate Rust serde-compatible types based on Avro schemas. Both a binary tool and library crate are available.
 //!
 //! # Installing the client
 //!
@@ -32,12 +32,71 @@
 //! rsgen-avro = "x.y.z"
 //! ```
 //!
-//! To use the library,  just add at the top of the crate:
+//! Add at the top of the crate:
 //!
-//! ```
+//! ```rust
 //! extern crate rsgen_avro;
 //! ```
 //!
+//! Then, the basic usage is:
+//!
+//! ```rust
+//! let raw_schema = r#"
+//! {
+//!     "type": "record",
+//!     "name": "test",
+//!     "fields": [
+//!         {"name": "a", "type": "long", "default": 42},
+//!         {"name": "b", "type": "string"}
+//!     ]
+//! }
+//! "#;
+//!
+//! let schema = Schema::parse_str(&raw_schema).unwrap();
+//! let source = Source::Schema(&schema);
+//!
+//! let mut out: Box<Write> = Box::new(stdout());
+//!
+//! let g = Generator::new().unwrap();
+//! g.gen(&source, &mut out).unwrap();
+//! ```
+//!
+//! This will generate the following output:
+//!
+//! ```text
+//! #[serde(default)]
+//! #[derive(Debug, Deserialize, Serialize)]
+//! pub struct Test {
+//!     pub a: i64,
+//!     pub b: String,
+//! }
+//!
+//! impl Default for Test {
+//!     fn default() -> Test {
+//!         Test {
+//!             a: 42,
+//!             b: String::default(),
+//!         }
+//!     }
+//! }
+//! ```
+//!
+//! Various `Schema` sources can be used with the `.gen(..)` method:
+//!
+//! ```rust
+//! pub enum Source<'a> {
+//!     Schema(&'a Schema),
+//!     SchemaStr(&'a str),
+//!     FilePath(&'a str),
+//!     DirPath(&'a str),
+//! }
+//! ```
+//!
+//! Note also that the `Generator` can be customized with a builder:
+//!
+//! ```rust
+//! let g = Generator::builder().precision(2).build().unwrap();
+//! ```
 
 extern crate avro_rs;
 extern crate by_address;
@@ -75,26 +134,37 @@ impl RsgenError {
     }
 }
 
+/// Represents a schema input source
 pub enum Source<'a> {
+    /// An Avro schema enum from `avro-rs` crate
     Schema(&'a Schema),
+    /// An Avro schema string in json format
     SchemaStr(&'a str),
+    /// Path to a file containing an Avro schema in json format
     FilePath(&'a str),
+    /// Path to a directory containing multiple files in Avro schema
     DirPath(&'a str),
 }
 
+/// The main component of this library.
+/// It is stateless can be reused many times.
 pub struct Generator {
     templater: Templater,
 }
 
 impl Generator {
+    /// Create a new `Generator` through a builder with default config.
     pub fn new() -> Result<Generator, Error> {
         GeneratorBuilder::new().build()
     }
 
+    /// Returns a fluid builder for custom `Generator` instantiation.
     pub fn builder() -> GeneratorBuilder {
         GeneratorBuilder::new()
     }
 
+    /// Generates Rust code from an Avro schema `Source`.
+    /// Writes all generated types to the ouput.
     pub fn gen(&self, source: &Source, output: &mut Box<Write>) -> Result<(), Error> {
         match source {
             Source::Schema(schema) => self.gen_in_order(schema, output)?,
@@ -127,12 +197,18 @@ impl Generator {
         Ok(())
     }
 
+    /// Given an Avro `schema`:
+    /// * Find its ordered, nested dependencies with `deps_stack(schema)`
+    /// * Pops sub-schemas and generate appropriate Rust types
+    /// * Keeps tracks of nested schema->name with `GenState` mapping
+    /// * Appends generated Rust types to the output
     fn gen_in_order(&self, schema: &Schema, output: &mut Box<Write>) -> Result<(), Error> {
         let mut gs = GenState::new();
         let mut deps = deps_stack(schema);
 
         while let Some(s) = deps.pop() {
             match s {
+                // Simply generate code
                 Schema::Fixed { .. } => {
                     let code = &self.templater.str_fixed(&s)?;
                     output.write_all(code.as_bytes())?
@@ -141,10 +217,14 @@ impl Generator {
                     let code = &self.templater.str_enum(&s)?;
                     output.write_all(code.as_bytes())?
                 }
+
+                // Generate code with potentially nested types
                 Schema::Record { .. } => {
                     let code = &self.templater.str_record(&s, &gs)?;
                     output.write_all(code.as_bytes())?
                 }
+
+                // Register inner type for it to be used as a nested type later
                 Schema::Array(inner) => {
                     let type_str = array_type(inner, &gs)?;
                     gs.put_type(&s, type_str)
@@ -159,6 +239,7 @@ impl Generator {
                         gs.put_type(&s, type_str)
                     }
                 }
+
                 _ => Err(RsgenError::new(format!("Not a valid root schema: {:?}", s)))?,
             }
         }
@@ -166,6 +247,10 @@ impl Generator {
     }
 }
 
+/// Utility function to find the ordered, nested dependencies of an Avro `schema`.
+/// Explores nested `schema`s in a breadth-first fashion, pushing them on a stack
+/// at the same time in order to have them ordered.
+/// It is similar to traversing the `schema` tree in a post-order fashion.
 fn deps_stack(schema: &Schema) -> Vec<&Schema> {
     let mut deps = Vec::new();
     let mut q = VecDeque::new();
@@ -175,17 +260,24 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
         let s = q.pop_front().unwrap();
 
         match s {
+            // No nested schemas, add them to the result stack
             Schema::Fixed { .. } => deps.push(s),
             Schema::Enum { .. } => deps.push(s),
+
+            // Explore the record fields for potentially nested schemas
             Schema::Record { fields, .. } => {
                 deps.push(s);
 
                 for RecordField { schema: sr, .. } in fields {
                     match sr {
+                        // No nested schemas, add them to the result stack
                         Schema::Fixed { .. } => deps.push(sr),
                         Schema::Enum { .. } => deps.push(sr),
+
+                        // Push to the exploration queue for further checks
                         Schema::Record { .. } => q.push_back(sr),
 
+                        // Push to the exploration queue, depending on the inner schema format
                         Schema::Map(sc) | Schema::Array(sc) => match &**sc {
                             Schema::Fixed { .. }
                             | Schema::Enum { .. }
@@ -195,7 +287,6 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
                             | Schema::Union(..) => q.push_back(&**sc),
                             _ => (),
                         },
-
                         Schema::Union(union) => {
                             if let [Schema::Null, sc] = union.variants() {
                                 match sc {
@@ -214,29 +305,35 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
                 }
             }
 
+            // Depending on the inner schema type ...
             Schema::Map(sc) | Schema::Array(sc) => match &**sc {
+                // ... Needs further checks, push to the exploration queue
                 Schema::Fixed { .. }
                 | Schema::Enum { .. }
                 | Schema::Record { .. }
                 | Schema::Map(..)
                 | Schema::Array(..)
                 | Schema::Union(..) => q.push_back(&**sc),
+                // ... Not nested, can be pushed to the result stack
                 _ => deps.push(s),
             },
-
             Schema::Union(union) => {
                 if let [Schema::Null, sc] = union.variants() {
                     match sc {
+                        // ... Needs further checks, push to the exploration queue
                         Schema::Fixed { .. }
                         | Schema::Enum { .. }
                         | Schema::Record { .. }
                         | Schema::Map(..)
                         | Schema::Array(..)
                         | Schema::Union(..) => q.push_back(sc),
+                        // ... Not nested, can be pushed to the result stack
                         _ => deps.push(s),
                     }
                 }
             }
+
+            // Ignore all other schema formats
             _ => (),
         }
     }
@@ -244,20 +341,24 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
     deps
 }
 
+/// A builder class to customize `Generator`
 pub struct GeneratorBuilder {
     precision: Option<usize>,
 }
 
 impl GeneratorBuilder {
+    /// Creates a new `GeneratorBuilder`
     pub fn new() -> GeneratorBuilder {
         GeneratorBuilder { precision: None }
     }
 
+    /// Sets the precision for default values of f32/f64 fields
     pub fn precision(mut self, precision: usize) -> GeneratorBuilder {
         self.precision = Some(precision);
         self
     }
 
+    /// Create a `Generator` with the builder parameters
     pub fn build(self) -> Result<Generator, Error> {
         let precision = self.precision.unwrap_or(3);
         let mut templater = Templater::new()?;
@@ -268,8 +369,37 @@ impl GeneratorBuilder {
 
 #[cfg(test)]
 mod tests {
+    extern crate gag;
     use super::*;
     use std::io::stdout;
+
+    #[test]
+    fn simple() {
+        let raw_schema = r#"
+        {
+            "type": "record",
+            "name": "test",
+            "fields": [
+                {"name": "a", "type": "long", "default": 42},
+                {"name": "b", "type": "string"}
+            ]
+        }
+        "#;
+
+        let schema = Schema::parse_str(&raw_schema).unwrap();
+        let source = Source::Schema(&schema);
+
+        use self::gag::BufferRedirect;
+        let mut buf = BufferRedirect::stdout().unwrap();
+        let mut out: Box<Write> = Box::new(stdout());
+
+        let g = Generator::new().unwrap();
+        g.gen(&source, &mut out).unwrap();
+
+        let mut res = String::new();
+        buf.read_to_string(&mut res).unwrap();
+        eprintln!("======>>> {}", res);
+    }
 
     #[test]
     fn record() {
