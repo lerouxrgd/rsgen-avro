@@ -11,7 +11,8 @@ use tera::{Context, Tera};
 
 pub const HEADER: &str = "#[macro_use]
 extern crate serde_derive;
-extern crate serde;";
+extern crate serde;
+";
 
 pub const RECORD_TERA: &str = "record.tera";
 pub const RECORD_TEMPLATE: &str = "
@@ -705,55 +706,113 @@ mod tests {
     use super::*;
 
     #[test]
-    fn tera() {
+    fn gen_record() {
         let raw_schema = r#"
-        {"namespace": "example.avro",
-         "type": "record",
-         "name": "User",
-         "fields": [
-             {"name": "as", "type": "string"},
-             {"name": "favoriteNumber",  "type": "int", "default": 7},
-             {"name": "likes_pizza", "type": "boolean", "default": false},
-             {"name": "b", "type": "bytes", "default": "\u00FF"},
-             {"name": "a-bool", "type": {"type": "array", "items": "boolean"}, "default": [true, false]},
-             {"name": "a-i32", "type": {"type": "array", "items": "int"}, "default": [12, -1]},
-             {"name": "m-f64", "type": {"type": "map", "values": "double"}}
-         ]
-        }"#;
+{
+  "type": "record",
+  "name": "User",
+  "fields": [
+    {"name": "as", "type": "string"},
+    {"name": "favoriteNumber",  "type": "int", "default": 7},
+    {"name": "likes_pizza", "type": "boolean", "default": false},
+    {"name": "b", "type": "bytes", "default": "\u00FF"},
+    {"name": "a-bool", "type": {"type": "array", "items": "boolean"}, "default": [true, false]},
+    {"name": "a-i32", "type": {"type": "array", "items": "int"}, "default": [12, -1]},
+    {"name": "m-f64", "type": {"type": "map", "values": "double"}}
+  ]
+}        
+"#;
+
+        let expected = r#"
+#[serde(default)]
+#[derive(Debug, Deserialize, Serialize)]
+pub struct User {
+    #[serde(rename = "a-bool")]
+    pub a_bool: Vec<bool>,
+    #[serde(rename = "a-i32")]
+    pub a_i32: Vec<i32>,
+    #[serde(rename = "as")]
+    pub as_: String,
+    pub b: Vec<u8>,
+    #[serde(rename = "favoriteNumber")]
+    pub favorite_number: i32,
+    pub likes_pizza: bool,
+    #[serde(rename = "m-f64")]
+    pub m_f64: ::std::collections::HashMap<String, f64>,
+}
+
+impl Default for User {
+    fn default() -> User {
+        User {
+            a_bool: vec![true, false],
+            a_i32: vec![12, -1],
+            as_: String::default(),
+            b: vec![195, 191],
+            favorite_number: 7,
+            likes_pizza: false,
+            m_f64: ::std::collections::HashMap::new(),
+        }
+    }
+}
+"#;
 
         let templater = Templater::new().unwrap();
         let schema = Schema::parse_str(&raw_schema).unwrap();
         let gs = GenState::new();
         let res = templater.str_record(&schema, &gs).unwrap();
-        println!("{}", res);
+
+        assert_eq!(expected, res);
     }
 
     #[test]
-    fn tero() {
+    fn gen_enum() {
         let raw_schema = r#"
-        {"type": "enum",
-         "name": "Colors",
-         "doc": "Roses are red violets are blue.",
-         "symbols": ["RED", "GREEN", "BLUE"]
-        }"#;
+{
+  "type": "enum",
+  "name": "Colors",
+  "doc": "Roses are red violets are blue.",
+  "symbols": ["RED", "GREEN", "BLUE"]
+}
+"#;
 
         let templater = Templater::new().unwrap();
         let schema = Schema::parse_str(&raw_schema).unwrap();
         let res = templater.str_enum(&schema).unwrap();
-        println!("{}", res);
+
+        let expected = r#"
+/// Roses are red violets are blue.
+#[derive(Debug, Deserialize, Serialize)]
+pub enum Colors {
+    #[serde(rename = "BLUE")]
+    Blue,
+    #[serde(rename = "GREEN")]
+    Green,
+    #[serde(rename = "RED")]
+    Red,
+}
+"#;
+
+        assert_eq!(expected, res);
     }
 
     #[test]
-    fn teri() {
+    fn gen_fixed() {
         let raw_schema = r#"
-        {"type": "fixed",
-         "name": "Md5",
-         "size": 2
-        }"#;
+{
+  "type": "fixed",
+  "name": "Md5",
+  "size": 16
+}
+"#;
 
         let templater = Templater::new().unwrap();
         let schema = Schema::parse_str(&raw_schema).unwrap();
         let res = templater.str_fixed(&schema).unwrap();
-        println!("{}", res);
+
+        let expected = "
+pub type Md5 = [u8; 16];
+";
+
+        assert_eq!(expected, res);
     }
 }

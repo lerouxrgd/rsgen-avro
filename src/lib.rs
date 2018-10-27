@@ -41,6 +41,12 @@
 //! Then, the basic usage is:
 //!
 //! ```rust
+//! # extern crate avro_rs;
+//! # extern crate rsgen_avro;
+//! use std::io::{stdout, Write};
+//! use avro_rs::Schema;
+//! use rsgen_avro::{Source, Generator};
+//!
 //! let raw_schema = r#"
 //! {
 //!     "type": "record",
@@ -84,6 +90,8 @@
 //! Various `Schema` sources can be used with the `.gen(..)` method:
 //!
 //! ```rust
+//! # extern crate avro_rs;
+//! # use avro_rs::Schema;
 //! pub enum Source<'a> {
 //!     Schema(&'a Schema),
 //!     SchemaStr(&'a str),
@@ -95,6 +103,7 @@
 //! Note also that the `Generator` can be customized with a builder:
 //!
 //! ```rust
+//! # use rsgen_avro::Generator;
 //! let g = Generator::builder().precision(2).build().unwrap();
 //! ```
 
@@ -106,6 +115,8 @@ extern crate failure_derive;
 extern crate heck;
 #[macro_use]
 extern crate lazy_static;
+#[cfg_attr(test, macro_use)]
+extern crate matches;
 extern crate serde_json;
 extern crate tera;
 
@@ -387,97 +398,157 @@ impl GeneratorBuilder {
 #[cfg(test)]
 mod tests {
     extern crate gag;
-    use super::*;
+
     use std::io::stdout;
+
+    use self::gag::BufferRedirect;
+    use avro_rs::schema::Name;
+
+    use super::*;
+
+    macro_rules! assert_schema_gen (
+        ($expected:expr, $raw_schema:expr) => (
+            let schema = Schema::parse_str($raw_schema).unwrap();
+            let source = Source::Schema(&schema);
+
+            let mut buf = BufferRedirect::stdout().unwrap();
+            let mut out: Box<Write> = Box::new(stdout());
+
+            let g = Generator::new().unwrap();
+            g.gen(&source, &mut out).unwrap();
+
+            let mut res = String::new();
+            buf.read_to_string(&mut res).unwrap();
+            buf.into_inner();
+
+            assert_eq!($expected, &res);
+        );
+    );
 
     #[test]
     fn simple() {
         let raw_schema = r#"
-        {
-            "type": "record",
-            "name": "test",
-            "fields": [
-                {"name": "a", "type": "long", "default": 42},
-                {"name": "b", "type": "string"}
-            ]
-        }
-        "#;
-
-        let schema = Schema::parse_str(&raw_schema).unwrap();
-        let source = Source::Schema(&schema);
-
-        use self::gag::BufferRedirect;
-        let mut buf = BufferRedirect::stdout().unwrap();
-        let mut out: Box<Write> = Box::new(stdout());
-
-        let g = Generator::new().unwrap();
-        g.gen(&source, &mut out).unwrap();
-
-        let mut res = String::new();
-        buf.read_to_string(&mut res).unwrap();
-        eprintln!("======>>> {}", res);
-    }
-
-    #[test]
-    fn record() {
-        let raw_schema = r#"
-{"namespace": "example.avro",
- "type": "record",
- "name": "User",
- "fields": [
-   {"name": "name", "type": "string", "default": ""},
-   {"name": "favorite_number",  "type": "int", "default": 7},
-   {"name": "likes_pizza", "type": "boolean", "default": false},
-   {"name": "oye", "type": "float", "default": 1.1},
-   {"name": "aa-i32",
-    "type": {"type": "array", "items": {"type": "array", "items": "int"}},
-    "default": [[0], [12, -1]]}
- ]
+{
+  "type": "record",
+  "name": "test",
+  "fields": [
+    {"name": "a", "type": "long", "default": 42},
+    {"name": "b", "type": "string"}
+  ]
 }
 "#;
 
-        let mut out: Box<Write> = Box::new(stdout());
+        let expected = "#[macro_use]
+extern crate serde_derive;
+extern crate serde;
 
-        let schema = Schema::parse_str(&raw_schema).unwrap();
-        let source = Source::Schema(&schema);
+#[serde(default)]
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Test {
+    pub a: i64,
+    pub b: String,
+}
 
-        let g = Generator::builder().precision(2).build().unwrap();
-        g.gen(&source, &mut out).unwrap();
+impl Default for Test {
+    fn default() -> Test {
+        Test {
+            a: 42,
+            b: String::default(),
+        }
+    }
+}
+";
+        assert_schema_gen!(expected, raw_schema);
+    }
+
+    #[test]
+    fn complex() {
+        let raw_schema = r#"
+{
+  "type": "record",
+  "name": "User",
+  "doc": "Hi there.",
+  "fields": [
+    {"name": "name", "type": "string", "default": ""},
+    {"name": "favorite_number",  "type": "int", "default": 7},
+    {"name": "likes_pizza", "type": "boolean", "default": false},
+    {"name": "oye", "type": "float", "default": 1.1},
+    {"name": "aa-i32",
+     "type": {"type": "array", "items": {"type": "array", "items": "int"}},
+     "default": [[0], [12, -1]]}
+  ]
+}
+"#;
+
+        let expected = r#"#[macro_use]
+extern crate serde_derive;
+extern crate serde;
+
+/// Hi there.
+#[serde(default)]
+#[derive(Debug, Deserialize, Serialize)]
+pub struct User {
+    #[serde(rename = "aa-i32")]
+    pub aa_i32: Vec<Vec<i32>>,
+    pub favorite_number: i32,
+    pub likes_pizza: bool,
+    pub name: String,
+    pub oye: f32,
+}
+
+impl Default for User {
+    fn default() -> User {
+        User {
+            aa_i32: vec![vec![0], vec![12, -1]],
+            favorite_number: 7,
+            likes_pizza: false,
+            name: "".to_owned(),
+            oye: 1.100,
+        }
+    }
+}
+"#;
+
+        assert_schema_gen!(expected, raw_schema);
     }
 
     #[test]
     fn deps() {
         let raw_schema = r#"
-{"type": "record",
- "name": "User",
- "fields": [
-   {"name": "name", "type": "string", "default": "unknown"},
-   {"name": "address",
-    "type": {
-      "type": "record",
-      "name": "Address",
-      "fields": [
-        {"name": "city", "type": "string", "default": "unknown"},
-        {"name": "country",
-         "type": {"type": "enum", "name": "Country", "symbols": ["FR", "JP"]}
-        }
-      ]
+{
+  "type": "record",
+  "name": "User",
+  "fields": [
+    {"name": "name", "type": "string", "default": "unknown"},
+    {"name": "address",
+     "type": {
+       "type": "record",
+       "name": "Address",
+       "fields": [
+         {"name": "city", "type": "string", "default": "unknown"},
+         {"name": "country",
+          "type": {"type": "enum", "name": "Country", "symbols": ["FR", "JP"]}
+         }
+       ]
+     }
     }
-   },
-   {"name": "likes_pizza", "type": "boolean", "default": false}
- ]
+  ]
 }
 "#;
 
         let schema = Schema::parse_str(&raw_schema).unwrap();
-        let deps = deps_stack(&schema);
+        let mut deps = deps_stack(&schema);
 
-        let depss = deps
-            .iter()
-            .map(|s| format!("{:?}", s))
-            .collect::<Vec<String>>()
-            .as_slice()
-            .join("\n\n");
-        println!("{}", depss);
+        let s = deps.pop().unwrap();
+        assert_matches!(s, Schema::Enum{ name: Name { ref name, ..}, ..} if name == "Country");
+
+        let s = deps.pop().unwrap();
+        assert_matches!(s, Schema::Record{ name: Name { ref name, ..}, ..} if name == "Address");
+
+        let s = deps.pop().unwrap();
+        assert_matches!(s, Schema::Record{ name: Name { ref name, ..}, ..} if name == "User");
+
+        let s = deps.pop();
+        assert_matches!(s, None);
     }
 }

@@ -11,43 +11,6 @@ use std::process;
 use docopt::Docopt;
 use rsgen_avro::{Generator, Source};
 
-/*
-const USAGE: &'static str = "
-Naval Fate.
-
-Usage:
-  rsgen-avro ship new <name>...
-  rsgen-avro ship <name> move <x> <y> [--speed=<kn>]
-  rsgen-avro ship shoot <x> <y>
-  rsgen-avro mine (set|remove) <x> <y> [--moored | --drifting]
-  rsgen-avro (-h | --help)
-  rsgen-avro --version
-
-Options:
-  -h --help     Show this screen.
-  --version     Show version.
-  --speed=<kn>  Speed in knots [default: 10].
-  --moored      Moored (anchored) mine.
-  --drifting    Drifting mine.
-";
-
-#[derive(Debug, Deserialize)]
-struct Args {
-    flag_speed: isize,
-    flag_drifting: bool,
-    flag_moored: bool,
-    arg_name: Vec<String>,
-    arg_x: Option<i32>,
-    arg_y: Option<i32>,
-    cmd_ship: bool,
-    cmd_new: bool,
-    cmd_shoot: bool,
-    cmd_mine: bool,
-    cmd_set: bool,
-    cmd_remove: bool,
-}
-*/
-
 const USAGE: &'static str = "
 Usage:
   rsgen-avro (--schema=FILE | --schemas=DIR) --output=FILE [--append --no-extern -p <p>]
