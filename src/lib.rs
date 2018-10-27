@@ -134,15 +134,15 @@ impl RsgenError {
     }
 }
 
-/// Represents a schema input source
+/// Represents a schema input source.
 pub enum Source<'a> {
-    /// An Avro schema enum from `avro-rs` crate
+    /// An Avro schema enum from `avro-rs` crate.
     Schema(&'a Schema),
-    /// An Avro schema string in json format
+    /// An Avro schema string in json format.
     SchemaStr(&'a str),
-    /// Path to a file containing an Avro schema in json format
+    /// Path to a file containing an Avro schema in json format.
     FilePath(&'a str),
-    /// Path to a directory containing multiple files in Avro schema
+    /// Path to a directory containing multiple files in Avro schema.
     DirPath(&'a str),
 }
 
@@ -346,14 +346,14 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
     deps
 }
 
-/// A builder class to customize `Generator`
+/// A builder class to customize `Generator`.
 pub struct GeneratorBuilder {
     precision: usize,
     no_extern: bool,
 }
 
 impl GeneratorBuilder {
-    /// Creates a new `GeneratorBuilder`
+    /// Creates a new `GeneratorBuilder`.
     pub fn new() -> GeneratorBuilder {
         GeneratorBuilder {
             precision: 3,
@@ -361,19 +361,19 @@ impl GeneratorBuilder {
         }
     }
 
-    /// Sets the precision for default values of f32/f64 fields
+    /// Sets the precision for default values of f32/f64 fields.
     pub fn precision(mut self, precision: usize) -> GeneratorBuilder {
         self.precision = precision;
         self
     }
 
-    /// Disables `extern crate ...` from the first generated lines
+    /// Disables `extern crate ...` from the first generated lines.
     pub fn no_extern(mut self, no_extern: bool) -> GeneratorBuilder {
         self.no_extern = no_extern;
         self
     }
 
-    /// Create a `Generator` with the builder parameters
+    /// Create a `Generator` with the builder parameters.
     pub fn build(self) -> Result<Generator, Error> {
         let mut templater = Templater::new()?;
         templater.precision = self.precision;

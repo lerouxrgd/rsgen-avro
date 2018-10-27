@@ -1,4 +1,4 @@
-//! Logic for templating Rust types and default values from Avro schema
+//! Logic for templating Rust types and default values from Avro schema.
 use std::collections::{HashMap, HashSet};
 
 use avro_rs::schema::{Name, RecordField};
@@ -104,7 +104,8 @@ macro_rules! err(
     ($($arg:tt)*) => (Err(TemplateError::new(format!($($arg)*))))
 );
 
-// https://github.com/rust-lang-nursery/failure/issues/109
+/// Fix for converting error-chain to failure.
+/// see  https://github.com/rust-lang-nursery/failure/issues/109
 trait ResultExt<T, E> {
     fn sync(self) -> Result<T, SyncFailure<E>>
     where
@@ -112,7 +113,8 @@ trait ResultExt<T, E> {
         E: ::std::error::Error + Send + 'static;
 }
 
-// https://github.com/rust-lang-nursery/failure/issues/109
+/// Fix for converting error-chain to failure.
+/// see  https://github.com/rust-lang-nursery/failure/issues/109
 impl<T, E> ResultExt<T, E> for Result<T, E> {
     fn sync(self) -> Result<T, SyncFailure<E>>
     where
@@ -123,6 +125,8 @@ impl<T, E> ResultExt<T, E> for Result<T, E> {
     }
 }
 
+/// A helper struct for nested schema generation.
+/// Used to store inner schema String type so that outter schema String type can be created.
 #[derive(Debug)]
 pub struct GenState<'a>(HashMap<ByAddress<&'a Schema>, String>);
 
@@ -131,21 +135,26 @@ impl<'a> GenState<'a> {
         GenState(HashMap::new())
     }
 
+    /// Stores the String type of a given schema.
     pub fn put_type<'b: 'a>(&mut self, schema: &'b Schema, t: String) {
         self.0.insert(ByAddress(schema), t);
     }
 
+    /// Retrieves the String type of a given schema.
     pub fn get_type(&self, schema: &'a Schema) -> Option<&String> {
         self.0.get(&ByAddress(schema))
     }
 }
 
+/// The main, stateless, component for templating. Current implementation uses Tera.
+/// Its responsability is to generate String representing Rust code/types for a given Avro schema.
 pub struct Templater {
     tera: Tera,
     pub precision: usize,
 }
 
 impl Templater {
+    /// Creates a new `Templater.`
     pub fn new() -> Result<Templater, Error> {
         let mut tera = Tera::new("/dev/null/*").sync()?;
         tera.add_raw_template(RECORD_TERA, RECORD_TEMPLATE).sync()?;
@@ -154,6 +163,7 @@ impl Templater {
         Ok(Templater { tera, precision: 3 })
     }
 
+    /// Generates a Rust type based on a Schema::Fixed schema.
     pub fn str_fixed(&self, schema: &Schema) -> Result<String, Error> {
         if let Schema::Fixed {
             name: Name { name, .. },
@@ -169,6 +179,7 @@ impl Templater {
         }
     }
 
+    /// Generates a Rust enum based on a Schema::Enum schema
     pub fn str_enum(&self, schema: &Schema) -> Result<String, Error> {
         if let Schema::Enum {
             name: Name { name, .. },
@@ -195,6 +206,8 @@ impl Templater {
         }
     }
 
+    /// Generates a Rust struct based on a Schema::Record schema.
+    /// Makes use of a `GenState` for nested schemas (i.e. Array/Map/Union).
     pub fn str_record(&self, schema: &Schema, gen_state: &GenState) -> Result<String, Error> {
         if let Schema::Record {
             name: Name { name, .. },
@@ -412,6 +425,7 @@ impl Templater {
         }
     }
 
+    /// Generates Rust default values for the inner schema of an Avro array.
     fn array_default(
         &self,
         inner: &Schema,
@@ -535,11 +549,13 @@ impl Templater {
         Ok(default_str)
     }
 
+    /// Generates Rust default values for the inner schema of an Avro map.
     fn map_default(&self, _: &Schema, _: &Option<Value>) -> Result<String, TemplateError> {
         let default_str = "::std::collections::HashMap::new()".to_string();
         Ok(default_str)
     }
 
+    /// Generates Rust default values for the inner schema of an Avro union.
     fn option_default(&self, _: &Schema, default: &Option<Value>) -> Result<String, Error> {
         let default_str = match default {
             None => "None".to_string(),
@@ -551,6 +567,7 @@ impl Templater {
     }
 }
 
+/// Generates the Rust type of the inner schema of an Avro array.
 pub fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String, Error> {
     let type_str = match inner {
         Schema::Boolean => "Vec<bool>".to_string(),
@@ -597,6 +614,7 @@ fn map_of(t: &str) -> String {
     format!("::std::collections::HashMap<String, {}>", t)
 }
 
+/// Generates the Rust type of the inner schema of an Avro map.
 pub fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String, Error> {
     let type_str = match inner {
         Schema::Boolean => map_of("bool"),
@@ -639,6 +657,7 @@ pub fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String, Error> {
     Ok(type_str)
 }
 
+/// Generates the Rust type of the inner schema of an Avro union.
 pub fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String, Error> {
     let type_str = match inner {
         Schema::Boolean => "Option<bool>".to_string(),
