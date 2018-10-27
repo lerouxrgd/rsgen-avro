@@ -11,12 +11,13 @@ use tera::{Context, Tera};
 
 pub const HEADER: &str = "#[macro_use]
 extern crate serde_derive;
-extern crate serde;
-";
+extern crate serde;";
 
-/// TODO include doc from schema, if any
 pub const RECORD_TERA: &str = "record.tera";
 pub const RECORD_TEMPLATE: &str = "
+{%- if doc %}
+/// {{ doc }}
+{%- endif %}
 #[serde(default)]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct {{ name }} {
@@ -41,6 +42,9 @@ impl Default for {{ name }} {
 
 pub const ENUM_TERA: &str = "enum.tera";
 pub const ENUM_TEMPLATE: &str = "
+{%- if doc %}
+/// {{ doc }}
+{%- endif %}
 #[derive(Debug, Deserialize, Serialize)]
 pub enum {{ name }} {
     {%- for s, o in symbols %}
@@ -169,6 +173,7 @@ impl Templater {
         if let Schema::Enum {
             name: Name { name, .. },
             symbols,
+            doc,
             ..
         } = schema
         {
@@ -177,6 +182,8 @@ impl Templater {
             }
             let mut ctx = Context::new();
             ctx.insert("name", &sanitize(name.to_camel_case()));
+            let doc = if let Some(d) = doc { d } else { "" };
+            ctx.insert("doc", doc);
             let s: HashMap<_, _> = symbols
                 .iter()
                 .map(|s| (sanitize(s.to_camel_case()), s))
@@ -192,11 +199,14 @@ impl Templater {
         if let Schema::Record {
             name: Name { name, .. },
             fields,
+            doc,
             ..
         } = schema
         {
             let mut ctx = Context::new();
             ctx.insert("name", &name.to_camel_case());
+            let doc = if let Some(d) = doc { d } else { "" };
+            ctx.insert("doc", doc);
 
             let mut f = HashMap::new(); // field name -> field type
             let mut o = HashMap::new(); // field name -> original name
@@ -704,7 +714,8 @@ mod tests {
         let raw_schema = r#"
         {"type": "enum",
          "name": "Colors",
-         "symbols": ["GREEN", "BLUE"]
+         "doc": "Roses are red violets are blue.",
+         "symbols": ["RED", "GREEN", "BLUE"]
         }"#;
 
         let templater = Templater::new().unwrap();
