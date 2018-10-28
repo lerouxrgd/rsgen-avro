@@ -2,6 +2,11 @@
 name = "rsgen-avro"
 version = "0.1.0"
 authors = ["lerouxrgd <leroux.rgd@gmail.com>"]
+description = "Command line and library for generating Rust types from Avro schemas"
+keywords = ["avro", "code-generation", "serde"]
+repository = "https://github.com/lerouxrgd/rsgen-avro"
+license = "MIT"
+readme = "README.md"
 
 [dependencies]
 avro-rs = "^0.6"

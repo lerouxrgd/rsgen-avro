@@ -9,7 +9,7 @@ use heck::{CamelCase, SnakeCase};
 use serde_json::Value;
 use tera::{Context, Tera};
 
-pub const HEADER: &str = "#[macro_use]
+pub const IMPORTS: &str = "#[macro_use]
 extern crate serde_derive;
 extern crate serde;
 ";

@@ -16,12 +16,10 @@
 //! }
 //! ```
 //!
-//! **The [avro-rs](https://github.com/flavray/avro-rs)** crate provides a way to
+//! The **[avro-rs](https://github.com/flavray/avro-rs)** crate provides a way to
 //! read and write Avro data with both Avro-specialized and Rust serde-compatible types.
 //!
-//! **[rsgen-avro]** provides a way to generate Rust serde-compatible types based on Avro schemas. Both a binary tool and library crate are available.
-//!
-//! # Installing the client
+//! **[rsgen-avro]** provides a way to generate Rust serde-compatible types based on Avro schemas. Both a command line tool and library crate are available.
 //!
 //! # Using the library
 //!
@@ -87,7 +85,7 @@
 //! }
 //! ```
 //!
-//! Various `Schema` sources can be used with the `.gen(..)` method:
+//! Various `Schema` sources can be used with `Generator`'s `.gen(..)` method:
 //!
 //! ```rust
 //! # extern crate avro_rs;
@@ -161,7 +159,7 @@ pub enum Source<'a> {
 /// It is stateless can be reused many times.
 pub struct Generator {
     templater: Templater,
-    no_extern: bool,
+    add_imports: bool,
 }
 
 impl Generator {
@@ -178,8 +176,8 @@ impl Generator {
     /// Generates Rust code from an Avro schema `Source`.
     /// Writes all generated types to the ouput.
     pub fn gen(&self, source: &Source, output: &mut Box<Write>) -> Result<(), Error> {
-        if !self.no_extern {
-            output.write_all(HEADER.as_bytes())?;
+        if self.add_imports {
+            output.write_all(IMPORTS.as_bytes())?;
         }
 
         match source {
@@ -360,7 +358,7 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
 /// A builder class to customize `Generator`.
 pub struct GeneratorBuilder {
     precision: usize,
-    no_extern: bool,
+    add_imports: bool,
 }
 
 impl GeneratorBuilder {
@@ -368,7 +366,7 @@ impl GeneratorBuilder {
     pub fn new() -> GeneratorBuilder {
         GeneratorBuilder {
             precision: 3,
-            no_extern: false,
+            add_imports: false,
         }
     }
 
@@ -378,9 +376,9 @@ impl GeneratorBuilder {
         self
     }
 
-    /// Disables `extern crate ...` from the first generated lines.
-    pub fn no_extern(mut self, no_extern: bool) -> GeneratorBuilder {
-        self.no_extern = no_extern;
+    /// Adds `extern crate ...` to the first generated lines.
+    pub fn add_imports(mut self, add_imports: bool) -> GeneratorBuilder {
+        self.add_imports = add_imports;
         self
     }
 
@@ -390,7 +388,7 @@ impl GeneratorBuilder {
         templater.precision = self.precision;
         Ok(Generator {
             templater,
-            no_extern: self.no_extern,
+            add_imports: self.add_imports,
         })
     }
 }
@@ -414,7 +412,7 @@ mod tests {
             let mut buf = BufferRedirect::stdout().unwrap();
             let mut out: Box<Write> = Box::new(stdout());
 
-            let g = Generator::new().unwrap();
+            let g = Generator::builder().add_imports(true).build().unwrap();
             g.gen(&source, &mut out).unwrap();
 
             let mut res = String::new();
