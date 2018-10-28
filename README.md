@@ -96,7 +96,6 @@ pub enum Source<'a> {
 Note also that the `Generator` can be customized with a builder:
 
 ```rust
-# use rsgen_avro::Generator;
 let g = Generator::builder().precision(2).build().unwrap();
 ```
 
