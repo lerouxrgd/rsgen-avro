@@ -90,11 +90,12 @@
 //! ```rust
 //! # extern crate avro_rs;
 //! # use avro_rs::Schema;
+//! # use std::path::Path;
 //! pub enum Source<'a> {
 //!     Schema(&'a Schema),
 //!     SchemaStr(&'a str),
-//!     FilePath(&'a str),
-//!     DirPath(&'a str),
+//!     FilePath(&'a Path),
+//!     DirPath(&'a Path),
 //! }
 //! ```
 //!
@@ -123,6 +124,7 @@ mod templates;
 use std::collections::VecDeque;
 use std::fs::File;
 use std::io::prelude::*;
+use std::path::Path;
 
 use avro_rs::{schema::RecordField, Schema};
 use failure::Error;
@@ -150,9 +152,9 @@ pub enum Source<'a> {
     /// An Avro schema string in json format.
     SchemaStr(&'a str),
     /// Path to a file containing an Avro schema in json format.
-    FilePath(&'a str),
+    FilePath(&'a Path),
     /// Path to a directory containing multiple files in Avro schema.
-    DirPath(&'a str),
+    DirPath(&'a Path),
 }
 
 /// The main component of this library.

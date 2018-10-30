@@ -6,6 +6,7 @@ extern crate rsgen_avro;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::io::stdout;
+use std::path::Path;
 use std::process;
 
 use docopt::Docopt;
@@ -15,27 +16,25 @@ const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 const USAGE: &'static str = "
 Usage:
-  rsgen-avro (--schema=FILE | --schemas=DIR) --output=FILE [--append --add-imports -p <p>]
+  rsgen-avro [options] <schema-file-or-dir> <output-file> 
   rsgen-avro (-h | --help)
-  rsgen-avro --version
+  rsgen-avro (-V | --version)
 
 Options:
-  -h --help       Show this screen.
-  --version       Show version.
-  --schema=FILE   File containing an Avro schema in json format.
-  --schemas=DIR   Directory containing Avro schemas in json format.
-  --output=FILE   File where Rust code will be generated. Use '-' for stdout.
-  -p <p>          Precision for f32/f64 default values that aren't round numbers [default: 3].
-  --append        Append to output file. By default, output file is truncated.
-  --add-imports   Add 'extern crate ...' at the top of the output file.
+  --precision=P  Precision for f32/f64 default values
+                 that aren't round numbers [default: 3].
+  --append       Open <output-file> in append mode.
+                 By default it is truncated.
+  --add-imports  Add 'extern crate ...' at the top of <output-file>.
+  -V, --version  Show version.
+  -h, --help     Show this screen.
 ";
 
 #[derive(Debug, Deserialize)]
 struct CmdArgs {
-    flag_schema: String,
-    flag_schemas: String,
-    flag_output: String,
-    flag_p: Option<usize>,
+    arg_schema_file_or_dir: String,
+    arg_output_file: String,
+    flag_precision: Option<usize>,
     flag_append: bool,
     flag_add_imports: bool,
     flag_version: bool,
@@ -51,16 +50,19 @@ fn main() {
         process::exit(0);
     }
 
-    let source = if &args.flag_schema != "" {
-        Source::FilePath(&args.flag_schema)
-    } else if &args.flag_schemas != "" {
-        Source::DirPath(&args.flag_schemas)
-    } else {
-        eprintln!("Wrong schema source: {:?}", &args);
+    let p = Path::new(&args.arg_schema_file_or_dir);
+    if !p.exists() {
+        eprintln!("Doesn't exist: {:?}", p);
         process::exit(1);
+    }
+
+    let source = if p.is_dir() {
+        Source::DirPath(p)
+    } else {
+        Source::FilePath(p)
     };
 
-    let mut out: Box<Write> = if &args.flag_output == "-" {
+    let mut out: Box<Write> = if &args.arg_output_file == "-" {
         Box::new(stdout())
     } else {
         let mut open_opts = OpenOptions::new();
@@ -69,14 +71,14 @@ fn main() {
         } else {
             open_opts.write(true).create(true).truncate(true)
         };
-        Box::new(open_opts.open(&args.flag_output).unwrap_or_else(|e| {
+        Box::new(open_opts.open(&args.arg_output_file).unwrap_or_else(|e| {
             eprintln!("Output file error: {}", e);
             process::exit(1);
         }))
     };
 
     let g = Generator::builder()
-        .precision(args.flag_p.unwrap_or(3))
+        .precision(args.flag_precision.unwrap())
         .add_imports(args.flag_add_imports)
         .build()
         .unwrap_or_else(|e| {
