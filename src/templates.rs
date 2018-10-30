@@ -14,8 +14,24 @@ extern crate serde_derive;
 extern crate serde;
 ";
 
+pub const DESER_NULLABLE: &str = r#"
+use serde::{Deserialize, Deserializer};
+
+macro_rules! deser(
+    ($name:ident, $rtype:ty, $val:expr) => (
+        fn $name<'de, D>(deserializer: D) -> Result<$rtype, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            let opt = Option::deserialize(deserializer)?;
+            Ok(opt.unwrap_or_else(|| $val))
+        }
+    );
+);
+"#;
+
 pub const RECORD_TERA: &str = "record.tera";
-pub const RECORD_TEMPLATE: &str = "
+pub const RECORD_TEMPLATE: &str = r#"
 {%- if doc %}
 /// {{ doc }}
 {%- endif %}
@@ -23,12 +39,21 @@ pub const RECORD_TEMPLATE: &str = "
 #[derive(Debug, Deserialize, Serialize)]
 pub struct {{ name }} {
     {%- for f, type in fields %}
+    {%- if nullable %}
+    #[serde(deserialize_with = "nullable_{{ name|lower }}_{{ f }}")]
+    {%- endif %}
     {%- if f != originals[f] %}
-    #[serde(rename = \"{{ originals[f] }}\")]
+    #[serde(rename = "{{ originals[f] }}")]
     {%- endif %}
     pub {{ f }}: {{ type }},
     {%- endfor %}
 }
+
+{%- if nullable %}
+{%- for f, type in fields %}
+deser!(nullable_{{ name|lower }}_{{ f }}, {{ type }}, {{ defaults[f] }})
+{%- endfor %}
+{%- endif %}
 
 impl Default for {{ name }} {
     fn default() -> {{ name }} {
@@ -39,10 +64,10 @@ impl Default for {{ name }} {
         }
     }
 }
-";
+"#;
 
 pub const ENUM_TERA: &str = "enum.tera";
-pub const ENUM_TEMPLATE: &str = "
+pub const ENUM_TEMPLATE: &str = r#"
 {%- if doc %}
 /// {{ doc }}
 {%- endif %}
@@ -50,12 +75,12 @@ pub const ENUM_TEMPLATE: &str = "
 pub enum {{ name }} {
     {%- for s, o in symbols %}
     {%- if s != o %}
-    #[serde(rename = \"{{ o }}\")]
+    #[serde(rename = "{{ o }}")]
     {%- endif %}
     {{ s }},
     {%- endfor %}
 }
-";
+"#;
 
 pub const FIXED_TERA: &str = "fixed.tera";
 pub const FIXED_TEMPLATE: &str = "
