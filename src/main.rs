@@ -21,6 +21,8 @@ Usage:
   rsgen-avro (-V | --version)
 
 Options:
+  --nullable     Replace null fields with their default value
+                 when deserializing.
   --precision=P  Precision for f32/f64 default values
                  that aren't round numbers [default: 3].
   --append       Open <output-file> in append mode.
@@ -34,6 +36,7 @@ Options:
 struct CmdArgs {
     arg_schema_file_or_dir: String,
     arg_output_file: String,
+    flag_nullable: bool,
     flag_precision: Option<usize>,
     flag_append: bool,
     flag_add_imports: bool,
@@ -80,6 +83,7 @@ fn main() {
     let g = Generator::builder()
         .precision(args.flag_precision.unwrap())
         .add_imports(args.flag_add_imports)
+        .nullable(args.flag_nullable)
         .build()
         .unwrap_or_else(|e| {
             eprintln!("Problem during prepartion: {}", e);

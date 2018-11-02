@@ -39,21 +39,22 @@ pub const RECORD_TEMPLATE: &str = r#"
 #[derive(Debug, Deserialize, Serialize)]
 pub struct {{ name }} {
     {%- for f, type in fields %}
-    {%- if nullable %}
-    #[serde(deserialize_with = "nullable_{{ name|lower }}_{{ f }}")]
-    {%- endif %}
-    {%- if f != originals[f] %}
+    {%- if f != originals[f] and not nullable %}
     #[serde(rename = "{{ originals[f] }}")]
+    {%- elif f != originals[f] and nullable and not type is starting_with("Option") %}
+    #[serde(rename = "{{ originals[f] }}", deserialize_with = "nullable_{{ name|lower }}_{{ f }}")]
+    {%- elif nullable and not type is starting_with("Option") %}
+    #[serde(deserialize_with = "nullable_{{ name|lower }}_{{ f }}")]
     {%- endif %}
     pub {{ f }}: {{ type }},
     {%- endfor %}
 }
 
-{%- if nullable %}
 {%- for f, type in fields %}
-deser!(nullable_{{ name|lower }}_{{ f }}, {{ type }}, {{ defaults[f] }})
-{%- endfor %}
+{%- if nullable and not type is starting_with("Option") %}
+deser!(nullable_{{ name|lower }}_{{ f }}, {{ type }}, {{ defaults[f] }});
 {%- endif %}
+{%- endfor %}
 
 impl Default for {{ name }} {
     fn default() -> {{ name }} {
@@ -177,6 +178,7 @@ impl<'a> GenState<'a> {
 pub struct Templater {
     tera: Tera,
     pub precision: usize,
+    pub nullable: bool,
 }
 
 impl Templater {
@@ -186,7 +188,11 @@ impl Templater {
         tera.add_raw_template(RECORD_TERA, RECORD_TEMPLATE).sync()?;
         tera.add_raw_template(ENUM_TERA, ENUM_TEMPLATE).sync()?;
         tera.add_raw_template(FIXED_TERA, FIXED_TEMPLATE).sync()?;
-        Ok(Templater { tera, precision: 3 })
+        Ok(Templater {
+            tera,
+            precision: 3,
+            nullable: false,
+        })
     }
 
     /// Generates a Rust type based on a Schema::Fixed schema.
@@ -441,10 +447,13 @@ impl Templater {
                     Schema::Null => err!("Invalid use of Schema::Null")?,
                 };
             }
+
             ctx.insert("fields", &f);
             ctx.insert("originals", &o);
             ctx.insert("defaults", &d);
-
+            if self.nullable {
+                ctx.insert("nullable", &true);
+            }
             Ok(self.tera.render(RECORD_TERA, &ctx).sync()?)
         } else {
             err!("Requires Schema::Record, found {:?}", schema)?
@@ -585,8 +594,7 @@ impl Templater {
     fn option_default(&self, _: &Schema, default: &Option<Value>) -> Result<String, Error> {
         let default_str = match default {
             None => "None".to_string(),
-            Some(Value::String(s)) if s == "null" => "None".to_string(),
-            Some(Value::String(s)) if s != "null" => err!("Invalid default: {:?}", s)?,
+            Some(Value::Null) => "None".to_string(),
             _ => err!("Invalid default: {:?}", default)?,
         };
         Ok(default_str)

@@ -116,6 +116,9 @@ extern crate heck;
 extern crate lazy_static;
 #[cfg_attr(test, macro_use)]
 extern crate matches;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde;
 extern crate serde_json;
 extern crate tera;
 
@@ -162,6 +165,7 @@ pub enum Source<'a> {
 pub struct Generator {
     templater: Templater,
     add_imports: bool,
+    nullable: bool,
 }
 
 impl Generator {
@@ -180,6 +184,10 @@ impl Generator {
     pub fn gen(&self, source: &Source, output: &mut Box<Write>) -> Result<(), Error> {
         if self.add_imports {
             output.write_all(IMPORTS.as_bytes())?;
+        }
+
+        if self.nullable {
+            output.write_all(DESER_NULLABLE.as_bytes())?;
         }
 
         match source {
@@ -361,6 +369,7 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
 pub struct GeneratorBuilder {
     precision: usize,
     add_imports: bool,
+    nullable: bool,
 }
 
 impl GeneratorBuilder {
@@ -369,6 +378,7 @@ impl GeneratorBuilder {
         GeneratorBuilder {
             precision: 3,
             add_imports: false,
+            nullable: false,
         }
     }
 
@@ -384,13 +394,22 @@ impl GeneratorBuilder {
         self
     }
 
+    /// Puts default value when deserializing `null` field.
+    /// Doesn't apply to union fields ["null", "Foo"], which are `Option<Foo>`.
+    pub fn nullable(mut self, nullable: bool) -> GeneratorBuilder {
+        self.nullable = nullable;
+        self
+    }
+
     /// Create a `Generator` with the builder parameters.
     pub fn build(self) -> Result<Generator, Error> {
         let mut templater = Templater::new()?;
         templater.precision = self.precision;
+        templater.nullable = self.nullable;
         Ok(Generator {
             templater,
             add_imports: self.add_imports,
+            nullable: self.nullable,
         })
     }
 }
@@ -407,15 +426,14 @@ mod tests {
     use super::*;
 
     macro_rules! assert_schema_gen (
-        ($expected:expr, $raw_schema:expr) => (
+        ($generator:expr, $expected:expr, $raw_schema:expr) => (
             let schema = Schema::parse_str($raw_schema).unwrap();
             let source = Source::Schema(&schema);
 
             let mut buf = BufferRedirect::stdout().unwrap();
             let mut out: Box<Write> = Box::new(stdout());
 
-            let g = Generator::builder().add_imports(true).build().unwrap();
-            g.gen(&source, &mut out).unwrap();
+            $generator.gen(&source, &mut out).unwrap();
 
             let mut res = String::new();
             buf.read_to_string(&mut res).unwrap();
@@ -438,10 +456,7 @@ mod tests {
 }
 "#;
 
-        let expected = "#[macro_use]
-extern crate serde_derive;
-extern crate serde;
-
+        let expected = "
 #[serde(default)]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Test {
@@ -458,7 +473,9 @@ impl Default for Test {
     }
 }
 ";
-        assert_schema_gen!(expected, raw_schema);
+
+        let g = Generator::new().unwrap();
+        assert_schema_gen!(g, expected, raw_schema);
     }
 
     #[test]
@@ -509,7 +526,107 @@ impl Default for User {
 }
 "#;
 
-        assert_schema_gen!(expected, raw_schema);
+        let g = Generator::builder().add_imports(true).build().unwrap();
+        assert_schema_gen!(g, expected, raw_schema);
+    }
+
+    #[test]
+    fn nullable_gen() {
+        let raw_schema = r#"
+{
+  "type": "record",
+  "name": "test",
+  "fields": [
+    {"name": "a", "type": "long", "default": 42},
+    {"name": "b-b", "type": "string", "default": "na"},
+    {"name": "c", "type": ["null", "int"], "default": null}
+  ]
+}
+"#;
+
+        let expected = r#"
+use serde::{Deserialize, Deserializer};
+
+macro_rules! deser(
+    ($name:ident, $rtype:ty, $val:expr) => (
+        fn $name<'de, D>(deserializer: D) -> Result<$rtype, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            let opt = Option::deserialize(deserializer)?;
+            Ok(opt.unwrap_or_else(|| $val))
+        }
+    );
+);
+
+#[serde(default)]
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Test {
+    #[serde(deserialize_with = "nullable_test_a")]
+    pub a: i64,
+    #[serde(rename = "b-b", deserialize_with = "nullable_test_b_b")]
+    pub b_b: String,
+    pub c: Option<i32>,
+}
+deser!(nullable_test_a, i64, 42);
+deser!(nullable_test_b_b, String, "na".to_owned());
+
+impl Default for Test {
+    fn default() -> Test {
+        Test {
+            a: 42,
+            b_b: "na".to_owned(),
+            c: None,
+        }
+    }
+}
+"#;
+        let g = Generator::builder().nullable(true).build().unwrap();
+        assert_schema_gen!(g, expected, raw_schema);
+    }
+
+    #[test]
+    fn nullable_code() {
+        use serde::{Deserialize, Deserializer};
+
+        macro_rules! deser(
+            ($name:ident, $rtype:ty, $val:expr) => (
+                fn $name<'de, D>(deserializer: D) -> Result<$rtype, D::Error>
+                where
+                    D: Deserializer<'de>,
+                {
+                    let opt = Option::deserialize(deserializer)?;
+                    Ok(opt.unwrap_or_else(|| $val))
+                }
+            );
+        );
+
+        #[serde(default)]
+        #[derive(Debug, Deserialize, Serialize)]
+        pub struct Test {
+            #[serde(deserialize_with = "nullable_test_a")]
+            pub a: i64,
+            #[serde(rename = "b-b", deserialize_with = "nullable_test_b_b")]
+            pub b_b: String,
+            pub c: Option<i32>,
+        }
+        deser!(nullable_test_a, i64, 42);
+        deser!(nullable_test_b_b, String, "na".to_owned());
+
+        impl Default for Test {
+            fn default() -> Test {
+                Test {
+                    a: 42,
+                    b_b: "na".to_owned(),
+                    c: None,
+                }
+            }
+        }
+
+        // TODO derive more traits and test
+        // let json = r#"{"a": null, "b-b": null, "c": null}"#;
+        // let res: Test = serde_json::from_str(json).unwrap();
+        // assert_eq!(Test::default(), res);
     }
 
     #[test]
