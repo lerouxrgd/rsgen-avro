@@ -116,9 +116,9 @@ extern crate heck;
 extern crate lazy_static;
 #[cfg_attr(test, macro_use)]
 extern crate matches;
-#[macro_use]
-extern crate serde_derive;
 extern crate serde;
+#[cfg_attr(test, macro_use)]
+extern crate serde_derive;
 extern crate serde_json;
 extern crate tera;
 
@@ -458,7 +458,7 @@ mod tests {
 
         let expected = "
 #[serde(default)]
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Hash, Deserialize, Serialize)]
 pub struct Test {
     pub a: i64,
     pub b: String,
@@ -503,7 +503,7 @@ extern crate serde;
 
 /// Hi there.
 #[serde(default)]
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Hash, Deserialize, Serialize)]
 pub struct User {
     #[serde(rename = "aa-i32")]
     pub aa_i32: Vec<Vec<i32>>,
@@ -560,7 +560,7 @@ macro_rules! deser(
 );
 
 #[serde(default)]
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Hash, Deserialize, Serialize)]
 pub struct Test {
     #[serde(deserialize_with = "nullable_test_a")]
     pub a: i64,
@@ -602,7 +602,7 @@ impl Default for Test {
         );
 
         #[serde(default)]
-        #[derive(Debug, Deserialize, Serialize)]
+        #[derive(Debug, PartialEq, Hash, Deserialize, Serialize)]
         pub struct Test {
             #[serde(deserialize_with = "nullable_test_a")]
             pub a: i64,
@@ -623,10 +623,9 @@ impl Default for Test {
             }
         }
 
-        // TODO derive more traits and test
-        // let json = r#"{"a": null, "b-b": null, "c": null}"#;
-        // let res: Test = serde_json::from_str(json).unwrap();
-        // assert_eq!(Test::default(), res);
+        let json = r#"{"a": null, "b-b": null, "c": null}"#;
+        let res: Test = serde_json::from_str(json).unwrap();
+        assert_eq!(Test::default(), res);
     }
 
     #[test]

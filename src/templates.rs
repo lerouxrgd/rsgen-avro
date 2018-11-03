@@ -36,7 +36,7 @@ pub const RECORD_TEMPLATE: &str = r#"
 /// {{ doc }}
 {%- endif %}
 #[serde(default)]
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Hash, Deserialize, Serialize)]
 pub struct {{ name }} {
     {%- for f, type in fields %}
     {%- if f != originals[f] and not nullable %}
@@ -72,7 +72,7 @@ pub const ENUM_TEMPLATE: &str = r#"
 {%- if doc %}
 /// {{ doc }}
 {%- endif %}
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Hash, Deserialize, Serialize)]
 pub enum {{ name }} {
     {%- for s, o in symbols %}
     {%- if s != o %}
@@ -758,7 +758,7 @@ mod tests {
 
         let expected = r#"
 #[serde(default)]
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Hash, Deserialize, Serialize)]
 pub struct User {
     #[serde(rename = "a-bool")]
     pub a_bool: Vec<bool>,
@@ -814,7 +814,7 @@ impl Default for User {
 
         let expected = r#"
 /// Roses are red violets are blue.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Hash, Deserialize, Serialize)]
 pub enum Colors {
     #[serde(rename = "BLUE")]
     Blue,
