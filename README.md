@@ -4,7 +4,7 @@
 [![Docs](https://docs.rs/rsgen-avro/badge.svg)](https://docs.rs/rsgen-avro)
 [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/lerouxrgd/rsgen-avro/blob/master/LICENSE)
 
-A command line tool and library for generating [serde][]-compatible Rust types from [Avro schemas][schemas]. The **[avro-rs][]** crate provides a way to read and write Avro data with such types.
+A command line tool and library for generating [serde][]-compatible Rust types from [Avro schemas][schemas]. The [avro-rs][] crate provides a way to read and write Avro data with such types.
 
 ## Command line usage
 
@@ -38,6 +38,8 @@ Options:
 As a libray, the basic usage is:
 
 ```rust
+extern crate rsgen_avro;
+
 use std::io::{stdout, Write};
 use avro_rs::Schema;
 use rsgen_avro::{Source, Generator};
