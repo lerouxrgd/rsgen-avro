@@ -8,6 +8,7 @@ use std::io::prelude::*;
 use std::io::stdout;
 use std::path::Path;
 use std::process;
+use std::process::Command;
 
 use docopt::Docopt;
 use rsgen_avro::{Generator, Source};
@@ -21,6 +22,7 @@ Usage:
   rsgen-avro (-V | --version)
 
 Options:
+  --fmt          Run rustfmt on the resulting <output-file>
   --nullable     Replace null fields with their default value
                  when deserializing.
   --precision=P  Precision for f32/f64 default values
@@ -36,6 +38,7 @@ Options:
 struct CmdArgs {
     arg_schema_file_or_dir: String,
     arg_output_file: String,
+    flag_fmt: bool,
     flag_nullable: bool,
     flag_precision: Option<usize>,
     flag_append: bool,
@@ -94,4 +97,14 @@ fn main() {
         eprintln!("Problem during code generation: {}", e);
         process::exit(1);
     });
+
+    if args.flag_fmt && &args.arg_output_file != "-" {
+        Command::new("rustfmt")
+            .arg(&args.arg_output_file)
+            .status()
+            .unwrap_or_else(|e| {
+                eprintln!("Problem with rustfmt: {}", e);
+                process::exit(1);
+            });
+    }
 }
