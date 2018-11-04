@@ -18,19 +18,20 @@ Available options:
 
 ```
 Usage:
-  rsgen-avro (--schema=FILE | --schemas=DIR) --output=FILE [--append --add-imports -p <p>]
+  rsgen-avro [options] <schema-file-or-dir> <output-file> 
   rsgen-avro (-h | --help)
-  rsgen-avro --version
+  rsgen-avro (-V | --version)
 
 Options:
-  -h --help       Show this screen.
-  --version       Show version.
-  --schema=FILE   File containing an Avro schema in json format.
-  --schemas=DIR   Directory containing Avro schemas in json format.
-  --output=FILE   File where Rust code will be generated. Use '-' for stdout.
-  -p <p>          Precision for f32/f64 default values that aren't round numbers [default: 3].
-  --append        Append to output file. By default, output file is truncated.
-  --add-imports   Add 'extern crate ...' at the top of the output file.
+  --fmt          Run rustfmt on the resulting <output-file>
+  --nullable     Replace null fields with their default value
+                 when deserializing.
+  --precision=P  Precision for f32/f64 default values
+                 that aren't round numbers [default: 3].
+  --append       Open <output-file> in append mode.
+                 By default it is truncated.
+  -V, --version  Show version.
+  -h, --help     Show this screen.
 ```
 
 ## Library usage
@@ -67,8 +68,10 @@ g.gen(&source, &mut out).unwrap();
 This will generate the following output:
 
 ```text
+use serde::{Deserialize, Serialize};
+
 #[serde(default)]
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, PartialOrd, Clone, Deserialize, Serialize)]
 pub struct Test {
     pub a: i64,
     pub b: String,
@@ -90,8 +93,8 @@ Various `Schema` sources can be used with `Generator`'s `.gen(..)` method:
 pub enum Source<'a> {
     Schema(&'a Schema),
     SchemaStr(&'a str),
-    FilePath(&'a str),
-    DirPath(&'a str),
+    FilePath(&'a Path),
+    DirPath(&'a Path),
 }
 ```
 

@@ -68,8 +68,10 @@
 //! This will generate the following output:
 //!
 //! ```text
+//! use serde::{Deserialize, Serialize};
+//!
 //! #[serde(default)]
-//! #[derive(Debug, Deserialize, Serialize)]
+//! #[derive(Debug, PartialEq, PartialOrd, Clone, Deserialize, Serialize)]
 //! pub struct Test {
 //!     pub a: i64,
 //!     pub b: String,
