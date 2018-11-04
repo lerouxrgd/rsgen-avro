@@ -29,7 +29,6 @@ Options:
                  that aren't round numbers [default: 3].
   --append       Open <output-file> in append mode.
                  By default it is truncated.
-  --add-imports  Add 'extern crate ...' at the top of <output-file>.
   -V, --version  Show version.
   -h, --help     Show this screen.
 ";
@@ -42,7 +41,6 @@ struct CmdArgs {
     flag_nullable: bool,
     flag_precision: Option<usize>,
     flag_append: bool,
-    flag_add_imports: bool,
     flag_version: bool,
 }
 
@@ -85,7 +83,6 @@ fn main() {
 
     let g = Generator::builder()
         .precision(args.flag_precision.unwrap())
-        .add_imports(args.flag_add_imports)
         .nullable(args.flag_nullable)
         .build()
         .unwrap_or_else(|e| {

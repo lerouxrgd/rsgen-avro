@@ -9,14 +9,12 @@ use heck::{CamelCase, SnakeCase};
 use serde_json::Value;
 use tera::{Context, Tera};
 
-pub const IMPORTS: &str = "#[macro_use]
-extern crate serde_derive;
-extern crate serde;
+pub const SERDE_TERA: &str = "serde.tera";
+pub const SERDE_TEMPLATE: &str =
+    "use serde::{Deserialize{% if nullable %}, Deserializer{% endif %}, Serialize};
 ";
 
 pub const DESER_NULLABLE: &str = r#"
-use serde::{Deserialize, Deserializer};
-
 macro_rules! deser(
     ($name:ident, $rtype:ty, $val:expr) => (
         fn $name<'de, D>(deserializer: D) -> Result<$rtype, D::Error>
@@ -36,7 +34,7 @@ pub const RECORD_TEMPLATE: &str = r#"
 /// {{ doc }}
 {%- endif %}
 #[serde(default)]
-#[derive(Debug, PartialEq, Hash, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, PartialOrd, Clone, Deserialize, Serialize)]
 pub struct {{ name }} {
     {%- for f, type in fields %}
     {%- if f != originals[f] and not nullable %}
@@ -72,7 +70,7 @@ pub const ENUM_TEMPLATE: &str = r#"
 {%- if doc %}
 /// {{ doc }}
 {%- endif %}
-#[derive(Debug, PartialEq, Hash, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Deserialize, Serialize)]
 pub enum {{ name }} {
     {%- for s, o in symbols %}
     {%- if s != o %}
@@ -185,6 +183,7 @@ impl Templater {
     /// Creates a new `Templater.`
     pub fn new() -> Result<Templater, Error> {
         let mut tera = Tera::new("/dev/null/*").sync()?;
+        tera.add_raw_template(SERDE_TERA, SERDE_TEMPLATE).sync()?;
         tera.add_raw_template(RECORD_TERA, RECORD_TEMPLATE).sync()?;
         tera.add_raw_template(ENUM_TERA, ENUM_TEMPLATE).sync()?;
         tera.add_raw_template(FIXED_TERA, FIXED_TEMPLATE).sync()?;
@@ -193,6 +192,15 @@ impl Templater {
             precision: 3,
             nullable: false,
         })
+    }
+
+    /// Generates `use serde` statement
+    pub fn str_serde(&self) -> Result<String, Error> {
+        let mut ctx = Context::new();
+        if self.nullable {
+            ctx.insert("nullable", &true);
+        }
+        Ok(self.tera.render(SERDE_TERA, &ctx).sync()?)
     }
 
     /// Generates a Rust type based on a Schema::Fixed schema.
@@ -758,7 +766,7 @@ mod tests {
 
         let expected = r#"
 #[serde(default)]
-#[derive(Debug, PartialEq, Hash, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, PartialOrd, Clone, Deserialize, Serialize)]
 pub struct User {
     #[serde(rename = "a-bool")]
     pub a_bool: Vec<bool>,
@@ -814,7 +822,7 @@ impl Default for User {
 
         let expected = r#"
 /// Roses are red violets are blue.
-#[derive(Debug, PartialEq, Hash, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Deserialize, Serialize)]
 pub enum Colors {
     #[serde(rename = "BLUE")]
     Blue,

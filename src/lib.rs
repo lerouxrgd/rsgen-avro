@@ -159,7 +159,6 @@ pub enum Source<'a> {
 /// It is stateless can be reused many times.
 pub struct Generator {
     templater: Templater,
-    add_imports: bool,
     nullable: bool,
 }
 
@@ -177,9 +176,7 @@ impl Generator {
     /// Generates Rust code from an Avro schema `Source`.
     /// Writes all generated types to the ouput.
     pub fn gen(&self, source: &Source, output: &mut Box<Write>) -> Result<(), Error> {
-        if self.add_imports {
-            output.write_all(IMPORTS.as_bytes())?;
-        }
+        output.write_all(self.templater.str_serde()?.as_bytes())?;
 
         if self.nullable {
             output.write_all(DESER_NULLABLE.as_bytes())?;
@@ -363,7 +360,6 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
 /// A builder class to customize `Generator`.
 pub struct GeneratorBuilder {
     precision: usize,
-    add_imports: bool,
     nullable: bool,
 }
 
@@ -372,7 +368,6 @@ impl GeneratorBuilder {
     pub fn new() -> GeneratorBuilder {
         GeneratorBuilder {
             precision: 3,
-            add_imports: false,
             nullable: false,
         }
     }
@@ -380,12 +375,6 @@ impl GeneratorBuilder {
     /// Sets the precision for default values of f32/f64 fields.
     pub fn precision(mut self, precision: usize) -> GeneratorBuilder {
         self.precision = precision;
-        self
-    }
-
-    /// Adds `extern crate ...` to the first generated lines.
-    pub fn add_imports(mut self, add_imports: bool) -> GeneratorBuilder {
-        self.add_imports = add_imports;
         self
     }
 
@@ -403,7 +392,6 @@ impl GeneratorBuilder {
         templater.nullable = self.nullable;
         Ok(Generator {
             templater,
-            add_imports: self.add_imports,
             nullable: self.nullable,
         })
     }
@@ -453,9 +441,10 @@ mod tests {
 }
 "#;
 
-        let expected = "
+        let expected = "use serde::{Deserialize, Serialize};
+
 #[serde(default)]
-#[derive(Debug, PartialEq, Hash, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, PartialOrd, Clone, Deserialize, Serialize)]
 pub struct Test {
     pub a: i64,
     pub b: String,
@@ -494,13 +483,11 @@ impl Default for Test {
 }
 "#;
 
-        let expected = r#"#[macro_use]
-extern crate serde_derive;
-extern crate serde;
+        let expected = r#"use serde::{Deserialize, Serialize};
 
 /// Hi there.
 #[serde(default)]
-#[derive(Debug, PartialEq, Hash, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, PartialOrd, Clone, Deserialize, Serialize)]
 pub struct User {
     #[serde(rename = "aa-i32")]
     pub aa_i32: Vec<Vec<i32>>,
@@ -523,7 +510,7 @@ impl Default for User {
 }
 "#;
 
-        let g = Generator::builder().add_imports(true).build().unwrap();
+        let g = Generator::new().unwrap();
         assert_schema_gen!(g, expected, raw_schema);
     }
 
@@ -541,8 +528,7 @@ impl Default for User {
 }
 "#;
 
-        let expected = r#"
-use serde::{Deserialize, Deserializer};
+        let expected = r#"use serde::{Deserialize, Deserializer, Serialize};
 
 macro_rules! deser(
     ($name:ident, $rtype:ty, $val:expr) => (
@@ -557,7 +543,7 @@ macro_rules! deser(
 );
 
 #[serde(default)]
-#[derive(Debug, PartialEq, Hash, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, PartialOrd, Clone, Deserialize, Serialize)]
 pub struct Test {
     #[serde(deserialize_with = "nullable_test_a")]
     pub a: i64,
@@ -599,7 +585,7 @@ impl Default for Test {
         );
 
         #[serde(default)]
-        #[derive(Debug, PartialEq, Hash, Deserialize, Serialize)]
+        #[derive(Debug, PartialEq, Deserialize, Serialize)]
         pub struct Test {
             #[serde(deserialize_with = "nullable_test_a")]
             pub a: i64,
