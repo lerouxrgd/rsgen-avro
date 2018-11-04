@@ -1,7 +1,6 @@
-#[macro_use]
-extern crate serde_derive;
 extern crate docopt;
 extern crate rsgen_avro;
+extern crate serde;
 
 use std::fs::OpenOptions;
 use std::io::prelude::*;
@@ -12,6 +11,7 @@ use std::process::Command;
 
 use docopt::Docopt;
 use rsgen_avro::{Generator, Source};
+use serde::Deserialize;
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 

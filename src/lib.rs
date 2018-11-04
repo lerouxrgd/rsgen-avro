@@ -108,17 +108,12 @@
 
 extern crate avro_rs;
 extern crate by_address;
-extern crate failure;
 #[macro_use]
-extern crate failure_derive;
+extern crate failure;
 extern crate heck;
 #[macro_use]
 extern crate lazy_static;
-#[cfg_attr(test, macro_use)]
-extern crate matches;
 extern crate serde;
-#[cfg_attr(test, macro_use)]
-extern crate serde_derive;
 extern crate serde_json;
 extern crate tera;
 
@@ -417,11 +412,13 @@ impl GeneratorBuilder {
 #[cfg(test)]
 mod tests {
     extern crate gag;
+    extern crate matches;
 
     use std::io::stdout;
 
     use self::gag::BufferRedirect;
     use avro_rs::schema::Name;
+    use serde::{Deserialize, Serialize};
 
     use super::*;
 
@@ -630,6 +627,8 @@ impl Default for Test {
 
     #[test]
     fn deps() {
+        use self::matches::assert_matches;
+
         let raw_schema = r#"
 {
   "type": "record",

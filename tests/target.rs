@@ -1,9 +1,7 @@
-#[macro_use]
-extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
 
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 
 macro_rules! deser(
     ($name:ident, $rtype:ty, $val:expr) => (
