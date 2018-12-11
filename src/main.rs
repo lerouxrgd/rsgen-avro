@@ -1,7 +1,3 @@
-extern crate docopt;
-extern crate rsgen_avro;
-extern crate serde;
-
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::io::stdout;

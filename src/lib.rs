@@ -19,7 +19,7 @@
 //! The **[avro-rs](https://github.com/flavray/avro-rs)** crate provides a way to
 //! read and write Avro data with both Avro-specialized and Rust serde-compatible types.
 //!
-//! **[rsgen-avro]** provides a way to generate Rust serde-compatible types based on Avro schemas. Both a command line tool and library crate are available.
+//! **[rsgen-avro](https://github.com/lerouxrgd/rsgen-avro)** provides a way to generate Rust serde-compatible types based on Avro schemas. Both a command line tool and library crate are available.
 //!
 //! # Using the library
 //!
@@ -108,16 +108,10 @@
 //! let g = Generator::builder().precision(2).build().unwrap();
 //! ```
 
-extern crate avro_rs;
-extern crate by_address;
 #[macro_use]
 extern crate failure;
-extern crate heck;
 #[macro_use]
 extern crate lazy_static;
-extern crate serde;
-extern crate serde_json;
-extern crate tera;
 
 mod templates;
 
