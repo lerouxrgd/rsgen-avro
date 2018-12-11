@@ -129,7 +129,7 @@ use std::path::Path;
 use avro_rs::{schema::RecordField, Schema};
 use failure::Error;
 
-use templates::*;
+use crate::templates::*;
 
 /// Describes errors happened while generating Rust code.
 #[derive(Fail, Debug)]
