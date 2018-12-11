@@ -27,8 +27,6 @@ Options:
                  when deserializing.
   --precision=P  Precision for f32/f64 default values
                  that aren't round numbers [default: 3].
-  --append       Open <output-file> in append mode.
-                 By default it is truncated.
   -V, --version  Show version.
   -h, --help     Show this screen.
 ";
@@ -40,7 +38,6 @@ struct CmdArgs {
     flag_fmt: bool,
     flag_nullable: bool,
     flag_precision: Option<usize>,
-    flag_append: bool,
     flag_version: bool,
 }
 
@@ -69,16 +66,17 @@ fn main() {
     let mut out: Box<Write> = if &args.arg_output_file == "-" {
         Box::new(stdout())
     } else {
-        let mut open_opts = OpenOptions::new();
-        if args.flag_append {
-            open_opts.write(true).create(true).append(true)
-        } else {
-            open_opts.write(true).create(true).truncate(true)
-        };
-        Box::new(open_opts.open(&args.arg_output_file).unwrap_or_else(|e| {
-            eprintln!("Output file error: {}", e);
-            process::exit(1);
-        }))
+        Box::new(
+            OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .open(&args.arg_output_file)
+                .unwrap_or_else(|e| {
+                    eprintln!("Output file error: {}", e);
+                    process::exit(1);
+                }),
+        )
     };
 
     let g = Generator::builder()
