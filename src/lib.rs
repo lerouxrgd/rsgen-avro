@@ -155,7 +155,6 @@ pub enum Source<'a> {
 /// It is stateless can be reused many times.
 pub struct Generator {
     templater: Templater,
-    nullable: bool,
 }
 
 impl Generator {
@@ -174,7 +173,7 @@ impl Generator {
     pub fn gen(&self, source: &Source, output: &mut Box<Write>) -> Result<(), Error> {
         output.write_all(self.templater.str_serde()?.as_bytes())?;
 
-        if self.nullable {
+        if self.templater.nullable {
             output.write_all(DESER_NULLABLE.as_bytes())?;
         }
 
@@ -386,10 +385,7 @@ impl GeneratorBuilder {
         let mut templater = Templater::new()?;
         templater.precision = self.precision;
         templater.nullable = self.nullable;
-        Ok(Generator {
-            templater,
-            nullable: self.nullable,
-        })
+        Ok(Generator { templater })
     }
 }
 
