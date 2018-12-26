@@ -89,13 +89,14 @@ pub type {{ name }} = [u8; {{ size }}];
 lazy_static! {
     static ref RESERVED: HashSet<String> = {
         let s: HashSet<_> = vec![
-            "as", "break", "const", "continue", "crate", "else", "enum", "extern", "false", "fn",
-            "for", "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut", "pub", "ref",
-            "return", "Self", "self", "static", "struct", "super", "trait", "true", "type",
-            "unsage", "use", "where", "while", "abstract", "alignof", "become", "box", "do",
-            "final", "macro", "offsetof", "override", "priv", "proc", "pure", "sizeof", "typeof",
-            "unsized", "virtual", "yields",
-        ].iter()
+            "as", "async", "await", "break", "const", "continue", "crate", "dyn", "else", "enum",
+            "extern", "false", "fn", "for", "if", "impl", "in", "let", "loop", "match", "mod",
+            "move", "mut", "pub", "ref", "return", "Self", "self", "static", "struct", "super",
+            "trait", "true", "try", "type", "unsafe", "use", "where", "while", "abstract",
+            "alignof", "become", "box", "do", "final", "macro", "offsetof", "override", "priv",
+            "proc", "pure", "sizeof", "typeof", "unsized", "virtual", "yields",
+        ]
+        .iter()
         .map(|s| s.to_string())
         .collect();
         s
