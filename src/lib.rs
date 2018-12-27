@@ -108,9 +108,6 @@
 //! let g = Generator::builder().precision(2).build().unwrap();
 //! ```
 
-// #[macro_use]
-// extern crate failure;
-
 mod templates;
 
 use std::collections::VecDeque;
