@@ -108,10 +108,8 @@
 //! let g = Generator::builder().precision(2).build().unwrap();
 //! ```
 
-#[macro_use]
-extern crate failure;
-#[macro_use]
-extern crate lazy_static;
+// #[macro_use]
+// extern crate failure;
 
 mod templates;
 
@@ -121,7 +119,7 @@ use std::io::prelude::*;
 use std::path::Path;
 
 use avro_rs::{schema::RecordField, Schema};
-use failure::Error;
+use failure::{Error, Fail};
 
 use crate::templates::*;
 

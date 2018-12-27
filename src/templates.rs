@@ -4,8 +4,9 @@ use std::collections::{HashMap, HashSet};
 use avro_rs::schema::{Name, RecordField};
 use avro_rs::Schema;
 use by_address::ByAddress;
-use failure::{Error, SyncFailure};
+use failure::{Error, Fail, SyncFailure};
 use heck::{CamelCase, SnakeCase};
+use lazy_static::lazy_static;
 use serde_json::Value;
 use tera::{Context, Tera};
 
