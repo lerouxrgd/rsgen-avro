@@ -1,9 +1,7 @@
 use std::fs::OpenOptions;
-use std::io::prelude::*;
-use std::io::stdout;
+use std::io::{prelude::*, stdout};
 use std::path::Path;
-use std::process;
-use std::process::Command;
+use std::process::{self, Command};
 
 use docopt::Docopt;
 use rsgen_avro::{Generator, Source};
@@ -59,7 +57,7 @@ fn main() {
         Source::FilePath(p)
     };
 
-    let mut out: Box<Write> = if &args.arg_output_file == "-" {
+    let mut out: Box<dyn Write> = if &args.arg_output_file == "-" {
         Box::new(stdout())
     } else {
         Box::new(

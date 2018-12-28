@@ -73,9 +73,9 @@ pub const ENUM_TEMPLATE: &str = r#"
 {%- endif %}
 #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Deserialize, Serialize)]
 pub enum {{ name }} {
-    {%- for s, o in symbols %}
-    {%- if s != o %}
-    #[serde(rename = "{{ o }}")]
+    {%- for s in symbols %}
+    {%- if s != originals[s] %}
+    #[serde(rename = "{{ originals[s] }}")]
     {%- endif %}
     {{ s }},
     {%- endfor %}
@@ -237,10 +237,15 @@ impl Templater {
             ctx.insert("name", &sanitize(name.to_camel_case()));
             let doc = if let Some(d) = doc { d } else { "" };
             ctx.insert("doc", doc);
-            let s: HashMap<_, _> = symbols
+            let o: HashMap<_, _> = symbols
                 .iter()
                 .map(|s| (sanitize(s.to_camel_case()), s))
                 .collect();
+            let s: Vec<_> = symbols
+                .iter()
+                .map(|s| sanitize(s.to_camel_case()))
+                .collect();
+            ctx.insert("originals", &o);
             ctx.insert("symbols", &s);
             Ok(self.tera.render(ENUM_TERA, &ctx).sync()?)
         } else {
@@ -826,12 +831,12 @@ impl Default for User {
 /// Roses are red violets are blue.
 #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Deserialize, Serialize)]
 pub enum Colors {
-    #[serde(rename = "BLUE")]
-    Blue,
-    #[serde(rename = "GREEN")]
-    Green,
     #[serde(rename = "RED")]
     Red,
+    #[serde(rename = "GREEN")]
+    Green,
+    #[serde(rename = "BLUE")]
+    Blue,
 }
 "#;
 
