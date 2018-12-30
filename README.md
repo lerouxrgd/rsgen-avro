@@ -71,7 +71,7 @@ This will generate the following output:
 use serde::{Deserialize, Serialize};
 
 #[serde(default)]
-#[derive(Debug, PartialEq, PartialOrd, Clone, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 pub struct Test {
     pub a: i64,
     pub b: String,
@@ -108,7 +108,7 @@ let g = Generator::builder().precision(2).build().unwrap();
 
 * Avro schema `namespace` fields are ignored, therefore names from a single schema must no clash.
 * Only `union` of the form `["null", "some-type"]` are supported and treated as `Option<_>`.
-* Schema-provided default values for `map` and `record` fields are ignored, and default _empty_ values are enforced instead.
+* Schema-provided default values for `record` fields are ignored, and default _empty_ values are enforced instead.
 
 ## Tests
 

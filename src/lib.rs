@@ -71,7 +71,7 @@
 //! use serde::{Deserialize, Serialize};
 //!
 //! #[serde(default)]
-//! #[derive(Debug, PartialEq, PartialOrd, Clone, Deserialize, Serialize)]
+//! #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 //! pub struct Test {
 //!     pub a: i64,
 //!     pub b: String,
@@ -431,7 +431,7 @@ mod tests {
         let expected = "use serde::{Deserialize, Serialize};
 
 #[serde(default)]
-#[derive(Debug, PartialEq, PartialOrd, Clone, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 pub struct Test {
     pub a: i64,
     pub b: String,
@@ -474,7 +474,7 @@ impl Default for Test {
 
 /// Hi there.
 #[serde(default)]
-#[derive(Debug, PartialEq, PartialOrd, Clone, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 pub struct User {
     #[serde(rename = "aa-i32")]
     pub aa_i32: Vec<Vec<i32>>,
@@ -530,7 +530,7 @@ macro_rules! deser(
 );
 
 #[serde(default)]
-#[derive(Debug, PartialEq, PartialOrd, Clone, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 pub struct Test {
     #[serde(deserialize_with = "nullable_test_a")]
     pub a: i64,

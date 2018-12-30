@@ -35,7 +35,7 @@ pub const RECORD_TEMPLATE: &str = r#"
 /// {{ doc }}
 {%- endif %}
 #[serde(default)]
-#[derive(Debug, PartialEq, PartialOrd, Clone, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 pub struct {{ name }} {
     {%- for f, type in fields %}
     {%- if f != originals[f] and not nullable %}
@@ -475,14 +475,13 @@ impl Templater {
         }
     }
 
-    /// Generates Rust default values for the inner schema of an Avro array.
-    fn array_default(
-        &self,
-        inner: &Schema,
-        default: &Option<Value>,
-    ) -> Result<String, TemplateError> {
-        let to_default_str: Box<Fn(&Value) -> Result<String, TemplateError>> = match inner {
-            Schema::Null => err!("Invalid use of Schema::Null")?,
+    /// Helper to coerce defaults from an Avro schema to Rust types.
+    fn coerce_default_fn<'a>(
+        &'a self,
+        schema: &'a Schema,
+    ) -> Box<Fn(&'a Value) -> Result<String, TemplateError> + 'a> {
+        match schema {
+            Schema::Null => Box::new(|_| err!("Invalid use of Schema::Null")?),
 
             Schema::Boolean => Box::new(|v: &Value| match v {
                 Value::Bool(b) => Ok(b.to_string()),
@@ -499,7 +498,7 @@ impl Templater {
                 _ => err!("Invalid defaults: {:?}", v),
             }),
 
-            Schema::Float => Box::new(|v: &Value| match v {
+            Schema::Float => Box::new(move |v: &Value| match v {
                 Value::Number(n) if n.is_f64() => {
                     let n = n.as_f64().unwrap() as f32;
                     if n == n.ceil() {
@@ -511,7 +510,7 @@ impl Templater {
                 _ => err!("Invalid defaults: {:?}", v),
             }),
 
-            Schema::Double => Box::new(|v: &Value| match v {
+            Schema::Double => Box::new(move |v: &Value| match v {
                 Value::Number(n) if n.is_f64() => {
                     let n = n.as_f64().unwrap();
                     if n == n.ceil() {
@@ -583,12 +582,19 @@ impl Templater {
                 name: Name { name, .. },
                 ..
             } => Box::new(move |_| Ok(format!("{}::default()", sanitize(name.to_camel_case())))),
-        };
+        }
+    }
 
+    /// Generates Rust default values for the inner schema of an Avro array.
+    fn array_default(
+        &self,
+        inner: &Schema,
+        default: &Option<Value>,
+    ) -> Result<String, TemplateError> {
         let default_str = if let Some(Value::Array(vals)) = default {
             let vals = vals
                 .iter()
-                .map(&*to_default_str)
+                .map(&*self.coerce_default_fn(inner))
                 .collect::<Result<Vec<String>, TemplateError>>()?
                 .as_slice()
                 .join(", ");
@@ -600,8 +606,31 @@ impl Templater {
     }
 
     /// Generates Rust default values for the inner schema of an Avro map.
-    fn map_default(&self, _: &Schema, _: &Option<Value>) -> Result<String, TemplateError> {
-        let default_str = "::std::collections::HashMap::new()".to_string();
+    fn map_default(
+        &self,
+        inner: &Schema,
+        default: &Option<Value>,
+    ) -> Result<String, TemplateError> {
+        let default_str = if let Some(Value::Object(o)) = default {
+            let vals = o
+                .iter()
+                .map(|(k, v)| {
+                    Ok(format!(
+                        "m.insert({}, {});",
+                        format!("\"{}\".to_owned()", k),
+                        self.coerce_default_fn(inner)(v)?
+                    ))
+                })
+                .collect::<Result<Vec<String>, TemplateError>>()?
+                .as_slice()
+                .join(" ");
+            format!(
+                "{{ let mut m = ::std::collections::HashMap::new(); {} m }}",
+                vals
+            )
+        } else {
+            "::std::collections::HashMap::new()".to_string()
+        };
         Ok(default_str)
     }
 
@@ -768,12 +797,12 @@ mod tests {
     {"name": "a-i32", "type": {"type": "array", "items": "int"}, "default": [12, -1]},
     {"name": "m-f64", "type": {"type": "map", "values": "double"}}
   ]
-}        
+}
 "#;
 
         let expected = r#"
 #[serde(default)]
-#[derive(Debug, PartialEq, PartialOrd, Clone, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 pub struct User {
     #[serde(rename = "a-bool")]
     pub a_bool: Vec<bool>,
@@ -799,6 +828,45 @@ impl Default for User {
             favorite_number: 7,
             likes_pizza: false,
             m_f64: ::std::collections::HashMap::new(),
+        }
+    }
+}
+"#;
+
+        let templater = Templater::new().unwrap();
+        let schema = Schema::parse_str(&raw_schema).unwrap();
+        let gs = GenState::new();
+        let res = templater.str_record(&schema, &gs).unwrap();
+
+        assert_eq!(expected, res);
+    }
+
+    #[test]
+    fn gen_default_map() {
+        let raw_schema = r#"
+{
+  "type": "record",
+  "name": "User",
+  "fields": [
+    {"name": "m-f64",
+     "type": {"type": "map", "values": "double"},
+     "default": {"a": 12.0, "b": 42.1}}
+  ]
+}
+"#;
+
+        let expected = r#"
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
+pub struct User {
+    #[serde(rename = "m-f64")]
+    pub m_f64: ::std::collections::HashMap<String, f64>,
+}
+
+impl Default for User {
+    fn default() -> User {
+        User {
+            m_f64: { let mut m = ::std::collections::HashMap::new(); m.insert("a".to_owned(), 12.0); m.insert("b".to_owned(), 42.100); m },
         }
     }
 }
