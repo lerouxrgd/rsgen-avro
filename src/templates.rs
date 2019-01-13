@@ -416,8 +416,9 @@ impl Templater {
                         ..
                     } => {
                         let r_name = sanitize(r_name.to_camel_case());
+                        let default_str = self.record_default(schema, default)?;
                         f.insert(name_std.clone(), r_name.clone());
-                        d.insert(name_std.clone(), format!("{}::default()", r_name));
+                        d.insert(name_std.clone(), default_str);
                     }
 
                     Schema::Enum {
@@ -531,7 +532,7 @@ impl Templater {
             }),
 
             Schema::String => Box::new(|v: &Value| match v {
-                Value::String(s) => Ok(s.clone()),
+                Value::String(s) => Ok(format!("\"{}\".to_owned()", s)),
                 _ => err!("Invalid defaults: {:?}", v),
             }),
 
@@ -547,11 +548,9 @@ impl Templater {
                 _ => err!("Invalid defaults: {:?}", v),
             }),
 
-            Schema::Array(s) => {
-                Box::new(move |v: &Value| Ok(self.array_default(s, &Some(v.clone()))?))
-            }
+            Schema::Array(s) => Box::new(move |v: &Value| self.array_default(s, &Some(v.clone()))),
 
-            Schema::Map(s) => Box::new(move |v: &Value| Ok(self.map_default(s, &Some(v.clone()))?)),
+            Schema::Map(s) => Box::new(move |v: &Value| self.map_default(s, &Some(v.clone()))),
 
             Schema::Enum {
                 name: Name { name: e_name, .. },
@@ -578,10 +577,9 @@ impl Templater {
 
             Schema::Union(..) => Box::new(|_| Ok("None".to_string())),
 
-            Schema::Record {
-                name: Name { name, .. },
-                ..
-            } => Box::new(move |_| Ok(format!("{}::default()", sanitize(name.to_camel_case())))),
+            Schema::Record { .. } => {
+                Box::new(move |v: &Value| self.record_default(schema, &Some(v.clone())))
+            }
         }
     }
 
@@ -632,6 +630,51 @@ impl Templater {
             "::std::collections::HashMap::new()".to_string()
         };
         Ok(default_str)
+    }
+
+    /// Generates Rust default values for an Avro record
+    fn record_default(
+        &self,
+        inner: &Schema,
+        default: &Option<Value>,
+    ) -> Result<String, TemplateError> {
+        match inner {
+            Schema::Record {
+                name: Name { name, .. },
+                fields,
+                lookup,
+                ..
+            } => {
+                let default_str = if let Some(Value::Object(o)) = default {
+                    if o.len() > 0 {
+                        let vals = o
+                            .iter()
+                            .map(|(k, v)| {
+                                let f = sanitize(k.to_snake_case());
+                                let rf = fields
+                                    .get(*lookup.get(k).expect("Missing lookup"))
+                                    .expect("Missing record field");
+                                let d = &*self.coerce_default_fn(&rf.schema)(v)?;
+                                Ok(format!("r.{} = {};", f, d))
+                            })
+                            .collect::<Result<Vec<String>, TemplateError>>()?
+                            .as_slice()
+                            .join(" ");
+                        format!(
+                            "{{ let mut r = {}::default(); {} r }}",
+                            sanitize(name.to_camel_case()),
+                            vals
+                        )
+                    } else {
+                        format!("{}::default()", sanitize(name.to_camel_case()))
+                    }
+                } else {
+                    format!("{}::default()", sanitize(name.to_camel_case()))
+                };
+                Ok(default_str)
+            }
+            _ => err!("Invalid record: {:?}", inner)?,
+        }
     }
 
     /// Generates Rust default values for the inner schema of an Avro union.
@@ -867,6 +910,51 @@ impl Default for User {
     fn default() -> User {
         User {
             m_f64: { let mut m = ::std::collections::HashMap::new(); m.insert("a".to_owned(), 12.0); m.insert("b".to_owned(), 42.100); m },
+        }
+    }
+}
+"#;
+
+        let templater = Templater::new().unwrap();
+        let schema = Schema::parse_str(&raw_schema).unwrap();
+        let gs = GenState::new();
+        let res = templater.str_record(&schema, &gs).unwrap();
+
+        assert_eq!(expected, res);
+    }
+
+    #[test]
+    fn gen_default_record() {
+        let raw_schema = r#"
+{
+  "type": "record",
+  "name": "User",
+  "fields": [ {
+    "name": "info",
+    "type": {
+      "type": "record",
+      "name": "Info",
+      "fields": [ {
+        "name": "name",
+        "type": "string"
+      } ]
+    },
+    "default": {"name": "bob"}
+  } ]
+}
+"#;
+
+        let expected = r#"
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
+pub struct User {
+    pub info: Info,
+}
+
+impl Default for User {
+    fn default() -> User {
+        User {
+            info: { let mut r = Info::default(); r.name = "bob".to_owned(); r },
         }
     }
 }

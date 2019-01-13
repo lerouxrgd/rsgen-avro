@@ -39,8 +39,6 @@ Options:
 As a libray, the basic usage is:
 
 ```rust
-extern crate rsgen_avro;
-
 use std::io::{stdout, Write};
 use avro_rs::Schema;
 use rsgen_avro::{Source, Generator};
@@ -108,7 +106,6 @@ let g = Generator::builder().precision(2).build().unwrap();
 
 * Avro schema `namespace` fields are ignored, therefore names from a single schema must no clash.
 * Only `union` of the form `["null", "some-type"]` are supported and treated as `Option<_>`.
-* Schema-provided default values for `record` fields are ignored, and default _empty_ values are enforced instead.
 
 ## Tests
 

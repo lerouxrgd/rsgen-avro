@@ -30,17 +30,9 @@
 //! rsgen-avro = "x.y.z"
 //! ```
 //!
-//! Add at the top of the crate:
-//!
-//! ```rust
-//! extern crate rsgen_avro;
-//! ```
-//!
 //! Then, the basic usage is:
 //!
 //! ```rust
-//! # extern crate avro_rs;
-//! # extern crate rsgen_avro;
 //! use std::io::{stdout, Write};
 //! use avro_rs::Schema;
 //! use rsgen_avro::{Source, Generator};
@@ -90,7 +82,6 @@
 //! Various `Schema` sources can be used with `Generator`'s `.gen(..)` method:
 //!
 //! ```rust
-//! # extern crate avro_rs;
 //! # use avro_rs::Schema;
 //! # use std::path::Path;
 //! pub enum Source<'a> {
