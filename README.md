@@ -28,8 +28,6 @@ Options:
                  when deserializing.
   --precision=P  Precision for f32/f64 default values
                  that aren't round numbers [default: 3].
-  --append       Open <output-file> in append mode.
-                 By default it is truncated.
   -V, --version  Show version.
   -h, --help     Show this screen.
 ```
