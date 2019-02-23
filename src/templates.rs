@@ -37,7 +37,8 @@ pub const RECORD_TEMPLATE: &str = r#"
 #[serde(default)]
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 pub struct {{ name }} {
-    {%- for f, type in fields %}
+    {%- for f in fields %}
+    {%- set type = types[f] %}
     {%- if f != originals[f] and not nullable %}
     #[serde(rename = "{{ originals[f] }}")]
     {%- elif f != originals[f] and nullable and not type is starting_with("Option") %}
@@ -49,7 +50,8 @@ pub struct {{ name }} {
     {%- endfor %}
 }
 
-{%- for f, type in fields %}
+{%- for f in fields %}
+{%- set type = types[f] %}
 {%- if nullable and not type is starting_with("Option") %}
 deser!(nullable_{{ name|lower }}_{{ f }}, {{ type }}, {{ defaults[f] }});
 {%- endif %}
@@ -58,8 +60,8 @@ deser!(nullable_{{ name|lower }}_{{ f }}, {{ type }}, {{ defaults[f] }});
 impl Default for {{ name }} {
     fn default() -> {{ name }} {
         {{ name }} {
-            {%- for f, value in defaults %}
-            {{ f }}: {{ value }},
+            {%- for f in fields %}
+            {{ f }}: {{ defaults[f] }},
             {%- endfor %}
         }
     }
@@ -268,15 +270,22 @@ impl Templater {
             let doc = if let Some(d) = doc { d } else { "" };
             ctx.insert("doc", doc);
 
-            let mut f = HashMap::new(); // field name -> field type
+            let mut f = Vec::new();; // field names;
+            let mut t = HashMap::new(); // field name -> field type
             let mut o = HashMap::new(); // field name -> original name
             let mut d = HashMap::new(); // field name -> default value
-            for RecordField {
+
+            let by_pos = fields
+                .iter()
+                .map(|f| (f.position, f))
+                .collect::<HashMap<_, _>>();
+            let mut i = 0;
+            while let Some(RecordField {
                 schema,
                 name,
                 default,
                 ..
-            } in fields
+            }) = by_pos.get(&i)
             {
                 let name_std = sanitize(name.to_snake_case());
                 o.insert(name_std.clone(), name);
@@ -288,7 +297,8 @@ impl Templater {
                             None => bool::default().to_string(),
                             _ => err!("Invalid default: {:?}", default)?,
                         };
-                        f.insert(name_std.clone(), "bool".to_string());
+                        f.push(name_std.clone());
+                        t.insert(name_std.clone(), "bool".to_string());
                         d.insert(name_std.clone(), default);
                     }
 
@@ -300,7 +310,8 @@ impl Templater {
                             None => i32::default().to_string(),
                             _ => err!("Invalid default: {:?}", default)?,
                         };
-                        f.insert(name_std.clone(), "i32".to_string());
+                        f.push(name_std.clone());
+                        t.insert(name_std.clone(), "i32".to_string());
                         d.insert(name_std.clone(), default);
                     }
 
@@ -310,7 +321,8 @@ impl Templater {
                             None => i64::default().to_string(),
                             _ => err!("Invalid default: {:?}", default)?,
                         };
-                        f.insert(name_std.clone(), "i64".to_string());
+                        f.push(name_std.clone());
+                        t.insert(name_std.clone(), "i64".to_string());
                         d.insert(name_std.clone(), default);
                     }
 
@@ -327,7 +339,8 @@ impl Templater {
                             None => format!("{:.1}", f32::default()),
                             _ => err!("Invalid default: {:?}", default)?,
                         };
-                        f.insert(name_std.clone(), "f32".to_string());
+                        f.push(name_std.clone());
+                        t.insert(name_std.clone(), "f32".to_string());
                         d.insert(name_std.clone(), default);
                     }
 
@@ -344,7 +357,8 @@ impl Templater {
                             None => format!("{:.1}", f64::default()),
                             _ => err!("Invalid default: {:?}", default)?,
                         };
-                        f.insert(name_std.clone(), "f64".to_string());
+                        f.push(name_std.clone());
+                        t.insert(name_std.clone(), "f64".to_string());
                         d.insert(name_std.clone(), default);
                     }
 
@@ -357,7 +371,8 @@ impl Templater {
                             None => "vec![]".to_string(),
                             _ => err!("Invalid default: {:?}", default)?,
                         };
-                        f.insert(name_std.clone(), "Vec<u8>".to_string());
+                        f.push(name_std.clone());
+                        t.insert(name_std.clone(), "Vec<u8>".to_string());
                         d.insert(name_std.clone(), default);
                     }
 
@@ -367,7 +382,8 @@ impl Templater {
                             None => "String::default()".to_string(),
                             _ => err!("Invalid default: {:?}", default)?,
                         };
-                        f.insert(name_std.clone(), "String".to_string());
+                        f.push(name_std.clone());
+                        t.insert(name_std.clone(), "String".to_string());
                         d.insert(name_std.clone(), default);
                     }
 
@@ -387,7 +403,8 @@ impl Templater {
                             None => format!("{}::default()", f_name),
                             _ => err!("Invalid default: {:?}", default)?,
                         };
-                        f.insert(name_std.clone(), f_name.clone());
+                        f.push(name_std.clone());
+                        t.insert(name_std.clone(), f_name.clone());
                         d.insert(name_std.clone(), default);
                     }
 
@@ -396,7 +413,8 @@ impl Templater {
                         _ => {
                             let type_str = array_type(&**inner, &*gen_state)?;
                             let default_str = self.array_default(&**inner, default)?;
-                            f.insert(name_std.clone(), type_str);
+                            f.push(name_std.clone());
+                            t.insert(name_std.clone(), type_str);
                             d.insert(name_std.clone(), default_str);
                         }
                     },
@@ -406,7 +424,8 @@ impl Templater {
                         _ => {
                             let type_str = map_type(&**inner, &*gen_state)?;
                             let default_str = self.map_default(&**inner, default)?;
-                            f.insert(name_std.clone(), type_str);
+                            f.push(name_std.clone());
+                            t.insert(name_std.clone(), type_str);
                             d.insert(name_std.clone(), default_str);
                         }
                     },
@@ -417,7 +436,8 @@ impl Templater {
                     } => {
                         let r_name = sanitize(r_name.to_camel_case());
                         let default_str = self.record_default(schema, default)?;
-                        f.insert(name_std.clone(), r_name.clone());
+                        f.push(name_std.clone());
+                        t.insert(name_std.clone(), r_name.clone());
                         d.insert(name_std.clone(), default_str);
                     }
 
@@ -445,7 +465,8 @@ impl Templater {
                             }
                             _ => err!("Invalid default: {:?}", default)?,
                         };
-                        f.insert(name_std.clone(), e_name);
+                        f.push(name_std.clone());
+                        t.insert(name_std.clone(), e_name);
                         d.insert(name_std.clone(), default);
                     }
 
@@ -453,7 +474,8 @@ impl Templater {
                         if let [Schema::Null, inner] = union.variants() {
                             let type_str = option_type(inner, &*gen_state)?;
                             let default_str = self.option_default(inner, default)?;
-                            f.insert(name_std.clone(), type_str);
+                            f.push(name_std.clone());
+                            t.insert(name_std.clone(), type_str);
                             d.insert(name_std.clone(), default_str);
                         } else {
                             err!("Unsupported Schema:::Union {:?}", union.variants())?
@@ -462,9 +484,11 @@ impl Templater {
 
                     Schema::Null => err!("Invalid use of Schema::Null")?,
                 };
+                i += 1;
             }
 
             ctx.insert("fields", &f);
+            ctx.insert("types", &t);
             ctx.insert("originals", &o);
             ctx.insert("defaults", &d);
             if self.nullable {
@@ -847,16 +871,16 @@ mod tests {
 #[serde(default)]
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 pub struct User {
+    #[serde(rename = "as")]
+    pub as_: String,
+    #[serde(rename = "favoriteNumber")]
+    pub favorite_number: i32,
+    pub likes_pizza: bool,
+    pub b: Vec<u8>,
     #[serde(rename = "a-bool")]
     pub a_bool: Vec<bool>,
     #[serde(rename = "a-i32")]
     pub a_i32: Vec<i32>,
-    #[serde(rename = "as")]
-    pub as_: String,
-    pub b: Vec<u8>,
-    #[serde(rename = "favoriteNumber")]
-    pub favorite_number: i32,
-    pub likes_pizza: bool,
     #[serde(rename = "m-f64")]
     pub m_f64: ::std::collections::HashMap<String, f64>,
 }
@@ -864,12 +888,12 @@ pub struct User {
 impl Default for User {
     fn default() -> User {
         User {
-            a_bool: vec![true, false],
-            a_i32: vec![12, -1],
             as_: String::default(),
-            b: vec![195, 191],
             favorite_number: 7,
             likes_pizza: false,
+            b: vec![195, 191],
+            a_bool: vec![true, false],
+            a_i32: vec![12, -1],
             m_f64: ::std::collections::HashMap::new(),
         }
     }

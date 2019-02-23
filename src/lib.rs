@@ -101,7 +101,7 @@
 
 mod templates;
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
@@ -265,7 +265,12 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
             Schema::Record { fields, .. } => {
                 deps.push(s);
 
-                for RecordField { schema: sr, .. } in fields {
+                let by_pos = fields
+                    .iter()
+                    .map(|f| (f.position, f))
+                    .collect::<HashMap<_, _>>();
+                let mut i = 0;
+                while let Some(RecordField { schema: sr, .. }) = by_pos.get(&i) {
                     match sr {
                         // No nested schemas, add them to the result stack
                         Schema::Fixed { .. } => deps.push(sr),
@@ -299,6 +304,7 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
                         }
                         _ => (),
                     };
+                    i += 1;
                 }
             }
 
@@ -467,22 +473,22 @@ impl Default for Test {
 #[serde(default)]
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 pub struct User {
-    #[serde(rename = "aa-i32")]
-    pub aa_i32: Vec<Vec<i32>>,
+    pub name: String,
     pub favorite_number: i32,
     pub likes_pizza: bool,
-    pub name: String,
     pub oye: f32,
+    #[serde(rename = "aa-i32")]
+    pub aa_i32: Vec<Vec<i32>>,
 }
 
 impl Default for User {
     fn default() -> User {
         User {
-            aa_i32: vec![vec![0], vec![12, -1]],
+            name: "".to_owned(),
             favorite_number: 7,
             likes_pizza: false,
-            name: "".to_owned(),
             oye: 1.100,
+            aa_i32: vec![vec![0], vec![12, -1]],
         }
     }
 }
