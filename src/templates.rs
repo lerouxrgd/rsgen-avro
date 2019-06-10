@@ -4,11 +4,12 @@ use std::collections::{HashMap, HashSet};
 use avro_rs::schema::{Name, RecordField};
 use avro_rs::Schema;
 use by_address::ByAddress;
-use failure::{Error, Fail, SyncFailure};
 use heck::{CamelCase, SnakeCase};
 use lazy_static::lazy_static;
 use serde_json::Value;
 use tera::{Context, Tera};
+
+use crate::error::{Result, RsgenError};
 
 pub const SERDE_TERA: &str = "serde.tera";
 pub const SERDE_TEMPLATE: &str =
@@ -115,44 +116,9 @@ fn sanitize(mut s: String) -> String {
     }
 }
 
-/// Describes errors happened while templating Rust code.
-#[derive(Fail, Debug)]
-#[fail(display = "Template failure: {}", _0)]
-pub struct TemplateError(String);
-
-impl TemplateError {
-    pub fn new<S>(msg: S) -> TemplateError
-    where
-        S: Into<String>,
-    {
-        TemplateError(msg.into())
-    }
-}
-
 macro_rules! err(
-    ($($arg:tt)*) => (Err(TemplateError::new(format!($($arg)*))))
+    ($($arg:tt)*) => (Err(RsgenError::Template(format!($($arg)*))))
 );
-
-/// Fix for converting error-chain to failure.
-/// see  https://github.com/rust-lang-nursery/failure/issues/109
-trait ResultExt<T, E> {
-    fn sync(self) -> Result<T, SyncFailure<E>>
-    where
-        Self: Sized,
-        E: ::std::error::Error + Send + 'static;
-}
-
-/// Fix for converting error-chain to failure.
-/// see  https://github.com/rust-lang-nursery/failure/issues/109
-impl<T, E> ResultExt<T, E> for Result<T, E> {
-    fn sync(self) -> Result<T, SyncFailure<E>>
-    where
-        Self: Sized,
-        E: ::std::error::Error + Send + 'static,
-    {
-        self.map_err(SyncFailure::new)
-    }
-}
 
 /// A helper struct for nested schema generation.
 /// Used to store inner schema String type so that outter schema String type can be created.
@@ -185,12 +151,12 @@ pub struct Templater {
 
 impl Templater {
     /// Creates a new `Templater.`
-    pub fn new() -> Result<Templater, Error> {
-        let mut tera = Tera::new("/dev/null/*").sync()?;
-        tera.add_raw_template(SERDE_TERA, SERDE_TEMPLATE).sync()?;
-        tera.add_raw_template(RECORD_TERA, RECORD_TEMPLATE).sync()?;
-        tera.add_raw_template(ENUM_TERA, ENUM_TEMPLATE).sync()?;
-        tera.add_raw_template(FIXED_TERA, FIXED_TEMPLATE).sync()?;
+    pub fn new() -> Result<Templater> {
+        let mut tera = Tera::new("/dev/null/*")?;
+        tera.add_raw_template(SERDE_TERA, SERDE_TEMPLATE)?;
+        tera.add_raw_template(RECORD_TERA, RECORD_TEMPLATE)?;
+        tera.add_raw_template(ENUM_TERA, ENUM_TEMPLATE)?;
+        tera.add_raw_template(FIXED_TERA, FIXED_TEMPLATE)?;
         Ok(Templater {
             tera,
             precision: 3,
@@ -199,16 +165,16 @@ impl Templater {
     }
 
     /// Generates `use serde` statement
-    pub fn str_serde(&self) -> Result<String, Error> {
+    pub fn str_serde(&self) -> Result<String> {
         let mut ctx = Context::new();
         if self.nullable {
             ctx.insert("nullable", &true);
         }
-        Ok(self.tera.render(SERDE_TERA, &ctx).sync()?)
+        Ok(self.tera.render(SERDE_TERA, &ctx)?)
     }
 
     /// Generates a Rust type based on a Schema::Fixed schema.
-    pub fn str_fixed(&self, schema: &Schema) -> Result<String, Error> {
+    pub fn str_fixed(&self, schema: &Schema) -> Result<String> {
         if let Schema::Fixed {
             name: Name { name, .. },
             size,
@@ -217,14 +183,14 @@ impl Templater {
             let mut ctx = Context::new();
             ctx.insert("name", &sanitize(name.to_camel_case()));
             ctx.insert("size", size);
-            Ok(self.tera.render(FIXED_TERA, &ctx).sync()?)
+            Ok(self.tera.render(FIXED_TERA, &ctx)?)
         } else {
             err!("Requires Schema::Fixed, found {:?}", schema)?
         }
     }
 
     /// Generates a Rust enum based on a Schema::Enum schema
-    pub fn str_enum(&self, schema: &Schema) -> Result<String, Error> {
+    pub fn str_enum(&self, schema: &Schema) -> Result<String> {
         if let Schema::Enum {
             name: Name { name, .. },
             symbols,
@@ -249,7 +215,7 @@ impl Templater {
                 .collect();
             ctx.insert("originals", &o);
             ctx.insert("symbols", &s);
-            Ok(self.tera.render(ENUM_TERA, &ctx).sync()?)
+            Ok(self.tera.render(ENUM_TERA, &ctx)?)
         } else {
             err!("Requires Schema::Enum, found {:?}", schema)?
         }
@@ -257,7 +223,7 @@ impl Templater {
 
     /// Generates a Rust struct based on a Schema::Record schema.
     /// Makes use of a `GenState` for nested schemas (i.e. Array/Map/Union).
-    pub fn str_record(&self, schema: &Schema, gen_state: &GenState) -> Result<String, Error> {
+    pub fn str_record(&self, schema: &Schema, gen_state: &GenState) -> Result<String> {
         if let Schema::Record {
             name: Name { name, .. },
             fields,
@@ -494,7 +460,7 @@ impl Templater {
             if self.nullable {
                 ctx.insert("nullable", &true);
             }
-            Ok(self.tera.render(RECORD_TERA, &ctx).sync()?)
+            Ok(self.tera.render(RECORD_TERA, &ctx)?)
         } else {
             err!("Requires Schema::Record, found {:?}", schema)?
         }
@@ -504,7 +470,7 @@ impl Templater {
     fn coerce_default_fn<'a>(
         &'a self,
         schema: &'a Schema,
-    ) -> Box<Fn(&'a Value) -> Result<String, TemplateError> + 'a> {
+    ) -> Box<Fn(&'a Value) -> Result<String> + 'a> {
         match schema {
             Schema::Null => Box::new(|_| err!("Invalid use of Schema::Null")?),
 
@@ -608,16 +574,12 @@ impl Templater {
     }
 
     /// Generates Rust default values for the inner schema of an Avro array.
-    fn array_default(
-        &self,
-        inner: &Schema,
-        default: &Option<Value>,
-    ) -> Result<String, TemplateError> {
+    fn array_default(&self, inner: &Schema, default: &Option<Value>) -> Result<String> {
         let default_str = if let Some(Value::Array(vals)) = default {
             let vals = vals
                 .iter()
                 .map(&*self.coerce_default_fn(inner))
-                .collect::<Result<Vec<String>, TemplateError>>()?
+                .collect::<Result<Vec<String>>>()?
                 .as_slice()
                 .join(", ");
             format!("vec![{}]", vals)
@@ -628,11 +590,7 @@ impl Templater {
     }
 
     /// Generates Rust default values for the inner schema of an Avro map.
-    fn map_default(
-        &self,
-        inner: &Schema,
-        default: &Option<Value>,
-    ) -> Result<String, TemplateError> {
+    fn map_default(&self, inner: &Schema, default: &Option<Value>) -> Result<String> {
         let default_str = if let Some(Value::Object(o)) = default {
             let vals = o
                 .iter()
@@ -643,7 +601,7 @@ impl Templater {
                         self.coerce_default_fn(inner)(v)?
                     ))
                 })
-                .collect::<Result<Vec<String>, TemplateError>>()?
+                .collect::<Result<Vec<String>>>()?
                 .as_slice()
                 .join(" ");
             format!(
@@ -657,11 +615,7 @@ impl Templater {
     }
 
     /// Generates Rust default values for an Avro record
-    fn record_default(
-        &self,
-        inner: &Schema,
-        default: &Option<Value>,
-    ) -> Result<String, TemplateError> {
+    fn record_default(&self, inner: &Schema, default: &Option<Value>) -> Result<String> {
         match inner {
             Schema::Record {
                 name: Name { name, .. },
@@ -681,7 +635,7 @@ impl Templater {
                                 let d = &*self.coerce_default_fn(&rf.schema)(v)?;
                                 Ok(format!("r.{} = {};", f, d))
                             })
-                            .collect::<Result<Vec<String>, TemplateError>>()?
+                            .collect::<Result<Vec<String>>>()?
                             .as_slice()
                             .join(" ");
                         format!(
@@ -702,7 +656,7 @@ impl Templater {
     }
 
     /// Generates Rust default values for the inner schema of an Avro union.
-    fn option_default(&self, _: &Schema, default: &Option<Value>) -> Result<String, Error> {
+    fn option_default(&self, _: &Schema, default: &Option<Value>) -> Result<String> {
         let default_str = match default {
             None => "None".to_string(),
             Some(Value::Null) => "None".to_string(),
@@ -713,7 +667,7 @@ impl Templater {
 }
 
 /// Generates the Rust type of the inner schema of an Avro array.
-pub fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String, Error> {
+pub fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
     let type_str = match inner {
         Schema::Boolean => "Vec<bool>".to_string(),
         Schema::Int => "Vec<i32>".to_string(),
@@ -733,7 +687,7 @@ pub fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String, Error>
 
         Schema::Array(..) | Schema::Map(..) | Schema::Union(..) => {
             let nested_type = gen_state.get_type(inner).ok_or_else(|| {
-                TemplateError(format!(
+                RsgenError::Template(format!(
                     "Didn't find schema {:?} in state {:?}",
                     inner, &gen_state
                 ))
@@ -760,7 +714,7 @@ fn map_of(t: &str) -> String {
 }
 
 /// Generates the Rust type of the inner schema of an Avro map.
-pub fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String, Error> {
+pub fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
     let type_str = match inner {
         Schema::Boolean => map_of("bool"),
         Schema::Int => map_of("i32"),
@@ -780,7 +734,7 @@ pub fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String, Error> {
 
         Schema::Array(..) | Schema::Map(..) | Schema::Union(..) => {
             let nested_type = gen_state.get_type(inner).ok_or_else(|| {
-                TemplateError(format!(
+                RsgenError::Template(format!(
                     "Didn't find schema {:?} in state {:?}",
                     inner, &gen_state
                 ))
@@ -803,7 +757,7 @@ pub fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String, Error> {
 }
 
 /// Generates the Rust type of the inner schema of an Avro union.
-pub fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String, Error> {
+pub fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
     let type_str = match inner {
         Schema::Boolean => "Option<bool>".to_string(),
         Schema::Int => "Option<i32>".to_string(),
@@ -823,7 +777,7 @@ pub fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String, Error
 
         Schema::Array(..) | Schema::Map(..) | Schema::Union(..) => {
             let nested_type = gen_state.get_type(inner).ok_or_else(|| {
-                TemplateError(format!(
+                RsgenError::Template(format!(
                     "Didn't find schema {:?} in state {:?}",
                     inner, &gen_state
                 ))

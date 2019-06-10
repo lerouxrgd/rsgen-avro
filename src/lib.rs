@@ -99,6 +99,7 @@
 //! let g = Generator::builder().precision(2).build().unwrap();
 //! ```
 
+pub mod error;
 mod templates;
 
 use std::collections::{HashMap, VecDeque};
@@ -107,23 +108,9 @@ use std::io::prelude::*;
 use std::path::Path;
 
 use avro_rs::{schema::RecordField, Schema};
-use failure::{Error, Fail};
 
+use crate::error::{Result, RsgenError};
 use crate::templates::*;
-
-/// Describes errors happened while generating Rust code.
-#[derive(Fail, Debug)]
-#[fail(display = "Rsgen failure: {}", _0)]
-pub struct RsgenError(String);
-
-impl RsgenError {
-    pub fn new<S>(msg: S) -> RsgenError
-    where
-        S: Into<String>,
-    {
-        RsgenError(msg.into())
-    }
-}
 
 /// Represents a schema input source.
 pub enum Source<'a> {
@@ -145,7 +132,7 @@ pub struct Generator {
 
 impl Generator {
     /// Create a new `Generator` through a builder with default config.
-    pub fn new() -> Result<Generator, Error> {
+    pub fn new() -> Result<Generator> {
         GeneratorBuilder::new().build()
     }
 
@@ -156,7 +143,7 @@ impl Generator {
 
     /// Generates Rust code from an Avro schema `Source`.
     /// Writes all generated types to the ouput.
-    pub fn gen(&self, source: &Source, output: &mut Box<Write>) -> Result<(), Error> {
+    pub fn gen(&self, source: &Source, output: &mut Box<Write>) -> Result<()> {
         output.write_all(self.templater.str_serde()?.as_bytes())?;
 
         if self.templater.nullable {
@@ -199,7 +186,7 @@ impl Generator {
     /// * Pops sub-schemas and generate appropriate Rust types
     /// * Keeps tracks of nested schema->name with `GenState` mapping
     /// * Appends generated Rust types to the output
-    fn gen_in_order(&self, schema: &Schema, output: &mut Box<Write>) -> Result<(), Error> {
+    fn gen_in_order(&self, schema: &Schema, output: &mut Box<Write>) -> Result<()> {
         let mut gs = GenState::new();
         let mut deps = deps_stack(schema);
 
@@ -237,7 +224,10 @@ impl Generator {
                     }
                 }
 
-                _ => Err(RsgenError::new(format!("Not a valid root schema: {:?}", s)))?,
+                _ => Err(RsgenError::Schema(format!(
+                    "Not a valid root schema: {:?}",
+                    s
+                )))?,
             }
         }
         Ok(())
@@ -373,7 +363,7 @@ impl GeneratorBuilder {
     }
 
     /// Create a `Generator` with the builder parameters.
-    pub fn build(self) -> Result<Generator, Error> {
+    pub fn build(self) -> Result<Generator> {
         let mut templater = Templater::new()?;
         templater.precision = self.precision;
         templater.nullable = self.nullable;
@@ -558,7 +548,7 @@ impl Default for Test {
 
         macro_rules! deser(
             ($name:ident, $rtype:ty, $val:expr) => (
-                fn $name<'de, D>(deserializer: D) -> Result<$rtype, D::Error>
+                fn $name<'de, D>(deserializer: D) -> std::result::Result<$rtype, D::Error>
                 where
                     D: Deserializer<'de>,
                 {
