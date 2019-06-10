@@ -1,9 +1,9 @@
 //! Logic for templating Rust types and default values from Avro schema.
-use std::collections::{HashMap, HashSet};
+use std::collections::{hash_map::DefaultHasher, HashMap, HashSet};
+use std::{hash::Hasher, ptr};
 
 use avro_rs::schema::{Name, RecordField};
 use avro_rs::Schema;
-use by_address::ByAddress;
 use heck::{CamelCase, SnakeCase};
 use lazy_static::lazy_static;
 use serde_json::Value;
@@ -123,21 +123,25 @@ macro_rules! err(
 /// A helper struct for nested schema generation.
 /// Used to store inner schema String type so that outter schema String type can be created.
 #[derive(Debug)]
-pub struct GenState<'a>(HashMap<ByAddress<&'a Schema>, String>);
+pub struct GenState(HashMap<u64, String>);
 
-impl<'a> GenState<'a> {
-    pub fn new() -> GenState<'a> {
+impl GenState {
+    pub fn new() -> GenState {
         GenState(HashMap::new())
     }
 
     /// Stores the String type of a given schema.
-    pub fn put_type<'b: 'a>(&mut self, schema: &'b Schema, t: String) {
-        self.0.insert(ByAddress(schema), t);
+    pub fn put_type(&mut self, schema: &Schema, t: String) {
+        let mut hasher = DefaultHasher::new();
+        ptr::hash(schema, &mut hasher);
+        self.0.insert(hasher.finish(), t);
     }
 
     /// Retrieves the String type of a given schema.
-    pub fn get_type(&self, schema: &'a Schema) -> Option<&String> {
-        self.0.get(&ByAddress(schema))
+    pub fn get_type(&self, schema: &Schema) -> Option<&String> {
+        let mut hasher = DefaultHasher::new();
+        ptr::hash(schema, &mut hasher);
+        self.0.get(&hasher.finish())
     }
 }
 
