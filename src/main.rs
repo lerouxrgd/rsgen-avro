@@ -11,7 +11,7 @@ const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 const USAGE: &'static str = "
 Usage:
-  rsgen-avro [options] <schema-file-or-dir> <output-file> 
+  rsgen-avro [options] <schema-file-or-dir> <output-file>
   rsgen-avro (-h | --help)
   rsgen-avro (-V | --version)
 

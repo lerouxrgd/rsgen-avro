@@ -9,7 +9,7 @@ use lazy_static::lazy_static;
 use serde_json::Value;
 use tera::{Context, Tera};
 
-use crate::error::{Result, RsgenError};
+use crate::error::{Error, Result};
 
 pub const SERDE_TERA: &str = "serde.tera";
 pub const SERDE_TEMPLATE: &str =
@@ -117,7 +117,7 @@ fn sanitize(mut s: String) -> String {
 }
 
 macro_rules! err(
-    ($($arg:tt)*) => (Err(RsgenError::Template(format!($($arg)*))))
+    ($($arg:tt)*) => (Err(Error::Template(format!($($arg)*))))
 );
 
 /// A helper struct for nested schema generation.
@@ -240,7 +240,7 @@ impl Templater {
             let doc = if let Some(d) = doc { d } else { "" };
             ctx.insert("doc", doc);
 
-            let mut f = Vec::new();; // field names;
+            let mut f = Vec::new(); // field names;
             let mut t = HashMap::new(); // field name -> field type
             let mut o = HashMap::new(); // field name -> original name
             let mut d = HashMap::new(); // field name -> default value
@@ -474,7 +474,7 @@ impl Templater {
     fn coerce_default_fn<'a>(
         &'a self,
         schema: &'a Schema,
-    ) -> Box<Fn(&'a Value) -> Result<String> + 'a> {
+    ) -> Box<dyn Fn(&'a Value) -> Result<String> + 'a> {
         match schema {
             Schema::Null => Box::new(|_| err!("Invalid use of Schema::Null")?),
 
@@ -691,7 +691,7 @@ pub fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
 
         Schema::Array(..) | Schema::Map(..) | Schema::Union(..) => {
             let nested_type = gen_state.get_type(inner).ok_or_else(|| {
-                RsgenError::Template(format!(
+                Error::Template(format!(
                     "Didn't find schema {:?} in state {:?}",
                     inner, &gen_state
                 ))
@@ -738,7 +738,7 @@ pub fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
 
         Schema::Array(..) | Schema::Map(..) | Schema::Union(..) => {
             let nested_type = gen_state.get_type(inner).ok_or_else(|| {
-                RsgenError::Template(format!(
+                Error::Template(format!(
                     "Didn't find schema {:?} in state {:?}",
                     inner, &gen_state
                 ))
@@ -781,7 +781,7 @@ pub fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
 
         Schema::Array(..) | Schema::Map(..) | Schema::Union(..) => {
             let nested_type = gen_state.get_type(inner).ok_or_else(|| {
-                RsgenError::Template(format!(
+                Error::Template(format!(
                     "Didn't find schema {:?} in state {:?}",
                     inner, &gen_state
                 ))

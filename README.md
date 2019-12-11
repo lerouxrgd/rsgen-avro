@@ -18,7 +18,7 @@ Available options:
 
 ```
 Usage:
-  rsgen-avro [options] <schema-file-or-dir> <output-file> 
+  rsgen-avro [options] <schema-file-or-dir> <output-file>
   rsgen-avro (-h | --help)
   rsgen-avro (-V | --version)
 
@@ -37,7 +37,6 @@ Options:
 As a libray, the basic usage is:
 
 ```rust
-use std::io::{stdout, Write};
 use avro_rs::Schema;
 use rsgen_avro::{Source, Generator};
 
@@ -55,7 +54,7 @@ let raw_schema = r#"
 let schema = Schema::parse_str(&raw_schema).unwrap();
 let source = Source::Schema(&schema);
 
-let mut out: Box<Write> = Box::new(stdout());
+let mut out = std::io::stdout();
 
 let g = Generator::new().unwrap();
 g.gen(&source, &mut out).unwrap();
@@ -104,14 +103,6 @@ let g = Generator::builder().precision(2).build().unwrap();
 
 * Avro schema `namespace` fields are ignored, therefore names from a single schema must no clash.
 * Only `union` of the form `["null", "some-type"]` are supported and treated as `Option<_>`.
-
-## Tests
-
-Some tests capture `stdout` and must be run with only one thread:
-
-```sh
-cargo test -- --test-threads=1
-```
 
 [schemas]: https://avro.apache.org/docs/current/spec.html
 [avro-rs]: https://github.com/flavray/avro-rs

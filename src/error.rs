@@ -1,34 +1,28 @@
-pub type Result<T> = std::result::Result<T, RsgenError>;
+use thiserror::Error;
 
-#[derive(Debug, PartialEq)]
-pub enum RsgenError {
+pub type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("Schema error: {:?}", .0)]
     Schema(String),
+    #[error("Templating error: {:?}", .0)]
     Template(String),
-    Io(String),
+    #[error("Unexpected io error: {:?}", .0)]
+    Io(#[from] std::io::Error),
+    #[error("Avro failure: {:?}", .0)]
     Failure(String),
 }
 
-impl std::fmt::Display for RsgenError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "RsgenError::{:?}", self)
-    }
-}
-
-impl From<std::io::Error> for RsgenError {
-    fn from(source: std::io::Error) -> Self {
-        RsgenError::Io(source.to_string())
-    }
-}
-
-impl From<failure::Error> for RsgenError {
+impl From<failure::Error> for Error {
     fn from(source: failure::Error) -> Self {
-        RsgenError::Failure(source.to_string())
+        Error::Failure(source.to_string())
     }
 }
 
-impl From<tera::Error> for RsgenError {
+impl From<tera::Error> for Error {
     fn from(source: tera::Error) -> Self {
-        RsgenError::Template(source.description().into())
+        Error::Template(source.to_string())
     }
 }
 
@@ -39,8 +33,8 @@ mod tests {
     #[test]
     fn display() {
         assert_eq!(
-            r#"RsgenError::Schema("Some message")"#,
-            RsgenError::Schema("Some message".into()).to_string()
+            r#"Schema error: "Some message""#,
+            Error::Schema("Some message".into()).to_string()
         );
     }
 }

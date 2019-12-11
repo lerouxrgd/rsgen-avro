@@ -33,7 +33,6 @@
 //! Then, the basic usage is:
 //!
 //! ```rust
-//! use std::io::{stdout, Write};
 //! use avro_rs::Schema;
 //! use rsgen_avro::{Source, Generator};
 //!
@@ -51,7 +50,7 @@
 //! let schema = Schema::parse_str(&raw_schema).unwrap();
 //! let source = Source::Schema(&schema);
 //!
-//! let mut out: Box<Write> = Box::new(stdout());
+//! let mut out = std::io::stdout();
 //!
 //! let g = Generator::new().unwrap();
 //! g.gen(&source, &mut out).unwrap();
@@ -109,7 +108,7 @@ use std::path::Path;
 
 use avro_rs::{schema::RecordField, Schema};
 
-use crate::error::{Result, RsgenError};
+use crate::error::{Error, Result};
 use crate::templates::*;
 
 /// Represents a schema input source.
@@ -143,7 +142,7 @@ impl Generator {
 
     /// Generates Rust code from an Avro schema `Source`.
     /// Writes all generated types to the ouput.
-    pub fn gen(&self, source: &Source, output: &mut Box<Write>) -> Result<()> {
+    pub fn gen(&self, source: &Source, output: &mut impl Write) -> Result<()> {
         output.write_all(self.templater.str_serde()?.as_bytes())?;
 
         if self.templater.nullable {
@@ -186,7 +185,7 @@ impl Generator {
     /// * Pops sub-schemas and generate appropriate Rust types
     /// * Keeps tracks of nested schema->name with `GenState` mapping
     /// * Appends generated Rust types to the output
-    fn gen_in_order(&self, schema: &Schema, output: &mut Box<Write>) -> Result<()> {
+    fn gen_in_order(&self, schema: &Schema, output: &mut impl Write) -> Result<()> {
         let mut gs = GenState::new();
         let mut deps = deps_stack(schema);
 
@@ -224,10 +223,7 @@ impl Generator {
                     }
                 }
 
-                _ => Err(RsgenError::Schema(format!(
-                    "Not a valid root schema: {:?}",
-                    s
-                )))?,
+                _ => Err(Error::Schema(format!("Not a valid root schema: {:?}", s)))?,
             }
         }
         Ok(())
@@ -373,12 +369,6 @@ impl GeneratorBuilder {
 
 #[cfg(test)]
 mod tests {
-    extern crate gag;
-    extern crate matches;
-
-    use std::io::stdout;
-
-    use self::gag::BufferRedirect;
     use avro_rs::schema::Name;
     use serde::{Deserialize, Serialize};
 
@@ -389,14 +379,9 @@ mod tests {
             let schema = Schema::parse_str($raw_schema).unwrap();
             let source = Source::Schema(&schema);
 
-            let mut buf = BufferRedirect::stdout().unwrap();
-            let mut out: Box<Write> = Box::new(stdout());
-
-            $generator.gen(&source, &mut out).unwrap();
-
-            let mut res = String::new();
-            buf.read_to_string(&mut res).unwrap();
-            buf.into_inner();
+            let mut buf = vec![];
+            $generator.gen(&source, &mut buf).unwrap();
+            let res = String::from_utf8(buf).unwrap();
 
             assert_eq!($expected, &res);
         );
@@ -587,7 +572,7 @@ impl Default for Test {
 
     #[test]
     fn deps() {
-        use self::matches::assert_matches;
+        use matches::assert_matches;
 
         let raw_schema = r#"
 {
