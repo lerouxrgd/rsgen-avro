@@ -37,7 +37,6 @@ Options:
 As a libray, the basic usage is:
 
 ```rust
-use avro_rs::Schema;
 use rsgen_avro::{Source, Generator};
 
 let raw_schema = r#"
@@ -51,8 +50,7 @@ let raw_schema = r#"
 }
 "#;
 
-let schema = Schema::parse_str(&raw_schema).unwrap();
-let source = Source::Schema(&schema);
+let source = Source::SchemaStr(&raw_schema);
 
 let mut out = std::io::stdout();
 
@@ -86,10 +84,10 @@ Various `Schema` sources can be used with `Generator`'s `.gen(..)` method:
 
 ```rust
 pub enum Source<'a> {
-    Schema(&'a Schema),
+    Schema(&'a avro_rs::Schema), // from `avro-rs` crate
     SchemaStr(&'a str),
-    FilePath(&'a Path),
-    DirPath(&'a Path),
+    FilePath(&'a std::path::Path),
+    DirPath(&'a std::path::Path),
 }
 ```
 
