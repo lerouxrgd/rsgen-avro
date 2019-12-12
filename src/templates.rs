@@ -40,7 +40,7 @@ pub const RECORD_TEMPLATE: &str = r#"
 pub struct {{ name }} {
     {%- for f in fields %}
     {%- set type = types[f] %}
-    {%- if f != originals[f] and not nullable %}
+    {%- if f != originals[f] and not nullable and not f is starting_with("r#") %}
     #[serde(rename = "{{ originals[f] }}")]
     {%- elif f != originals[f] and nullable and not type is starting_with("Option") %}
     #[serde(rename = "{{ originals[f] }}", deserialize_with = "nullable_{{ name|lower }}_{{ f }}")]
@@ -93,12 +93,11 @@ pub type {{ name }} = [u8; {{ size }}];
 lazy_static! {
     static ref RESERVED: HashSet<String> = {
         let s: HashSet<_> = vec![
-            "as", "async", "await", "break", "const", "continue", "crate", "dyn", "else", "enum",
-            "extern", "false", "fn", "for", "if", "impl", "in", "let", "loop", "match", "mod",
-            "move", "mut", "pub", "ref", "return", "Self", "self", "static", "struct", "super",
-            "trait", "true", "try", "type", "unsafe", "use", "where", "while", "abstract",
-            "alignof", "become", "box", "do", "final", "macro", "offsetof", "override", "priv",
-            "proc", "pure", "sizeof", "typeof", "unsized", "virtual", "yields",
+            "as", "break", "const", "continue", "crate", "dyn", "else", "enum", "extern", "false",
+            "fn", "for", "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut", "pub",
+            "ref", "return", "Self", "self", "static", "struct", "super", "trait", "true", "type",
+            "unsafe", "use", "where", "while", "abstract", "async", "await", "become", "box", "do",
+            "final", "macro", "override", "priv", "try", "typeof", "unsized", "virtual", "yield",
         ]
         .iter()
         .map(|s| s.to_string())
@@ -109,7 +108,7 @@ lazy_static! {
 
 fn sanitize(mut s: String) -> String {
     if RESERVED.contains(&s) {
-        s.push_str("_");
+        s.insert_str(0, "r#");
         s
     } else {
         s
@@ -829,8 +828,7 @@ mod tests {
 #[serde(default)]
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 pub struct User {
-    #[serde(rename = "as")]
-    pub as_: String,
+    pub r#as: String,
     #[serde(rename = "favoriteNumber")]
     pub favorite_number: i32,
     pub likes_pizza: bool,
@@ -846,7 +844,7 @@ pub struct User {
 impl Default for User {
     fn default() -> User {
         User {
-            as_: String::default(),
+            r#as: String::default(),
             favorite_number: 7,
             likes_pizza: false,
             b: vec![195, 191],

@@ -4,13 +4,13 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Schema error: {:?}", .0)]
+    #[error("Schema error: {}", .0)]
     Schema(String),
-    #[error("Templating error: {:?}", .0)]
+    #[error("Templating error: {}", .0)]
     Template(String),
-    #[error("Unexpected io error: {:?}", .0)]
+    #[error("Unexpected io error: {}", .0)]
     Io(#[from] std::io::Error),
-    #[error("Avro failure: {:?}", .0)]
+    #[error("Avro failure: {}", .0)]
     Failure(String),
 }
 
@@ -33,7 +33,7 @@ mod tests {
     #[test]
     fn display() {
         assert_eq!(
-            r#"Schema error: "Some message""#,
+            "Schema error: Some message",
             Error::Schema("Some message".into()).to_string()
         );
     }
