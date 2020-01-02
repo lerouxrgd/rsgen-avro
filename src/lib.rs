@@ -149,15 +149,13 @@ impl Generator {
             Source::Schema(schema) => self.gen_in_order(schema, output)?,
 
             Source::SchemaStr(raw_schema) => {
-                let schema = Schema::parse_str(&raw_schema)?;
-                self.gen_in_order(&schema, output)?
+                self.gen_for_schema(raw_schema.to_string(), output)?
             }
 
             Source::FilePath(schema_file) => {
                 let mut raw_schema = String::new();
                 File::open(&schema_file)?.read_to_string(&mut raw_schema)?;
-                let schema = Schema::parse_str(&raw_schema)?;
-                self.gen_in_order(&schema, output)?
+                self.gen_for_schema(raw_schema, output)?
             }
 
             Source::DirPath(schemas_dir) => {
@@ -166,14 +164,26 @@ impl Generator {
                     if !path.is_dir() {
                         let mut raw_schema = String::new();
                         File::open(&path)?.read_to_string(&mut raw_schema)?;
-                        let schema = Schema::parse_str(&raw_schema)?;
-                        self.gen_in_order(&schema, output)?
+                        self.gen_for_schema(raw_schema, output)?
                     }
                 }
             }
         }
 
         Ok(())
+    }
+
+    fn gen_for_schema(&self, raw_schema: String, output: &mut impl Write) -> Result<()> {
+        let raw_str = raw_schema.as_ref();
+
+        if Schema::is_protocol(raw_str) {
+            let protocol = Schema::parse_protocol(raw_str)?;
+            let schemas : Vec<&Schema> = protocol.values().into_iter().collect();
+            schemas.into_iter().map(|schema| self.gen_in_order(&schema, output)).collect()
+        } else {
+            let schema = Schema::parse_str(&raw_schema)?;
+            self.gen_in_order(&schema, output)
+        }
     }
 
     /// Given an Avro `schema`:

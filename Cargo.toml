@@ -10,7 +10,7 @@ license = "MIT"
 readme = "README.md"
 
 [dependencies]
-avro-rs = "0.6"
+avro-rs = { git = "git@github.com:Igosuki/avro-rs.git" }
 docopt = "1"
 failure = "0.1"
 heck = "0.3"
