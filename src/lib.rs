@@ -279,7 +279,10 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
                                     | Schema::Record { .. }
                                     | Schema::Map(..)
                                     | Schema::Array(..)
-                                    | Schema::Union(..) => q.push_back(sc),
+                                    | Schema::Union(..) => {
+                                        q.push_back(sc);
+                                        deps.push(sc);
+                                    }
                                     _ => (),
                                 }
                             }
@@ -520,6 +523,68 @@ impl Default for Test {
 }
 "#;
         let g = Generator::builder().nullable(true).build().unwrap();
+        assert_schema_gen!(g, expected, raw_schema);
+    }
+
+    #[test]
+    fn nullable_array() {
+        let raw_schema = r#"
+{
+  "type": "record",
+  "name": "Object",
+  "fields": [ {
+    "name":  "field",
+    "type": ["null", {
+      "type": "array",
+      "items": {
+        "name": "Variable",
+        "type": "record",
+        "fields": [
+          {"name": "key", "type": "int"},
+          {"name": "val", "type": "string"}
+        ],
+        "default": {}
+      }
+    } ],
+    "default": null
+  } ]
+}
+"#;
+
+        let expected = r#"use serde::{Deserialize, Serialize};
+
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
+pub struct Variable {
+    pub key: i32,
+    pub val: String,
+}
+
+impl Default for Variable {
+    fn default() -> Variable {
+        Variable {
+            key: 0,
+            val: String::default(),
+        }
+    }
+}
+
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
+pub struct Object {
+    pub field: Option<Vec<Variable>>,
+}
+
+impl Default for Object {
+    fn default() -> Object {
+        Object {
+            field: None,
+        }
+    }
+}
+"#;
+
+        let g = Generator::new().unwrap();
         assert_schema_gen!(g, expected, raw_schema);
     }
 
