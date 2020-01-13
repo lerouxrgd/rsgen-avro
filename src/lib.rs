@@ -231,6 +231,12 @@ impl Generator {
 /// at the same time in order to have them ordered.
 /// It is similar to traversing the `schema` tree in a post-order fashion.
 fn deps_stack(schema: &Schema) -> Vec<&Schema> {
+    fn push_unique<'a>(deps: &mut Vec<&'a Schema>, s: &'a Schema) {
+        if !deps.contains(&s) {
+            deps.push(s)
+        };
+    }
+
     let mut deps = Vec::new();
     let mut q = VecDeque::new();
 
@@ -240,14 +246,12 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
 
         match s {
             // No nested schemas, add them to the result stack
-            Schema::Fixed { .. } => deps.push(s),
-            Schema::Enum { .. } => deps.push(s),
+            Schema::Fixed { .. } => push_unique(&mut deps, s),
+            Schema::Enum { .. } => push_unique(&mut deps, s),
 
             // Explore the record fields for potentially nested schemas
             Schema::Record { fields, .. } => {
-                if !deps.contains(&s) {
-                    deps.push(s)
-                };
+                push_unique(&mut deps, s);
 
                 let by_pos = fields
                     .iter()
@@ -257,8 +261,8 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
                 while let Some(RecordField { schema: sr, .. }) = by_pos.get(&i) {
                     match sr {
                         // No nested schemas, add them to the result stack
-                        Schema::Fixed { .. } => deps.push(sr),
-                        Schema::Enum { .. } => deps.push(sr),
+                        Schema::Fixed { .. } => push_unique(&mut deps, sr),
+                        Schema::Enum { .. } => push_unique(&mut deps, sr),
 
                         // Push to the exploration queue for further checks
                         Schema::Record { .. } => q.push_back(sr),
@@ -283,7 +287,7 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
                                     | Schema::Array(..)
                                     | Schema::Union(..) => {
                                         q.push_back(sc);
-                                        deps.push(sc);
+                                        push_unique(&mut deps, sc);
                                     }
                                     _ => (),
                                 }
@@ -305,7 +309,7 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
                 | Schema::Array(..)
                 | Schema::Union(..) => q.push_back(&**sc),
                 // ... Not nested, can be pushed to the result stack
-                _ => deps.push(s),
+                _ => push_unique(&mut deps, s),
             },
             Schema::Union(union) => {
                 if let [Schema::Null, sc] = union.variants() {
@@ -318,7 +322,7 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
                         | Schema::Array(..)
                         | Schema::Union(..) => q.push_back(sc),
                         // ... Not nested, can be pushed to the result stack
-                        _ => deps.push(s),
+                        _ => push_unique(&mut deps, s),
                     }
                 }
             }
