@@ -245,7 +245,9 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
 
             // Explore the record fields for potentially nested schemas
             Schema::Record { fields, .. } => {
-                deps.push(s);
+                if !deps.contains(&s) {
+                    deps.push(s)
+                };
 
                 let by_pos = fields
                     .iter()
@@ -530,24 +532,49 @@ impl Default for Test {
     fn nullable_array() {
         let raw_schema = r#"
 {
+  "name": "Snmp",
   "type": "record",
-  "name": "Object",
   "fields": [ {
-    "name":  "field",
-    "type": ["null", {
-      "type": "array",
-      "items": {
-        "name": "Variable",
-        "type": "record",
-        "fields": [
-          {"name": "key", "type": "int"},
-          {"name": "val", "type": "string"}
-        ],
-        "default": {}
-      }
+    "name": "v1",
+    "type": [ "null", {
+      "name": "V1",
+      "type": "record",
+      "fields": [ {
+        "name": "pdu",
+        "type": [ "null", {
+          "name": "TrapV1",
+          "type": "record",
+          "fields": [ {
+            "name": "var",
+            "type": ["null", {
+              "type": "array",
+              "items": {
+                "name": "Variable",
+                "type": "record",
+                "fields": [ {
+                  "name": "oid",
+                  "type": ["null", {
+                    "type":"array",
+                    "items": "long"
+                  } ],
+                  "default": null
+                }, {
+                  "name": "val",
+                  "type": ["null", "string"],
+                  "default": null
+                }],
+                "default": {}
+              }
+            } ],
+            "default": null
+          } ]
+        } ],
+        "default": null
+      } ]
     } ],
     "default": null
-  } ]
+  } ],
+  "default": {}
 }
 "#;
 
@@ -556,29 +583,57 @@ impl Default for Test {
 #[serde(default)]
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 pub struct Variable {
-    pub key: i32,
-    pub val: String,
+    pub oid: Option<Vec<i64>>,
+    pub val: Option<String>,
 }
 
 impl Default for Variable {
     fn default() -> Variable {
         Variable {
-            key: 0,
-            val: String::default(),
+            oid: None,
+            val: None,
         }
     }
 }
 
 #[serde(default)]
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
-pub struct Object {
-    pub field: Option<Vec<Variable>>,
+pub struct TrapV1 {
+    pub var: Option<Vec<Variable>>,
 }
 
-impl Default for Object {
-    fn default() -> Object {
-        Object {
-            field: None,
+impl Default for TrapV1 {
+    fn default() -> TrapV1 {
+        TrapV1 {
+            var: None,
+        }
+    }
+}
+
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
+pub struct V1 {
+    pub pdu: Option<TrapV1>,
+}
+
+impl Default for V1 {
+    fn default() -> V1 {
+        V1 {
+            pdu: None,
+        }
+    }
+}
+
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
+pub struct Snmp {
+    pub v1: Option<V1>,
+}
+
+impl Default for Snmp {
+    fn default() -> Snmp {
+        Snmp {
+            v1: None,
         }
     }
 }
