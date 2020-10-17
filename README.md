@@ -1,10 +1,13 @@
-# rsgen-avro
+# rsgen-avro &emsp; [![latest]][crates.io] [![doc]][docs.rs]
 
-[![Crates.io](https://img.shields.io/crates/v/rsgen-avro.svg)](https://crates.io/crates/rsgen-avro)
-[![Docs](https://docs.rs/rsgen-avro/badge.svg)](https://docs.rs/rsgen-avro)
-[![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/lerouxrgd/rsgen-avro/blob/master/LICENSE)
+[latest]: https://img.shields.io/crates/v/rsgen-avro.svg
+[crates.io]: https://crates.io/crates/rsgen-avro
+[doc]: https://docs.rs/rsgen-avro/badge.svg
+[docs.rs]: https://docs.rs/rsgen-avro
 
-A command line tool and library for generating [serde][]-compatible Rust types from [Avro schemas][schemas]. The [avro-rs][] crate provides a way to read and write Avro data with such types.
+A command line tool and library for generating [serde][]-compatible Rust types from
+[Avro schemas][schemas]. The [avro-rs][] crate provides a way to read and write Avro
+data with such types.
 
 ## Command line usage
 
@@ -99,8 +102,10 @@ let g = Generator::builder().precision(2).build().unwrap();
 
 ## Limitations
 
-* Avro schema `namespace` fields are ignored, therefore names from a single schema must no clash.
-* Only `union` of the form `["null", "some-type"]` are supported and treated as `Option<_>`.
+* Avro schema `namespace` fields are ignored, therefore names from a single schema must
+  not clash.
+* Only `union` of the form `["null", "some-type"]` are supported and treated as
+  `Option<_>`.
 
 [schemas]: https://avro.apache.org/docs/current/spec.html
 [avro-rs]: https://github.com/flavray/avro-rs

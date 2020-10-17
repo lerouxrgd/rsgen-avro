@@ -1,8 +1,7 @@
-use thiserror::Error;
-
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum Error {
     #[error("Schema error: {}", .0)]
     Schema(String),
@@ -10,18 +9,18 @@ pub enum Error {
     Template(String),
     #[error("Unexpected io error: {}", .0)]
     Io(#[from] std::io::Error),
-    #[error("Avro failure: {}", .0)]
-    Failure(String),
-}
-
-impl From<failure::Error> for Error {
-    fn from(source: failure::Error) -> Self {
-        Error::Failure(source.to_string())
-    }
+    #[error("AvroRs error: {}", .0)]
+    AvroRs(#[from] avro_rs::Error),
 }
 
 impl From<tera::Error> for Error {
     fn from(source: tera::Error) -> Self {
+        Error::Template(source.to_string())
+    }
+}
+
+impl From<uuid::Error> for Error {
+    fn from(source: uuid::Error) -> Self {
         Error::Template(source.to_string())
     }
 }

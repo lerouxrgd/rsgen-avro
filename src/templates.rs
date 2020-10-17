@@ -1,4 +1,5 @@
 //! Logic for templating Rust types and default values from Avro schema.
+
 use std::collections::{hash_map::DefaultHasher, HashMap, HashSet};
 use std::{hash::Hasher, ptr};
 
@@ -8,8 +9,11 @@ use heck::{CamelCase, SnakeCase};
 use lazy_static::lazy_static;
 use serde_json::Value;
 use tera::{Context, Tera};
+use uuid::Uuid;
 
 use crate::error::{Error, Result};
+
+// TODO: prefix serde in derive macro
 
 pub const SERDE_TERA: &str = "serde.tera";
 pub const SERDE_TEMPLATE: &str =
@@ -271,7 +275,7 @@ impl Templater {
                         d.insert(name_std.clone(), default);
                     }
 
-                    Schema::Int => {
+                    Schema::Int | Schema::Date | Schema::TimeMillis => {
                         let default = match default {
                             Some(Value::Number(n)) if n.is_i64() => {
                                 (n.as_i64().unwrap() as i32).to_string()
@@ -284,7 +288,10 @@ impl Templater {
                         d.insert(name_std.clone(), default);
                     }
 
-                    Schema::Long => {
+                    Schema::Long
+                    | Schema::TimeMicros
+                    | Schema::TimestampMillis
+                    | Schema::TimestampMicros => {
                         let default = match default {
                             Some(Value::Number(n)) if n.is_i64() => n.to_string(),
                             None => i64::default().to_string(),
@@ -356,6 +363,65 @@ impl Templater {
                         d.insert(name_std.clone(), default);
                     }
 
+                    Schema::Uuid => {
+                        let default = match default {
+                            Some(Value::String(s)) => Uuid::parse_str(s)?,
+                            None => Uuid::nil(),
+                            _ => err!("Invalid default: {:?}", default)?,
+                        };
+                        f.push(name_std.clone());
+                        t.insert(name_std.clone(), "uuid::Uuid".to_string());
+                        d.insert(name_std.clone(), default.to_string());
+                    }
+
+                    Schema::Duration => {
+                        let default = match default {
+                            Some(Value::String(s)) => {
+                                let bytes = s.clone().into_bytes();
+                                if bytes.len() != 12 {
+                                    err!("Invalid default: {:?}", bytes)?
+                                }
+                                format!("{:?}", bytes)
+                            }
+                            None => String::from_utf8_lossy(&vec![0; 12]).to_string(),
+                            _ => err!("Invalid default: {:?}", default)?,
+                        };
+                        f.push(name_std.clone());
+                        t.insert(name_std.clone(), "avro_rs::Duration".to_string());
+                        d.insert(name_std.clone(), default);
+                    }
+
+                    Schema::Decimal { inner, .. } => {
+                        let default = match inner.as_ref() {
+                            Schema::Bytes => match default {
+                                Some(Value::String(s)) => {
+                                    let bytes = s.clone().into_bytes();
+                                    format!("vec!{:?}", bytes)
+                                }
+                                None => "vec![]".to_string(),
+                                _ => err!("Invalid default: {:?}", default)?,
+                            },
+                            Schema::Fixed {
+                                name: Name { name: f_name, .. },
+                                size,
+                            } => match default {
+                                Some(Value::String(s)) => {
+                                    let bytes = s.clone().into_bytes();
+                                    if bytes.len() != *size {
+                                        err!("Invalid default: {:?}", bytes)?
+                                    }
+                                    format!("{:?}", bytes)
+                                }
+                                None => format!("{}::default()", f_name),
+                                _ => err!("Invalid default: {:?}", default)?,
+                            },
+                            _ => err!("Invalid Decimal inner Schema: {:?}", inner)?,
+                        };
+                        f.push(name_std.clone());
+                        t.insert(name_std.clone(), "avro_rs::Decimal".to_string());
+                        d.insert(name_std.clone(), default);
+                    }
+
                     Schema::Fixed {
                         name: Name { name: f_name, .. },
                         size,
@@ -363,7 +429,7 @@ impl Templater {
                         let f_name = sanitize(f_name.to_camel_case());
                         let default = match default {
                             Some(Value::String(s)) => {
-                                let bytes: Vec<u8> = s.clone().into_bytes();
+                                let bytes = s.clone().into_bytes();
                                 if bytes.len() != *size {
                                     err!("Invalid default: {:?}", bytes)?
                                 }
@@ -482,12 +548,15 @@ impl Templater {
                 _ => err!("Invalid defaults: {:?}", v),
             }),
 
-            Schema::Int => Box::new(|v: &Value| match v {
+            Schema::Int | Schema::Date | Schema::TimeMillis => Box::new(|v: &Value| match v {
                 Value::Number(n) if n.is_i64() => Ok((n.as_i64().unwrap() as i32).to_string()),
                 _ => err!("Invalid defaults: {:?}", v),
             }),
 
-            Schema::Long => Box::new(|v: &Value| match v {
+            Schema::Long
+            | Schema::TimeMicros
+            | Schema::TimestampMillis
+            | Schema::TimestampMicros => Box::new(|v: &Value| match v {
                 Value::Number(n) if n.is_i64() => Ok(n.to_string()),
                 _ => err!("Invalid defaults: {:?}", v),
             }),
@@ -529,9 +598,47 @@ impl Templater {
                 _ => err!("Invalid defaults: {:?}", v),
             }),
 
+            Schema::Uuid => Box::new(|v: &Value| match v {
+                Value::String(s) => Ok(Uuid::parse_str(s)?.to_string()),
+                _ => err!("Invalid defaults: {:?}", v),
+            }),
+
+            Schema::Duration => Box::new(|v: &Value| match v {
+                Value::String(s) => {
+                    let bytes = s.clone().into_bytes();
+                    if bytes.len() == 12 {
+                        Ok(format!("{:?}", bytes))
+                    } else {
+                        err!("Invalid defaults: {:?}", bytes)
+                    }
+                }
+                _ => err!("Invalid defaults: {:?}", v),
+            }),
+
+            Schema::Decimal { inner, .. } => Box::new(move |v: &Value| match &*inner.clone() {
+                Schema::Bytes => match v {
+                    Value::String(s) => {
+                        let bytes = s.clone().into_bytes();
+                        Ok(format!("vec!{:?}", bytes))
+                    }
+                    _ => err!("Invalid default: {:?}", v),
+                },
+                Schema::Fixed { size, .. } => match v {
+                    Value::String(s) => {
+                        let bytes = s.clone().into_bytes();
+                        if bytes.len() != *size {
+                            return err!("Invalid default: {:?}", bytes);
+                        }
+                        Ok(format!("{:?}", bytes))
+                    }
+                    _ => err!("Invalid default: {:?}", v),
+                },
+                _ => err!("Invalid Decimal inner Schema: {:?}", inner),
+            }),
+
             Schema::Fixed { size, .. } => Box::new(move |v: &Value| match v {
                 Value::String(s) => {
-                    let bytes: Vec<u8> = s.clone().into_bytes();
+                    let bytes = s.clone().into_bytes();
                     if bytes.len() == *size {
                         Ok(format!("{:?}", bytes))
                     } else {
@@ -680,6 +787,16 @@ pub fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
         Schema::Bytes => "Vec<Vec<u8>>".to_string(),
         Schema::String => "Vec<String>".to_string(),
 
+        Schema::Date => "Vec<i32>".to_string(),
+        Schema::TimeMillis => "Vec<i32>".to_string(),
+        Schema::TimeMicros => "Vec<i64>".to_string(),
+        Schema::TimestampMillis => "Vec<i64>".to_string(),
+        Schema::TimestampMicros => "Vec<i64>".to_string(),
+
+        Schema::Uuid => "Vec<uuid::Uuid>".to_string(),
+        Schema::Decimal { .. } => "Vec<avro_rs::Decimal>".to_string(),
+        Schema::Duration { .. } => "Vec<avro_rs::Duration>".to_string(),
+
         Schema::Fixed {
             name: Name { name: f_name, .. },
             ..
@@ -727,6 +844,16 @@ pub fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
         Schema::Bytes => map_of("Vec<u8>"),
         Schema::String => map_of("String"),
 
+        Schema::Date => map_of("i32"),
+        Schema::TimeMillis => map_of("i32"),
+        Schema::TimeMicros => map_of("i64"),
+        Schema::TimestampMillis => map_of("i64"),
+        Schema::TimestampMicros => map_of("i64"),
+
+        Schema::Uuid => map_of("uuid::Uuid"),
+        Schema::Decimal { .. } => map_of("avro_rs::Decimal"),
+        Schema::Duration { .. } => map_of("avro_rs::Duration"),
+
         Schema::Fixed {
             name: Name { name: f_name, .. },
             ..
@@ -769,6 +896,16 @@ pub fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
         Schema::Double => "Option<f64>".to_string(),
         Schema::Bytes => "Option<Vec<u8>>".to_string(),
         Schema::String => "Option<String>".to_string(),
+
+        Schema::Date => "Option<i32>".to_string(),
+        Schema::TimeMillis => "Option<i32>".to_string(),
+        Schema::TimeMicros => "Option<i64>".to_string(),
+        Schema::TimestampMillis => "Option<i64>".to_string(),
+        Schema::TimestampMicros => "Option<i64>".to_string(),
+
+        Schema::Uuid => "Option<uuid::Uuid>".to_string(),
+        Schema::Decimal { .. } => "Option<avro_rs::Decimal>".to_string(),
+        Schema::Duration { .. } => "Option<avro_rs::Duration>".to_string(),
 
         Schema::Fixed {
             name: Name { name: f_name, .. },
