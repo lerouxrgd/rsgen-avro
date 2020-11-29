@@ -40,8 +40,6 @@ impl Generator {
     /// Generates Rust code from an Avro schema `Source`.
     /// Writes all generated types to the ouput.
     pub fn gen(&self, source: &Source, output: &mut impl Write) -> Result<()> {
-        output.write_all(self.templater.str_serde()?.as_bytes())?;
-
         if self.templater.nullable {
             output.write_all(DESER_NULLABLE.as_bytes())?;
         }
@@ -278,7 +276,6 @@ impl GeneratorBuilder {
 #[cfg(test)]
 mod tests {
     use avro_rs::schema::Name;
-    use serde::{Deserialize, Serialize};
 
     use super::*;
 
@@ -308,10 +305,9 @@ mod tests {
 }
 "#;
 
-        let expected = "use serde::{Deserialize, Serialize};
-
+        let expected = "
 #[serde(default)]
-#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Test {
     pub a: i64,
     pub b: String,
@@ -350,11 +346,10 @@ impl Default for Test {
 }
 "#;
 
-        let expected = r#"use serde::{Deserialize, Serialize};
-
+        let expected = r#"
 /// Hi there.
 #[serde(default)]
-#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct User {
     pub name: String,
     pub favorite_number: i32,
@@ -395,13 +390,12 @@ impl Default for User {
 }
 "#;
 
-        let expected = r#"use serde::{Deserialize, Deserializer, Serialize};
-
+        let expected = r#"
 macro_rules! deser(
     ($name:ident, $rtype:ty, $val:expr) => (
         fn $name<'de, D>(deserializer: D) -> Result<$rtype, D::Error>
         where
-            D: Deserializer<'de>,
+            D: serde::Deserializer<'de>,
         {
             let opt = Option::deserialize(deserializer)?;
             Ok(opt.unwrap_or_else(|| $val))
@@ -410,7 +404,7 @@ macro_rules! deser(
 );
 
 #[serde(default)]
-#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Test {
     #[serde(deserialize_with = "nullable_test_a")]
     pub a: i64,
@@ -485,10 +479,9 @@ impl Default for Test {
 }
 "#;
 
-        let expected = r#"use serde::{Deserialize, Serialize};
-
+        let expected = r#"
 #[serde(default)]
-#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Variable {
     pub oid: Option<Vec<i64>>,
     pub val: Option<String>,
@@ -504,7 +497,7 @@ impl Default for Variable {
 }
 
 #[serde(default)]
-#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct TrapV1 {
     pub var: Option<Vec<Variable>>,
 }
@@ -518,7 +511,7 @@ impl Default for TrapV1 {
 }
 
 #[serde(default)]
-#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct V1 {
     pub pdu: Option<TrapV1>,
 }
@@ -532,7 +525,7 @@ impl Default for V1 {
 }
 
 #[serde(default)]
-#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Snmp {
     pub v1: Option<V1>,
 }
@@ -567,7 +560,7 @@ impl Default for Snmp {
         );
 
         #[serde(default)]
-        #[derive(Debug, PartialEq, Deserialize, Serialize)]
+        #[derive(Debug, PartialEq, serde::Deserialize, serde::Serialize)]
         pub struct Test {
             #[serde(deserialize_with = "nullable_test_a")]
             pub a: i64,

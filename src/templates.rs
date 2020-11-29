@@ -13,19 +13,12 @@ use uuid::Uuid;
 
 use crate::error::{Error, Result};
 
-// TODO: prefix serde in derive macro
-
-pub const SERDE_TERA: &str = "serde.tera";
-pub const SERDE_TEMPLATE: &str =
-    "use serde::{Deserialize{% if nullable %}, Deserializer{% endif %}, Serialize};
-";
-
 pub const DESER_NULLABLE: &str = r#"
 macro_rules! deser(
     ($name:ident, $rtype:ty, $val:expr) => (
         fn $name<'de, D>(deserializer: D) -> Result<$rtype, D::Error>
         where
-            D: Deserializer<'de>,
+            D: serde::Deserializer<'de>,
         {
             let opt = Option::deserialize(deserializer)?;
             Ok(opt.unwrap_or_else(|| $val))
@@ -40,7 +33,7 @@ pub const RECORD_TEMPLATE: &str = r#"
 /// {{ doc }}
 {%- endif %}
 #[serde(default)]
-#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct {{ name }} {
     {%- for f in fields %}
     {%- set type = types[f] %}
@@ -78,7 +71,7 @@ pub const ENUM_TEMPLATE: &str = r#"
 {%- if doc %}
 /// {{ doc }}
 {%- endif %}
-#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, serde::Deserialize, serde::Serialize)]
 pub enum {{ name }} {
     {%- for s in symbols %}
     {%- if s != originals[s] %}
@@ -160,7 +153,6 @@ impl Templater {
     /// Creates a new `Templater.`
     pub fn new() -> Result<Templater> {
         let mut tera = Tera::new("/dev/null/*")?;
-        tera.add_raw_template(SERDE_TERA, SERDE_TEMPLATE)?;
         tera.add_raw_template(RECORD_TERA, RECORD_TEMPLATE)?;
         tera.add_raw_template(ENUM_TERA, ENUM_TEMPLATE)?;
         tera.add_raw_template(FIXED_TERA, FIXED_TEMPLATE)?;
@@ -169,15 +161,6 @@ impl Templater {
             precision: 3,
             nullable: false,
         })
-    }
-
-    /// Generates `use serde` statement
-    pub fn str_serde(&self) -> Result<String> {
-        let mut ctx = Context::new();
-        if self.nullable {
-            ctx.insert("nullable", &true);
-        }
-        Ok(self.tera.render(SERDE_TERA, &ctx)?)
     }
 
     /// Generates a Rust type based on a Schema::Fixed schema.
@@ -963,7 +946,7 @@ mod tests {
 
         let expected = r#"
 #[serde(default)]
-#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct User {
     pub r#as: String,
     #[serde(rename = "favoriteNumber")]
@@ -1017,7 +1000,7 @@ impl Default for User {
 
         let expected = r#"
 #[serde(default)]
-#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct User {
     #[serde(rename = "m-f64")]
     pub m_f64: ::std::collections::HashMap<String, f64>,
@@ -1063,7 +1046,7 @@ impl Default for User {
 
         let expected = r#"
 #[serde(default)]
-#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct User {
     pub info: Info,
 }
@@ -1102,7 +1085,7 @@ impl Default for User {
 
         let expected = r#"
 /// Roses are red violets are blue.
-#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, serde::Deserialize, serde::Serialize)]
 pub enum Colors {
     #[serde(rename = "RED")]
     Red,

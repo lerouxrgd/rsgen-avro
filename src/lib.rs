@@ -91,7 +91,9 @@
 
 mod error;
 mod gen;
-pub mod templates;
+mod templates;
 
 pub use crate::error::{Error, Result};
 pub use crate::gen::{Generator, GeneratorBuilder, Source};
+
+pub use avro_rs;
