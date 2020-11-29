@@ -117,6 +117,7 @@ macro_rules! err(
 );
 
 /// A helper struct for nested schema generation.
+///
 /// Used to store inner schema String type so that outter schema String type can be created.
 #[derive(Debug)]
 pub struct GenState(HashMap<u64, String>);
@@ -141,8 +142,10 @@ impl GenState {
     }
 }
 
-/// The main, stateless, component for templating. Current implementation uses Tera.
-/// Its responsability is to generate String representing Rust code/types for a given Avro schema.
+/// The main, stateless, component for templating.
+///
+/// Current implementation uses Tera.  Its responsability is to generate String
+/// representing Rust code/types for a given Avro schema.
 pub struct Templater {
     tera: Tera,
     pub precision: usize,
