@@ -144,11 +144,11 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
 
         match s {
             // No nested schemas, add them to the result stack
-            Schema::Fixed { .. } => push_unique(&mut deps, s),
             Schema::Enum { .. } => push_unique(&mut deps, s),
+            Schema::Fixed { .. } => push_unique(&mut deps, s),
             Schema::Decimal { inner, .. } if matches!(**inner, Schema::Fixed{ .. }) => {
                 push_unique(&mut deps, s)
-            } // TODO: needed ?
+            }
 
             // Explore the record fields for potentially nested schemas
             Schema::Record { fields, .. } => {

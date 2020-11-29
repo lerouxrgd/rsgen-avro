@@ -16,8 +16,9 @@
 //! }
 //! ```
 //!
-//! The **[avro-rs](https://github.com/flavray/avro-rs)** crate provides a way to
-//! read and write Avro data with both Avro-specialized and Rust serde-compatible types.
+//! The **[avro-rs](https://github.com/flavray/avro-rs)** crate, which is re-exported,
+//! provides a way to read and write Avro data with both Avro-specialized and Rust
+//! serde-compatible types.
 //!
 //! **[rsgen-avro](https://github.com/lerouxrgd/rsgen-avro)** provides a way to generate
 //! Rust serde-compatible types based on Avro schemas. Both a command line tool and
@@ -52,10 +53,8 @@
 //! This will generate the following output:
 //!
 //! ```text
-//! use serde::{Deserialize, Serialize};
-//!
 //! #[serde(default)]
-//! #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
+//! #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 //! pub struct Test {
 //!     pub a: i64,
 //!     pub b: String,
@@ -75,7 +74,7 @@
 //!
 //! ```rust
 //! pub enum Source<'a> {
-//!     Schema(&'a avro_rs::Schema), // from `avro-rs` crate
+//!     Schema(&'a avro_rs::Schema), // from re-exported `avro-rs` crate
 //!     SchemaStr(&'a str),
 //!     FilePath(&'a std::path::Path),
 //!     DirPath(&'a std::path::Path),
