@@ -1,7 +1,6 @@
 //! Logic for templating Rust types and default values from Avro schema.
 
-use std::collections::{hash_map::DefaultHasher, HashMap, HashSet};
-use std::{hash::Hasher, ptr};
+use std::collections::{HashMap, HashSet};
 
 use avro_rs::schema::{Name, RecordField};
 use avro_rs::Schema;
@@ -120,7 +119,7 @@ macro_rules! err(
 ///
 /// Used to store inner schema String type so that outter schema String type can be created.
 #[derive(Debug)]
-pub struct GenState(HashMap<u64, String>);
+pub struct GenState(HashMap<String, String>);
 
 impl GenState {
     pub fn new() -> GenState {
@@ -129,16 +128,14 @@ impl GenState {
 
     /// Stores the String type of a given schema.
     pub fn put_type(&mut self, schema: &Schema, t: String) {
-        let mut hasher = DefaultHasher::new();
-        ptr::hash(schema, &mut hasher);
-        self.0.insert(hasher.finish(), t);
+        let k = serde_json::to_string(schema).expect("Unexpected invalid schema");
+        self.0.insert(k, t);
     }
 
     /// Retrieves the String type of a given schema.
     pub fn get_type(&self, schema: &Schema) -> Option<&String> {
-        let mut hasher = DefaultHasher::new();
-        ptr::hash(schema, &mut hasher);
-        self.0.get(&hasher.finish())
+        let k = serde_json::to_string(schema).expect("Unexpected invalid schema");
+        self.0.get(&k)
     }
 }
 

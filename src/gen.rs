@@ -131,8 +131,8 @@ impl Generator {
 fn deps_stack(schema: &Schema) -> Vec<&Schema> {
     fn push_unique<'a>(deps: &mut Vec<&'a Schema>, s: &'a Schema) {
         if !deps.contains(&s) {
-            deps.push(s)
-        };
+            deps.push(s);
+        }
     }
 
     let mut deps = Vec::new();
@@ -377,60 +377,7 @@ impl Default for User {
     }
 
     #[test]
-    fn nullable_gen() {
-        let raw_schema = r#"
-{
-  "type": "record",
-  "name": "test",
-  "fields": [
-    {"name": "a", "type": "long", "default": 42},
-    {"name": "b-b", "type": "string", "default": "na"},
-    {"name": "c", "type": ["null", "int"], "default": null}
-  ]
-}
-"#;
-
-        let expected = r#"
-macro_rules! deser(
-    ($name:ident, $rtype:ty, $val:expr) => (
-        fn $name<'de, D>(deserializer: D) -> Result<$rtype, D::Error>
-        where
-            D: serde::Deserializer<'de>,
-        {
-            let opt = Option::deserialize(deserializer)?;
-            Ok(opt.unwrap_or_else(|| $val))
-        }
-    );
-);
-
-#[serde(default)]
-#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
-pub struct Test {
-    #[serde(deserialize_with = "nullable_test_a")]
-    pub a: i64,
-    #[serde(rename = "b-b", deserialize_with = "nullable_test_b_b")]
-    pub b_b: String,
-    pub c: Option<i32>,
-}
-deser!(nullable_test_a, i64, 42);
-deser!(nullable_test_b_b, String, "na".to_owned());
-
-impl Default for Test {
-    fn default() -> Test {
-        Test {
-            a: 42,
-            b_b: "na".to_owned(),
-            c: None,
-        }
-    }
-}
-"#;
-        let g = Generator::builder().nullable(true).build().unwrap();
-        assert_schema_gen!(g, expected, raw_schema);
-    }
-
-    #[test]
-    fn nullable_array() {
+    fn optional_array() {
         let raw_schema = r#"
 {
   "name": "Snmp",
@@ -463,7 +410,7 @@ impl Default for Test {
                   "name": "val",
                   "type": ["null", "string"],
                   "default": null
-                }],
+                } ],
                 "default": {}
               }
             } ],
@@ -540,6 +487,115 @@ impl Default for Snmp {
 "#;
 
         let g = Generator::new().unwrap();
+        assert_schema_gen!(g, expected, raw_schema);
+    }
+
+    #[test]
+    fn optional_arrays() {
+        let raw_schema = r#"
+{
+  "type": "record",
+  "name": "KsqlDataSourceSchema",
+  "namespace": "io.confluent.ksql.avro_schemas",
+  "fields": [ {
+    "name": "ID",
+    "type": ["null", "string"],
+    "default": null
+  }, {
+    "name": "GROUP_IDS",
+    "type": ["null", {
+      "type": "array",
+      "items": ["null", "string"]
+    } ],
+    "default": null
+  }, {
+    "name": "GROUP_NAMES",
+    "type": ["null", {
+      "type": "array",
+      "items": ["null", "string"]
+    } ],
+    "default": null
+  } ]
+}
+"#;
+
+        let expected = r#"
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+pub struct KsqlDataSourceSchema {
+    #[serde(rename = "ID")]
+    pub id: Option<String>,
+    #[serde(rename = "GROUP_IDS")]
+    pub group_ids: Option<Vec<Option<String>>>,
+    #[serde(rename = "GROUP_NAMES")]
+    pub group_names: Option<Vec<Option<String>>>,
+}
+
+impl Default for KsqlDataSourceSchema {
+    fn default() -> KsqlDataSourceSchema {
+        KsqlDataSourceSchema {
+            id: None,
+            group_ids: None,
+            group_names: None,
+        }
+    }
+}
+"#;
+
+        let g = Generator::new().unwrap();
+        assert_schema_gen!(g, expected, raw_schema);
+    }
+
+    #[test]
+    fn nullable_gen() {
+        let raw_schema = r#"
+{
+  "type": "record",
+  "name": "test",
+  "fields": [
+    {"name": "a", "type": "long", "default": 42},
+    {"name": "b-b", "type": "string", "default": "na"},
+    {"name": "c", "type": ["null", "int"], "default": null}
+  ]
+}
+"#;
+
+        let expected = r#"
+macro_rules! deser(
+    ($name:ident, $rtype:ty, $val:expr) => (
+        fn $name<'de, D>(deserializer: D) -> Result<$rtype, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            let opt = Option::deserialize(deserializer)?;
+            Ok(opt.unwrap_or_else(|| $val))
+        }
+    );
+);
+
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+pub struct Test {
+    #[serde(deserialize_with = "nullable_test_a")]
+    pub a: i64,
+    #[serde(rename = "b-b", deserialize_with = "nullable_test_b_b")]
+    pub b_b: String,
+    pub c: Option<i32>,
+}
+deser!(nullable_test_a, i64, 42);
+deser!(nullable_test_b_b, String, "na".to_owned());
+
+impl Default for Test {
+    fn default() -> Test {
+        Test {
+            a: 42,
+            b_b: "na".to_owned(),
+            c: None,
+        }
+    }
+}
+"#;
+        let g = Generator::builder().nullable(true).build().unwrap();
         assert_schema_gen!(g, expected, raw_schema);
     }
 
