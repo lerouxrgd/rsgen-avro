@@ -1,10 +1,13 @@
-# rsgen-avro
+# rsgen-avro &emsp; [![latest]][crates.io] [![doc]][docs.rs]
 
-[![Crates.io](https://img.shields.io/crates/v/rsgen-avro.svg)](https://crates.io/crates/rsgen-avro)
-[![Docs](https://docs.rs/rsgen-avro/badge.svg)](https://docs.rs/rsgen-avro)
-[![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/lerouxrgd/rsgen-avro/blob/master/LICENSE)
+[latest]: https://img.shields.io/crates/v/rsgen-avro.svg
+[crates.io]: https://crates.io/crates/rsgen-avro
+[doc]: https://docs.rs/rsgen-avro/badge.svg
+[docs.rs]: https://docs.rs/rsgen-avro
 
-A command line tool and library for generating [serde][]-compatible Rust types from [Avro schemas][schemas]. The [avro-rs][] crate provides a way to read and write Avro data with such types.
+A command line tool and library for generating [serde][]-compatible Rust types from
+[Avro schemas][schemas]. The [avro-rs][] crate, which is re-exported, provides a way to
+read and write Avro data with such types.
 
 ## Command line usage
 
@@ -61,10 +64,8 @@ g.gen(&source, &mut out).unwrap();
 This will generate the following output:
 
 ```text
-use serde::{Deserialize, Serialize};
-
 #[serde(default)]
-#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Test {
     pub a: i64,
     pub b: String,
@@ -84,7 +85,7 @@ Various `Schema` sources can be used with `Generator`'s `.gen(..)` method:
 
 ```rust
 pub enum Source<'a> {
-    Schema(&'a avro_rs::Schema), // from `avro-rs` crate
+    Schema(&'a avro_rs::Schema), // from re-exported `avro-rs` crate
     SchemaStr(&'a str),
     FilePath(&'a std::path::Path),
     DirPath(&'a std::path::Path),
@@ -99,8 +100,12 @@ let g = Generator::builder().precision(2).build().unwrap();
 
 ## Limitations
 
-* Avro schema `namespace` fields are ignored, therefore names from a single schema must no clash.
-* Only `union` of the form `["null", "some-type"]` are supported and treated as `Option<_>`.
+* Avro schema `namespace` fields are ignored, therefore names from a single schema must
+  not clash.
+* Avro schema files must be self-contained. For a given schema file, using types defined
+  in other schema files isn't supported.
+* Only `union` of the form `["null", "some-type"]` are supported and treated as
+  `Option<_>`.
 
 [schemas]: https://avro.apache.org/docs/current/spec.html
 [avro-rs]: https://github.com/flavray/avro-rs

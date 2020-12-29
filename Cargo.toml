@@ -1,6 +1,6 @@
 [package]
 name = "rsgen-avro"
-version = "0.6.4"
+version = "0.7.1"
 authors = ["Romain Leroux <romain@leroux.dev>"]
 edition = "2018"
 description = "Command line and library for generating Rust types from Avro schemas"
@@ -10,15 +10,12 @@ license = "MIT"
 readme = "README.md"
 
 [dependencies]
-avro-rs = "0.7"
+avro-rs = "0.12"
 docopt = "1"
-failure = "0.1"
 heck = "0.3"
-lazy_static = "1.4"
-serde = { version = "1.0", features = ["serde_derive"] }
-serde_json = "1.0"
-tera = "1.1"
-thiserror = "1.0"
-
-[dev-dependencies]
-matches = "0.1"
+lazy_static = "1"
+serde = { version = "1", features = ["serde_derive"] }
+serde_json = "1"
+tera = "1"
+thiserror = "1"
+uuid = { version = "0.8", features = ["serde", "v4"] }
