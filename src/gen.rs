@@ -5,8 +5,10 @@ use std::path::Path;
 
 use avro_rs::{schema::RecordField, Schema};
 
+use serde_json::Value;
 use crate::error::{Error, Result};
 use crate::templates::*;
+use crate::compose::{resolve_cross_dependencies, Dependencies};
 
 /// Represents a schema input source.
 pub enum Source<'a> {
@@ -59,13 +61,12 @@ impl Generator {
             }
 
             Source::DirPath(schemas_dir) => {
-                for entry in std::fs::read_dir(schemas_dir)? {
-                    let path = entry?.path();
-                    if !path.is_dir() {
-                        let raw_schema = fs::read_to_string(path)?;
-                        let schema = Schema::parse_str(&raw_schema)?;
-                        self.gen_in_order(&schema, output)?
-                    }
+                let (mut raw_schemas, deps_to_write) = resolve_cross_dependencies(schemas_dir)?;
+                for (name, entry) in raw_schemas.drain() {
+                    let schema = Schema::parse(&Value::Object(entry))?;
+                    self.gen_in_order_with_cross_deps(&schema,
+                                                      Some(deps_to_write.get(&name).unwrap()),
+                                                      output)?
                 }
             }
         }
@@ -79,8 +80,17 @@ impl Generator {
     /// * Keeps tracks of nested schema->name with `GenState` mapping
     /// * Appends generated Rust types to the output
     fn gen_in_order(&self, schema: &Schema, output: &mut impl Write) -> Result<()> {
+        self.gen_in_order_with_cross_deps(schema,None, output)
+    }
+
+    /// Performs the  same as gen_in_order except that the input directory had cross dependencies.
+    /// These have been resolved by the time this function is called but an additional data
+    /// structure, "deps_to_write", is given that ensures code generation happens  exactly once for
+    /// each defined type.
+    fn gen_in_order_with_cross_deps(&self, schema: &Schema, deps_to_write: Option<Dependencies>, output: &mut impl Write) -> Result<()> {
         let mut gs = GenState::new();
         let mut deps = deps_stack(schema);
+        let deps_to_write = deps_to_write.unwrap_or_default();
 
         while let Some(s) = deps.pop() {
             match s {
@@ -95,7 +105,10 @@ impl Generator {
                 }
 
                 // Generate code with potentially nested types
-                Schema::Record { .. } => {
+                Schema::Record { name: type_name, .. } => {
+                    if !deps_to_write.contains(&type_name.name) {
+                        continue;
+                    }
                     let code = &self.templater.str_record(&s, &gs)?;
                     output.write_all(code.as_bytes())?
                 }
@@ -278,6 +291,8 @@ mod tests {
     use avro_rs::schema::Name;
 
     use super::*;
+    use crate::compose::{DependenciesMap};
+    use std::fs::File;
 
     macro_rules! assert_schema_gen (
         ($generator:expr, $expected:expr, $raw_schema:expr) => (
@@ -681,4 +696,189 @@ impl Default for Test {
         let s = deps.pop();
         assert!(matches!(s, None));
     }
+
+    fn setup_basic_dir(path: &Path) -> Result<()> {
+
+        std::fs::create_dir(path)?;
+        let mut file_a = File::create(path.join("A.avsc"))?;
+        file_a.write_all(br#"{"name": "A","type": "record","fields": [{"name": "bytes", "type": "bytes"}]}"#)?;
+        let mut file_b = File::create(path.join("B.avsc"))?;
+        file_b.write_all(br#"{
+	"name": "B",
+	"type": "array",
+	"items": "A"}"#)?;
+        let mut file_d = File::create(path.join("D.avsc"))?;
+        file_d.write_all(br#"{
+	"name": "D",
+	"type": "record",
+	"fields": [
+		{"name": "id", "type": "B"},
+		{"name": "other", "type": "A"}]}"#)?;
+
+        let mut file_c = File::create(path.join("C.avsc"))?;
+        file_c.write_all(br#"{
+	"name": "C",
+	"type": "record",
+	"fields": [
+		{"name": "other", "type": "A"},
+		{"name": "thing", "type": "B"}]}"#)?;
+        Ok(())
+    }
+
+    fn setup_basic_dir_nullable(path: &Path) -> Result<()> {
+
+        std::fs::create_dir(path)?;
+        let mut file_a = File::create(path.join("A.avsc"))?;
+        file_a.write_all(br#"{"name": "A","type": "record","fields": [{"name": "bytes", "type": "bytes"}]}"#)?;
+        let mut file_b = File::create(path.join("B.avsc"))?;
+        file_b.write_all(br#"{
+	"name": "B",
+	"type": "record",
+	"fields": [{"name": "alpha", "type": ["null", "A"]}]}"#)?;
+        Ok(())
+    }
+
+    fn teardown_basic_dir(path: &Path) -> Result<()> {
+        std::fs::remove_dir_all(path)?;
+        Ok(())
+    }
+
+
+    fn generate_schemas_from_dependencies_map(path: &Path,
+                                              deps_to_write: &DependenciesMap,
+                                              source_order: &[String]) -> Result<String> {
+
+        let generator = Generator::new().unwrap();
+        let mut results: String = String::new();
+        let (mut raw_schemas, _) = resolve_cross_dependencies(path)?;
+
+        for name in source_order {
+            let entry = raw_schemas.remove(name).expect("Test failed");
+            let schema = Schema::parse(&Value::Object(entry))?;
+            let mut buf = vec![];
+            generator.gen_in_order_with_cross_deps(&schema,
+                                                   Some(deps_to_write.get(&name).unwrap()),
+                                                   &mut buf)?;
+            results.push_str(&String::from_utf8(buf).unwrap());
+        }
+
+        Ok(results)
+    }
+
+    #[test]
+    fn test_parse_dir_with_cross_dependencies() -> Result<()> {
+        let path = Path::new("test_parse_dir_1");
+        setup_basic_dir(&path).expect("Test failed");
+
+        let source_order = ["\"C\"".to_string(), "\"D\"".to_string()];
+        let expected = r#"
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+pub struct A {
+    pub bytes: Vec<u8>,
+}
+
+impl Default for A {
+    fn default() -> A {
+        A {
+            bytes: vec![],
+        }
+    }
+}
+
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+pub struct C {
+    pub other: A,
+    pub thing: Vec<A>,
+}
+
+impl Default for C {
+    fn default() -> C {
+        C {
+            other: A::default(),
+            thing: vec![],
+        }
+    }
+}
+
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+pub struct D {
+    pub id: Vec<A>,
+    pub other: A,
+}
+
+impl Default for D {
+    fn default() -> D {
+        D {
+            id: vec![],
+            other: A::default(),
+        }
+    }
+}
+"#;
+        let deps_to_write= DependenciesMap::new(
+            [("\"C\"".to_string(), ["A".to_string(), "B".to_string(), "C".to_string()]
+                .iter().cloned().collect()),
+                ("\"D\"".to_string(), ["D".to_string()].iter().cloned().collect())]
+                .iter().cloned().collect());
+        let generated = generate_schemas_from_dependencies_map(&path, &deps_to_write, &source_order).expect("Test failed");
+        assert_eq!(expected, generated);
+
+        let deps_to_write = DependenciesMap::new(
+            [("\"C\"".to_string(), ["A".to_string(), "C".to_string()]
+                .iter().cloned().collect()),
+                ("\"D\"".to_string(), ["B".to_string(), "D".to_string()]
+                    .iter().cloned().collect())]
+                .iter().cloned().collect());
+        let generated = generate_schemas_from_dependencies_map(&path, &deps_to_write, &source_order).expect("Test failed");
+        assert_eq!(expected, generated);
+        teardown_basic_dir(&path)
+    }
+
+
+    #[test]
+    fn test_parse_dir_with_cross_dependencies_nullable() -> Result<()> {
+        let path = Path::new("test_parse_dir_nullable");
+        setup_basic_dir_nullable(&path)?;
+        let deps_to_write = DependenciesMap::new(
+            [("\"B\"".to_string(), ["B".to_string(), "A".to_string()]
+                .iter().cloned().collect())]
+                .iter().cloned().collect());
+        let source_order = ["\"B\"".to_string()];
+        let generated = generate_schemas_from_dependencies_map(&path, &deps_to_write, &source_order).expect("Test failed");
+        let expected = r#"
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+pub struct A {
+    pub bytes: Vec<u8>,
+}
+
+impl Default for A {
+    fn default() -> A {
+        A {
+            bytes: vec![],
+        }
+    }
+}
+
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+pub struct B {
+    pub alpha: Option<A>,
+}
+
+impl Default for B {
+    fn default() -> B {
+        B {
+            alpha: None,
+        }
+    }
+}
+"#;
+        assert_eq!(expected, generated);
+        teardown_basic_dir(&path)
+    }
+
 }

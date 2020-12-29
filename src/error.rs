@@ -1,3 +1,4 @@
+use crate::compose::DependencyResolutionError;
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error)]
@@ -12,6 +13,11 @@ pub enum Error {
     #[error("AvroRs error: {}", .0)]
     AvroRs(#[from] avro_rs::Error),
 }
+
+impl From<DependencyResolutionError> for Error {
+    fn from(source: DependencyResolutionError) -> Self{ Error::Schema(source.msg)}
+}
+
 
 impl From<tera::Error> for Error {
     fn from(source: tera::Error) -> Self {

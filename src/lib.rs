@@ -91,6 +91,7 @@
 mod error;
 mod gen;
 mod templates;
+mod compose;
 
 pub use crate::error::{Error, Result};
 pub use crate::gen::{Generator, GeneratorBuilder, Source};
