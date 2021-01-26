@@ -109,11 +109,19 @@ impl Generator {
                     let type_str = map_type(inner, &gs)?;
                     gs.put_type(&s, type_str)
                 }
+
                 Schema::Union(union) => {
-                    if let [Schema::Null, inner] = union.variants() {
-                        let type_str = option_type(inner, &gs)?;
-                        gs.put_type(&s, type_str)
+                    // Generate custom enum with potentially nested types
+                    if (union.is_nullable() && union.variants().len() > 2)
+                        || (!union.is_nullable() && union.variants().len() > 1)
+                    {
+                        let code = &self.templater.str_union_enum(&s, &gs)?;
+                        output.write_all(code.as_bytes())?
                     }
+
+                    // Register inner union for it to be used as a nested type later
+                    let type_str = union_type(union, &gs, true)?;
+                    gs.put_type(&s, type_str)
                 }
 
                 _ => Err(Error::Schema(format!("Not a valid root schema: {:?}", s)))?,
@@ -179,20 +187,25 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
                             _ => (),
                         },
                         Schema::Union(union) => {
-                            if let [Schema::Null, sc] = union.variants() {
-                                match sc {
-                                    Schema::Fixed { .. }
-                                    | Schema::Enum { .. }
-                                    | Schema::Record { .. }
-                                    | Schema::Map(..)
-                                    | Schema::Array(..)
-                                    | Schema::Union(..) => {
-                                        q.push_back(sc);
-                                        push_unique(&mut deps, sc);
-                                    }
-                                    _ => (),
-                                }
+                            if (union.is_nullable() && union.variants().len() > 2)
+                                || (!union.is_nullable() && union.variants().len() > 1)
+                            {
+                                push_unique(&mut deps, sr);
                             }
+
+                            union.variants().iter().for_each(|sc| match sc {
+                                Schema::Fixed { .. }
+                                | Schema::Enum { .. }
+                                | Schema::Record { .. }
+                                | Schema::Map(..)
+                                | Schema::Array(..)
+                                | Schema::Union(..) => {
+                                    q.push_back(sc);
+                                    push_unique(&mut deps, sc);
+                                }
+
+                                _ => (),
+                            });
                         }
                         _ => (),
                     };
@@ -212,20 +225,25 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
                 // ... Not nested, can be pushed to the result stack
                 _ => push_unique(&mut deps, s),
             },
+
             Schema::Union(union) => {
-                if let [Schema::Null, sc] = union.variants() {
-                    match sc {
-                        // ... Needs further checks, push to the exploration queue
-                        Schema::Fixed { .. }
-                        | Schema::Enum { .. }
-                        | Schema::Record { .. }
-                        | Schema::Map(..)
-                        | Schema::Array(..)
-                        | Schema::Union(..) => q.push_back(sc),
-                        // ... Not nested, can be pushed to the result stack
-                        _ => push_unique(&mut deps, s),
-                    }
+                if (union.is_nullable() && union.variants().len() > 2)
+                    || (!union.is_nullable() && union.variants().len() > 1)
+                {
+                    push_unique(&mut deps, s);
                 }
+
+                union.variants().iter().for_each(|sc| match sc {
+                    // ... Needs further checks, push to the exploration queue
+                    Schema::Fixed { .. }
+                    | Schema::Enum { .. }
+                    | Schema::Record { .. }
+                    | Schema::Map(..)
+                    | Schema::Array(..)
+                    | Schema::Union(..) => q.push_back(sc),
+                    // ... Not nested, can be pushed to the result stack
+                    _ => push_unique(&mut deps, s),
+                });
             }
 
             // Ignore all other schema formats
@@ -537,6 +555,50 @@ impl Default for KsqlDataSourceSchema {
             id: None,
             group_ids: None,
             group_names: None,
+        }
+    }
+}
+"#;
+
+        let g = Generator::new().unwrap();
+        assert_schema_gen!(g, expected, raw_schema);
+    }
+
+    #[test]
+    fn multi_valued_union() {
+        let raw_schema = r#"
+{
+  "type": "record",
+  "name": "Contact",
+  "namespace": "com.test",
+  "fields": [ {
+    "name": "extra",
+    "type": "map",
+    "values" : [ "null", "string", "long", "double", "boolean" ]
+  } ]
+}
+"#;
+
+        let expected = r#"
+/// Auto-generated type for unnamed Avro union variants.
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+pub enum UnionStringLongDoubleBoolean {
+    String(String),
+    Long(i64),
+    Double(f64),
+    Boolean(bool),
+}
+
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+pub struct Contact {
+    pub extra: ::std::collections::HashMap<String, Option<UnionStringLongDoubleBoolean>>,
+}
+
+impl Default for Contact {
+    fn default() -> Contact {
+        Contact {
+            extra: ::std::collections::HashMap::new(),
         }
     }
 }
