@@ -104,8 +104,6 @@ let g = Generator::builder().precision(2).build().unwrap();
   not clash.
 * Avro schema files must be self-contained. For a given schema file, using types defined
   in other schema files isn't supported.
-* Only `union` of the form `["null", "some-type"]` are supported and treated as
-  `Option<_>`.
 
 [schemas]: https://avro.apache.org/docs/current/spec.html
 [avro-rs]: https://github.com/flavray/avro-rs
