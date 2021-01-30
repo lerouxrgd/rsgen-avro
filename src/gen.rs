@@ -652,7 +652,7 @@ impl Default for AvroShortUuid {
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 pub enum UnionStringAvroShortUuid {
     String(String),
-    Record(AvroShortUuid),
+    AvroShortUuid(AvroShortUuid),
 }
 
 #[serde(default)]

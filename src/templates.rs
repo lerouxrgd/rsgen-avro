@@ -2,7 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use avro_rs::schema::{Name, RecordField, SchemaKind, UnionSchema};
+use avro_rs::schema::{Name, RecordField, UnionSchema};
 use avro_rs::Schema;
 use heck::{CamelCase, SnakeCase};
 use lazy_static::lazy_static;
@@ -447,28 +447,38 @@ impl Templater {
                     Schema::Double => "Double(f64)".into(),
                     Schema::Bytes => "Bytes(Vec<u8>)".into(),
                     Schema::String => "String(String)".into(),
-                    Schema::Array(..) => format!("Array({})", array_type(sc, gen_state)?),
-                    Schema::Map(..) => format!("Map({})", map_type(sc, gen_state)?),
+                    Schema::Array(inner) => {
+                        format!(
+                            "Array{}({})",
+                            union_enum_variant(inner.as_ref(), gen_state)?,
+                            array_type(inner.as_ref(), gen_state)?
+                        )
+                    }
+                    Schema::Map(inner) => format!(
+                        "Map{}({})",
+                        union_enum_variant(inner.as_ref(), gen_state)?,
+                        map_type(sc, gen_state)?
+                    ),
                     Schema::Union(union) => {
-                        format!("Union({})", union_type(union, gen_state, false)?)
+                        format!("{u}({u})", u = union_type(union, gen_state, false)?)
                     }
                     Schema::Record {
                         name: Name { name, .. },
                         ..
                     } => {
-                        format!("Record({})", name.to_camel_case())
+                        format!("{rec}({rec})", rec = name.to_camel_case())
                     }
                     Schema::Enum {
                         name: Name { name, .. },
                         ..
                     } => {
-                        format!("Enum({})", sanitize(name.to_camel_case()))
+                        format!("{e}({e})", e = sanitize(name.to_camel_case()))
                     }
                     Schema::Fixed {
                         name: Name { name, .. },
                         ..
                     } => {
-                        format!("Fixed({})", sanitize(name.to_camel_case()))
+                        format!("{f}({f})", f = sanitize(name.to_camel_case()))
                     }
                     Schema::Decimal { .. } => "Decimal(avro_rs::Decimal)".into(),
                     Schema::Uuid => "Uuid(uuid::Uuid)".into(),
@@ -937,7 +947,7 @@ impl Templater {
             Ok(default_str)
         } else {
             let e_name = union_type(union, gen_state, false)?;
-            let e_variant = format!("{:?}", SchemaKind::from(&union.variants()[0]));
+            let e_variant = union_enum_variant(&union.variants()[0], gen_state)?;
             let default_str = self.parse_default(&union.variants()[0], gen_state, default)?;
             Ok(format!("{}::{}({})", e_name, e_variant, default_str))
         }
@@ -1054,6 +1064,47 @@ pub fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
     Ok(type_str)
 }
 
+fn union_enum_variant(schema: &Schema, gen_state: &GenState) -> Result<String> {
+    let variant_str = match schema {
+        Schema::Boolean => "Boolean".into(),
+        Schema::Int => "Int".into(),
+        Schema::Long => "Long".into(),
+        Schema::Float => "Float".into(),
+        Schema::Double => "Double".into(),
+        Schema::Bytes => "Bytes".into(),
+        Schema::String => "String".into(),
+        Schema::Array(inner) => format!("Array{:?}", union_enum_variant(inner.as_ref(), gen_state)),
+        Schema::Map(inner) => format!("Map{:?}", union_enum_variant(inner.as_ref(), gen_state)),
+        Schema::Union(union) => union_type(union, gen_state, false)?,
+        Schema::Record {
+            name: Name { name, .. },
+            ..
+        } => name.to_camel_case(),
+        Schema::Enum {
+            name: Name { name, .. },
+            ..
+        } => sanitize(name.to_camel_case()),
+        Schema::Fixed {
+            name: Name { name, .. },
+            ..
+        } => sanitize(name.to_camel_case()),
+
+        Schema::Decimal { .. } => "Decimal".into(),
+        Schema::Uuid => "Uuid".into(),
+        Schema::Date => "Date".into(),
+        Schema::TimeMillis => "TimeMillis".into(),
+        Schema::TimeMicros => "TimeMicros".into(),
+        Schema::TimestampMillis => "TimestampMillis".into(),
+        Schema::TimestampMicros => "TimestampMicros".into(),
+        Schema::Duration => "Duration".into(),
+        Schema::Null => {
+            err!("Invalid Schema::Null not in first position on an UnionSchema variants")?
+        }
+    };
+
+    Ok(variant_str)
+}
+
 pub fn union_type(
     union: &UnionSchema,
     gen_state: &GenState,
@@ -1079,44 +1130,7 @@ pub fn union_type(
 
     let mut type_str = String::from("Union");
     for sc in schemas {
-        let sub_type_str = match sc {
-            Schema::Boolean => "Boolean".into(),
-            Schema::Int => "Int".into(),
-            Schema::Long => "Long".into(),
-            Schema::Float => "Float".into(),
-            Schema::Double => "Double".into(),
-            Schema::Bytes => "Bytes".into(),
-            Schema::String => "String".into(),
-            Schema::Array(inner) => format!("Array{:?}", SchemaKind::from(inner.as_ref())),
-            Schema::Map(inner) => format!("Map{:?}", SchemaKind::from(inner.as_ref())),
-            Schema::Union(union) => union_type(union, gen_state, false)?,
-            Schema::Record {
-                name: Name { name, .. },
-                ..
-            } => name.to_camel_case(),
-            Schema::Enum {
-                name: Name { name, .. },
-                ..
-            } => sanitize(name.to_camel_case()),
-            Schema::Fixed {
-                name: Name { name, .. },
-                ..
-            } => sanitize(name.to_camel_case()),
-
-            Schema::Decimal { .. } => "Decimal".into(),
-            Schema::Uuid => "Uuid".into(),
-            Schema::Date => "Date".into(),
-            Schema::TimeMillis => "TimeMillis".into(),
-            Schema::TimeMicros => "TimeMicros".into(),
-            Schema::TimestampMillis => "TimestampMillis".into(),
-            Schema::TimestampMicros => "TimestampMicros".into(),
-            Schema::Duration => "Duration".into(),
-            Schema::Null => {
-                err!("Invalid Schema::Null not in first position on an UnionSchema variants")?
-            }
-        };
-
-        type_str.push_str(&sub_type_str);
+        type_str.push_str(&union_enum_variant(sc, gen_state)?);
     }
 
     if variants[0] == Schema::Null && wrap_if_optional {
