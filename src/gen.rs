@@ -606,6 +606,72 @@ impl Default for Contact {
 
         let g = Generator::new().unwrap();
         assert_schema_gen!(g, expected, raw_schema);
+
+        let raw_schema = r#"
+{
+  "type": "record",
+  "name": "AvroFileId",
+  "fields": [ {
+    "name": "id",
+    "type": [
+      "string", {
+      "type": "record",
+      "name": "AvroShortUUID",
+      "fields": [ {
+        "name": "mostBits",
+        "type": "long"
+      }, {
+        "name": "leastBits",
+        "type": "long"
+      } ]
+    } ]
+  } ]
+}
+"#;
+
+        let expected = r#"
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+pub struct AvroShortUuid {
+    #[serde(rename = "mostBits")]
+    pub most_bits: i64,
+    #[serde(rename = "leastBits")]
+    pub least_bits: i64,
+}
+
+impl Default for AvroShortUuid {
+    fn default() -> AvroShortUuid {
+        AvroShortUuid {
+            most_bits: 0,
+            least_bits: 0,
+        }
+    }
+}
+
+/// Auto-generated type for unnamed Avro union variants.
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+pub enum UnionStringAvroShortUuid {
+    String(String),
+    Record(AvroShortUuid),
+}
+
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+pub struct AvroFileId {
+    pub id: UnionStringAvroShortUuid,
+}
+
+impl Default for AvroFileId {
+    fn default() -> AvroFileId {
+        AvroFileId {
+            id: UnionStringAvroShortUuid::String(String::default()),
+        }
+    }
+}
+"#;
+
+        let g = Generator::new().unwrap();
+        assert_schema_gen!(g, expected, raw_schema);
     }
 
     #[test]

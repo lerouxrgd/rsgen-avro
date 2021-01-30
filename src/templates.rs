@@ -937,8 +937,9 @@ impl Templater {
             Ok(default_str)
         } else {
             let e_name = union_type(union, gen_state, false)?;
+            let e_variant = format!("{:?}", SchemaKind::from(&union.variants()[0]));
             let default_str = self.parse_default(&union.variants()[0], gen_state, default)?;
-            Ok(format!("{}::{}", e_name, default_str))
+            Ok(format!("{}::{}({})", e_name, e_variant, default_str))
         }
     }
 }
