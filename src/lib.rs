@@ -76,7 +76,7 @@
 //! pub enum Source<'a> {
 //!     Schema(&'a avro_rs::Schema), // from re-exported `avro-rs` crate
 //!     SchemaStr(&'a str),          // schema as a json string
-//!     Globpattern(&'a str),        // pattern to schema files
+//!     GlobPattern(&'a str),        // pattern to schema files
 //! }
 //! ```
 //!
