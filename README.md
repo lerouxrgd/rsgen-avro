@@ -21,7 +21,7 @@ Available options:
 
 ```
 Usage:
-  rsgen-avro [options] <schema-file-or-dir> <output-file>
+  rsgen-avro [options] <schema-file-pattern> <output-file>
   rsgen-avro (-h | --help)
   rsgen-avro (-V | --version)
 
@@ -86,9 +86,8 @@ Various `Schema` sources can be used with `Generator`'s `.gen(..)` method:
 ```rust
 pub enum Source<'a> {
     Schema(&'a avro_rs::Schema), // from re-exported `avro-rs` crate
-    SchemaStr(&'a str),
-    FilePath(&'a std::path::Path),
-    DirPath(&'a std::path::Path),
+    SchemaStr(&'a str),          // schema as a json string
+    Globpattern(&'a str),        // pattern to schema files
 }
 ```
 
@@ -101,9 +100,7 @@ let g = Generator::builder().precision(2).build().unwrap();
 ## Limitations
 
 * Avro schema `namespace` fields are ignored, therefore names from a single schema must
-  not clash.
-* Avro schema files must be self-contained. For a given schema file, using types defined
-  in other schema files isn't supported.
+  not conflict.
 
 [schemas]: https://avro.apache.org/docs/current/spec.html
 [avro-rs]: https://github.com/flavray/avro-rs

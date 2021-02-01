@@ -955,7 +955,7 @@ impl Templater {
 }
 
 /// Generates the Rust type of the inner schema of an Avro array.
-pub fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
+pub(crate) fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
     let type_str = match inner {
         Schema::Boolean => "Vec<bool>".into(),
         Schema::Int => "Vec<i32>".into(),
@@ -1008,7 +1008,7 @@ pub fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
 }
 
 /// Generates the Rust type of the inner schema of an Avro map.
-pub fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
+pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
     fn map_of(t: &str) -> String {
         format!("::std::collections::HashMap<String, {}>", t)
     }
@@ -1105,7 +1105,7 @@ fn union_enum_variant(schema: &Schema, gen_state: &GenState) -> Result<String> {
     Ok(variant_str)
 }
 
-pub fn union_type(
+pub(crate) fn union_type(
     union: &UnionSchema,
     gen_state: &GenState,
     wrap_if_optional: bool,
@@ -1141,7 +1141,7 @@ pub fn union_type(
 }
 
 /// Generates the Rust type of the inner schema of an Avro optional union.
-pub fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
+pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
     let type_str = match inner {
         Schema::Boolean => "Option<bool>".into(),
         Schema::Int => "Option<i32>".into(),
