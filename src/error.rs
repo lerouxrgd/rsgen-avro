@@ -11,6 +11,8 @@ pub enum Error {
     Io(#[from] std::io::Error),
     #[error("AvroRs error: {}", .0)]
     AvroRs(#[from] avro_rs::Error),
+    #[error("Invalid glob pattern: {}", .0)]
+    GlobPattern(#[from] glob::PatternError),
 }
 
 impl From<tera::Error> for Error {

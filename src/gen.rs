@@ -1,7 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 use std::fs;
 use std::io::prelude::*;
-use std::path::Path;
 
 use avro_rs::{schema::RecordField, Schema};
 
@@ -14,10 +13,8 @@ pub enum Source<'a> {
     Schema(&'a Schema),
     /// An Avro schema string in json format.
     SchemaStr(&'a str),
-    /// Path to a file containing an Avro schema in json format.
-    FilePath(&'a Path),
-    /// Path to a directory containing multiple files in Avro schema.
-    DirPath(&'a Path),
+    /// Pattern for files containing Avro schemas in json format.
+    GlobPattern(&'a str),
 }
 
 /// The main component of this library.
@@ -56,17 +53,10 @@ impl Generator {
                 self.gen_in_order(&mut deps, output)?;
             }
 
-            Source::FilePath(schema_file) => {
-                let raw_schema = fs::read_to_string(schema_file)?;
-                let schema = Schema::parse_str(&raw_schema)?;
-                let mut deps = deps_stack(&schema, vec![]);
-                self.gen_in_order(&mut deps, output)?;
-            }
-
-            Source::DirPath(schemas_dir) => {
+            Source::GlobPattern(pattern) => {
                 let mut raw_schemas = vec![];
-                for entry in fs::read_dir(schemas_dir)? {
-                    let path = entry?.path();
+                for entry in glob::glob(pattern)? {
+                    let path = entry.map_err(|e| e.into_error())?;
                     if !path.is_dir() {
                         raw_schemas.push(fs::read_to_string(path)?);
                     }
@@ -90,7 +80,7 @@ impl Generator {
     /// * Pops sub-schemas and generate appropriate Rust types
     /// * Keeps tracks of nested schema->name with `GenState` mapping
     /// * Appends generated Rust types to the output
-    fn gen_in_order<'a>(&'a self, deps: &mut Vec<Schema>, output: &mut impl Write) -> Result<()> {
+    fn gen_in_order(&self, deps: &mut Vec<Schema>, output: &mut impl Write) -> Result<()> {
         let mut gs = GenState::new();
 
         while let Some(s) = deps.pop() {
@@ -851,20 +841,6 @@ impl Default for Test {
         let expected = r#"
 #[serde(default)]
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
-pub struct A {
-    pub field_one: f32,
-}
-
-impl Default for A {
-    fn default() -> A {
-        A {
-            field_one: 0.0,
-        }
-    }
-}
-
-#[serde(default)]
-#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct B {
     pub field_one: A,
 }
@@ -876,13 +852,29 @@ impl Default for B {
         }
     }
 }
+
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+pub struct A {
+    pub field_one: f32,
+}
+
+impl Default for A {
+    fn default() -> A {
+        A {
+            field_one: 0.0,
+        }
+    }
+}
 "#;
 
-        let source = Source::DirPath(dir.path());
+        let pattern = format!("{}/*.avsc", dir.path().display());
+        let source = Source::GlobPattern(pattern.as_str());
         let g = Generator::new()?;
         let mut buf = vec![];
         g.gen(&source, &mut buf)?;
         let res = String::from_utf8(buf)?;
+        println!("{}", res);
 
         assert_eq!(expected, res);
 
