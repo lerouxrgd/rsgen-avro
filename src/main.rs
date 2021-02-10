@@ -1,6 +1,6 @@
+use std::error::Error;
 use std::fs::OpenOptions;
 use std::io::{prelude::*, stdout};
-use std::path::Path;
 use std::process::{self, Command};
 
 use docopt::Docopt;
@@ -11,7 +11,7 @@ const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 const USAGE: &'static str = "
 Usage:
-  rsgen-avro [options] <schema-file-or-dir> <output-file>
+  rsgen-avro [options] <schema-file-pattern> <output-file>
   rsgen-avro (-h | --help)
   rsgen-avro (-V | --version)
 
@@ -27,7 +27,7 @@ Options:
 
 #[derive(Debug, Deserialize)]
 struct CmdArgs {
-    arg_schema_file_or_dir: String,
+    arg_schema_file_pattern: String,
     arg_output_file: String,
     flag_fmt: bool,
     flag_nullable: bool,
@@ -35,27 +35,13 @@ struct CmdArgs {
     flag_version: bool,
 }
 
-fn main() {
-    let args: CmdArgs = Docopt::new(USAGE)
-        .and_then(|d| d.deserialize())
-        .unwrap_or_else(|e| e.exit());
+fn run() -> Result<(), Box<dyn Error>> {
+    let args: CmdArgs = Docopt::new(USAGE).and_then(|d| d.deserialize())?;
 
     if args.flag_version {
         println!("{}", VERSION);
-        process::exit(0);
+        return Ok(());
     }
-
-    let p = Path::new(&args.arg_schema_file_or_dir);
-    if !p.exists() {
-        eprintln!("Doesn't exist: {:?}", p);
-        process::exit(1);
-    }
-
-    let source = if p.is_dir() {
-        Source::DirPath(p)
-    } else {
-        Source::FilePath(p)
-    };
 
     let mut out: Box<dyn Write> = if &args.arg_output_file == "-" {
         Box::new(stdout())
@@ -65,35 +51,31 @@ fn main() {
                 .write(true)
                 .create(true)
                 .truncate(true)
-                .open(&args.arg_output_file)
-                .unwrap_or_else(|e| {
-                    eprintln!("Output file error: {}", e);
-                    process::exit(1);
-                }),
+                .open(&args.arg_output_file)?,
         )
     };
+
+    let source = Source::GlobPattern(&args.arg_schema_file_pattern);
 
     let g = Generator::builder()
         .precision(args.flag_precision.unwrap())
         .nullable(args.flag_nullable)
-        .build()
-        .unwrap_or_else(|e| {
-            eprintln!("Problem during prepartion: {}", e);
-            process::exit(1);
-        });
+        .build()?;
 
-    g.gen(&source, &mut out).unwrap_or_else(|e| {
-        eprintln!("Problem during code generation: {}", e);
-        process::exit(1);
-    });
+    g.gen(&source, &mut out)?;
 
     if args.flag_fmt && &args.arg_output_file != "-" {
         Command::new("rustfmt")
             .arg(&args.arg_output_file)
-            .status()
-            .unwrap_or_else(|e| {
-                eprintln!("Problem with rustfmt: {}", e);
-                process::exit(1);
-            });
+            .status()?;
     }
+
+    Ok(())
+}
+
+fn main() {
+    run().unwrap_or_else(|e| {
+        eprintln!("{}", e);
+        process::exit(1);
+    });
 }

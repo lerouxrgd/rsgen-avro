@@ -1,7 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 use std::fs;
 use std::io::prelude::*;
-use std::path::Path;
 
 use avro_rs::{schema::RecordField, Schema};
 
@@ -14,10 +13,8 @@ pub enum Source<'a> {
     Schema(&'a Schema),
     /// An Avro schema string in json format.
     SchemaStr(&'a str),
-    /// Path to a file containing an Avro schema in json format.
-    FilePath(&'a Path),
-    /// Path to a directory containing multiple files in Avro schema.
-    DirPath(&'a Path),
+    /// Pattern for files containing Avro schemas in json format.
+    GlobPattern(&'a str),
 }
 
 /// The main component of this library.
@@ -45,28 +42,33 @@ impl Generator {
         }
 
         match source {
-            Source::Schema(schema) => self.gen_in_order(schema, output)?,
+            Source::Schema(schema) => {
+                let mut deps = deps_stack(schema, vec![]);
+                self.gen_in_order(&mut deps, output)?;
+            }
 
             Source::SchemaStr(raw_schema) => {
                 let schema = Schema::parse_str(&raw_schema)?;
-                self.gen_in_order(&schema, output)?
+                let mut deps = deps_stack(&schema, vec![]);
+                self.gen_in_order(&mut deps, output)?;
             }
 
-            Source::FilePath(schema_file) => {
-                let raw_schema = fs::read_to_string(schema_file)?;
-                let schema = Schema::parse_str(&raw_schema)?;
-                self.gen_in_order(&schema, output)?
-            }
-
-            Source::DirPath(schemas_dir) => {
-                for entry in std::fs::read_dir(schemas_dir)? {
-                    let path = entry?.path();
+            Source::GlobPattern(pattern) => {
+                let mut raw_schemas = vec![];
+                for entry in glob::glob(pattern)? {
+                    let path = entry.map_err(|e| e.into_error())?;
                     if !path.is_dir() {
-                        let raw_schema = fs::read_to_string(path)?;
-                        let schema = Schema::parse_str(&raw_schema)?;
-                        self.gen_in_order(&schema, output)?
+                        raw_schemas.push(fs::read_to_string(path)?);
                     }
                 }
+
+                let schemas = &raw_schemas.iter().map(|s| s.as_str()).collect::<Vec<_>>();
+                let schemas = Schema::parse_list(&schemas)?;
+                let mut deps = schemas
+                    .iter()
+                    .fold(vec![], |deps, schema| deps_stack(&schema, deps));
+
+                self.gen_in_order(&mut deps, output)?;
             }
         }
 
@@ -78,9 +80,8 @@ impl Generator {
     /// * Pops sub-schemas and generate appropriate Rust types
     /// * Keeps tracks of nested schema->name with `GenState` mapping
     /// * Appends generated Rust types to the output
-    fn gen_in_order(&self, schema: &Schema, output: &mut impl Write) -> Result<()> {
+    fn gen_in_order(&self, deps: &mut Vec<Schema>, output: &mut impl Write) -> Result<()> {
         let mut gs = GenState::new();
-        let mut deps = deps_stack(schema);
 
         while let Some(s) = deps.pop() {
             match s {
@@ -101,19 +102,27 @@ impl Generator {
                 }
 
                 // Register inner type for it to be used as a nested type later
-                Schema::Array(inner) => {
+                Schema::Array(ref inner) => {
                     let type_str = array_type(inner, &gs)?;
                     gs.put_type(&s, type_str)
                 }
-                Schema::Map(inner) => {
+                Schema::Map(ref inner) => {
                     let type_str = map_type(inner, &gs)?;
                     gs.put_type(&s, type_str)
                 }
-                Schema::Union(union) => {
-                    if let [Schema::Null, inner] = union.variants() {
-                        let type_str = option_type(inner, &gs)?;
-                        gs.put_type(&s, type_str)
+
+                Schema::Union(ref union) => {
+                    // Generate custom enum with potentially nested types
+                    if (union.is_nullable() && union.variants().len() > 2)
+                        || (!union.is_nullable() && union.variants().len() > 1)
+                    {
+                        let code = &self.templater.str_union_enum(&s, &gs)?;
+                        output.write_all(code.as_bytes())?
                     }
+
+                    // Register inner union for it to be used as a nested type later
+                    let type_str = union_type(union, &gs, true)?;
+                    gs.put_type(&s, type_str)
                 }
 
                 _ => Err(Error::Schema(format!("Not a valid root schema: {:?}", s)))?,
@@ -128,14 +137,13 @@ impl Generator {
 /// Explores nested `schema`s in a breadth-first fashion, pushing them on a stack
 /// at the same time in order to have them ordered.
 /// It is similar to traversing the `schema` tree in a post-order fashion.
-fn deps_stack(schema: &Schema) -> Vec<&Schema> {
-    fn push_unique<'a>(deps: &mut Vec<&'a Schema>, s: &'a Schema) {
+fn deps_stack(schema: &Schema, mut deps: Vec<Schema>) -> Vec<Schema> {
+    fn push_unique(deps: &mut Vec<Schema>, s: Schema) {
         if !deps.contains(&s) {
             deps.push(s);
         }
     }
 
-    let mut deps = Vec::new();
     let mut q = VecDeque::new();
 
     q.push_back(schema);
@@ -144,15 +152,15 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
 
         match s {
             // No nested schemas, add them to the result stack
-            Schema::Enum { .. } => push_unique(&mut deps, s),
-            Schema::Fixed { .. } => push_unique(&mut deps, s),
+            Schema::Enum { .. } => push_unique(&mut deps, s.clone()),
+            Schema::Fixed { .. } => push_unique(&mut deps, s.clone()),
             Schema::Decimal { inner, .. } if matches!(**inner, Schema::Fixed{ .. }) => {
-                push_unique(&mut deps, s)
+                push_unique(&mut deps, s.clone())
             }
 
             // Explore the record fields for potentially nested schemas
             Schema::Record { fields, .. } => {
-                push_unique(&mut deps, s);
+                push_unique(&mut deps, s.clone());
 
                 let by_pos = fields
                     .iter()
@@ -162,8 +170,8 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
                 while let Some(RecordField { schema: sr, .. }) = by_pos.get(&i) {
                     match sr {
                         // No nested schemas, add them to the result stack
-                        Schema::Fixed { .. } => push_unique(&mut deps, sr),
-                        Schema::Enum { .. } => push_unique(&mut deps, sr),
+                        Schema::Fixed { .. } => push_unique(&mut deps, sr.clone()),
+                        Schema::Enum { .. } => push_unique(&mut deps, sr.clone()),
 
                         // Push to the exploration queue for further checks
                         Schema::Record { .. } => q.push_back(sr),
@@ -179,20 +187,25 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
                             _ => (),
                         },
                         Schema::Union(union) => {
-                            if let [Schema::Null, sc] = union.variants() {
-                                match sc {
-                                    Schema::Fixed { .. }
-                                    | Schema::Enum { .. }
-                                    | Schema::Record { .. }
-                                    | Schema::Map(..)
-                                    | Schema::Array(..)
-                                    | Schema::Union(..) => {
-                                        q.push_back(sc);
-                                        push_unique(&mut deps, sc);
-                                    }
-                                    _ => (),
-                                }
+                            if (union.is_nullable() && union.variants().len() > 2)
+                                || (!union.is_nullable() && union.variants().len() > 1)
+                            {
+                                push_unique(&mut deps, sr.clone());
                             }
+
+                            union.variants().iter().for_each(|sc| match sc {
+                                Schema::Fixed { .. }
+                                | Schema::Enum { .. }
+                                | Schema::Record { .. }
+                                | Schema::Map(..)
+                                | Schema::Array(..)
+                                | Schema::Union(..) => {
+                                    q.push_back(sc);
+                                    push_unique(&mut deps, sc.clone());
+                                }
+
+                                _ => (),
+                            });
                         }
                         _ => (),
                     };
@@ -210,22 +223,27 @@ fn deps_stack(schema: &Schema) -> Vec<&Schema> {
                 | Schema::Array(..)
                 | Schema::Union(..) => q.push_back(&**sc),
                 // ... Not nested, can be pushed to the result stack
-                _ => push_unique(&mut deps, s),
+                _ => push_unique(&mut deps, s.clone()),
             },
+
             Schema::Union(union) => {
-                if let [Schema::Null, sc] = union.variants() {
-                    match sc {
-                        // ... Needs further checks, push to the exploration queue
-                        Schema::Fixed { .. }
-                        | Schema::Enum { .. }
-                        | Schema::Record { .. }
-                        | Schema::Map(..)
-                        | Schema::Array(..)
-                        | Schema::Union(..) => q.push_back(sc),
-                        // ... Not nested, can be pushed to the result stack
-                        _ => push_unique(&mut deps, s),
-                    }
+                if (union.is_nullable() && union.variants().len() > 2)
+                    || (!union.is_nullable() && union.variants().len() > 1)
+                {
+                    push_unique(&mut deps, s.clone());
                 }
+
+                union.variants().iter().for_each(|sc| match sc {
+                    // ... Needs further checks, push to the exploration queue
+                    Schema::Fixed { .. }
+                    | Schema::Enum { .. }
+                    | Schema::Record { .. }
+                    | Schema::Map(..)
+                    | Schema::Array(..)
+                    | Schema::Union(..) => q.push_back(sc),
+                    // ... Not nested, can be pushed to the result stack
+                    _ => push_unique(&mut deps, s.clone()),
+                });
             }
 
             // Ignore all other schema formats
@@ -547,6 +565,116 @@ impl Default for KsqlDataSourceSchema {
     }
 
     #[test]
+    fn multi_valued_union() {
+        let raw_schema = r#"
+{
+  "type": "record",
+  "name": "Contact",
+  "namespace": "com.test",
+  "fields": [ {
+    "name": "extra",
+    "type": "map",
+    "values" : [ "null", "string", "long", "double", "boolean" ]
+  } ]
+}
+"#;
+
+        let expected = r#"
+/// Auto-generated type for unnamed Avro union variants.
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+pub enum UnionStringLongDoubleBoolean {
+    String(String),
+    Long(i64),
+    Double(f64),
+    Boolean(bool),
+}
+
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+pub struct Contact {
+    pub extra: ::std::collections::HashMap<String, Option<UnionStringLongDoubleBoolean>>,
+}
+
+impl Default for Contact {
+    fn default() -> Contact {
+        Contact {
+            extra: ::std::collections::HashMap::new(),
+        }
+    }
+}
+"#;
+
+        let g = Generator::new().unwrap();
+        assert_schema_gen!(g, expected, raw_schema);
+
+        let raw_schema = r#"
+{
+  "type": "record",
+  "name": "AvroFileId",
+  "fields": [ {
+    "name": "id",
+    "type": [
+      "string", {
+      "type": "record",
+      "name": "AvroShortUUID",
+      "fields": [ {
+        "name": "mostBits",
+        "type": "long"
+      }, {
+        "name": "leastBits",
+        "type": "long"
+      } ]
+    } ]
+  } ]
+}
+"#;
+
+        let expected = r#"
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+pub struct AvroShortUuid {
+    #[serde(rename = "mostBits")]
+    pub most_bits: i64,
+    #[serde(rename = "leastBits")]
+    pub least_bits: i64,
+}
+
+impl Default for AvroShortUuid {
+    fn default() -> AvroShortUuid {
+        AvroShortUuid {
+            most_bits: 0,
+            least_bits: 0,
+        }
+    }
+}
+
+/// Auto-generated type for unnamed Avro union variants.
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+pub enum UnionStringAvroShortUuid {
+    String(String),
+    AvroShortUuid(AvroShortUuid),
+}
+
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+pub struct AvroFileId {
+    pub id: UnionStringAvroShortUuid,
+}
+
+impl Default for AvroFileId {
+    fn default() -> AvroFileId {
+        AvroFileId {
+            id: UnionStringAvroShortUuid::String(String::default()),
+        }
+    }
+}
+"#;
+
+        let g = Generator::new().unwrap();
+        assert_schema_gen!(g, expected, raw_schema);
+    }
+
+    #[test]
     fn nullable_gen() {
         let raw_schema = r#"
 {
@@ -667,7 +795,7 @@ impl Default for Test {
 "#;
 
         let schema = Schema::parse_str(&raw_schema).unwrap();
-        let mut deps = deps_stack(&schema);
+        let mut deps = deps_stack(&schema, vec![]);
 
         let s = deps.pop().unwrap();
         assert!(matches!(s, Schema::Enum{ name: Name { ref name, ..}, ..} if name == "Country"));
@@ -680,5 +808,79 @@ impl Default for Test {
 
         let s = deps.pop();
         assert!(matches!(s, None));
+    }
+
+    #[test]
+    fn cross_deps() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        use std::fs::File;
+        use std::io::Write;
+        use tempfile::tempdir;
+
+        let dir = tempdir()?;
+
+        let mut schema_a_file = File::create(dir.path().join("schema_a.avsc"))?;
+        let schema_a_str = r#"
+{
+  "name": "A",
+  "type": "record",
+  "fields": [ {"name": "field_one", "type": "float"} ]
+}
+"#;
+        schema_a_file.write_all(schema_a_str.as_bytes())?;
+
+        let mut schema_b_file = File::create(dir.path().join("schema_b.avsc"))?;
+        let schema_b_str = r#"
+{
+  "name": "B",
+  "type": "record",
+  "fields": [ {"name": "field_one", "type": "A"} ]
+}
+"#;
+        schema_b_file.write_all(schema_b_str.as_bytes())?;
+
+        let expected = r#"
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+pub struct B {
+    pub field_one: A,
+}
+
+impl Default for B {
+    fn default() -> B {
+        B {
+            field_one: A::default(),
+        }
+    }
+}
+
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+pub struct A {
+    pub field_one: f32,
+}
+
+impl Default for A {
+    fn default() -> A {
+        A {
+            field_one: 0.0,
+        }
+    }
+}
+"#;
+
+        let pattern = format!("{}/*.avsc", dir.path().display());
+        let source = Source::GlobPattern(pattern.as_str());
+        let g = Generator::new()?;
+        let mut buf = vec![];
+        g.gen(&source, &mut buf)?;
+        let res = String::from_utf8(buf)?;
+        println!("{}", res);
+
+        assert_eq!(expected, res);
+
+        drop(schema_a_file);
+        drop(schema_b_file);
+        dir.close()?;
+        Ok(())
     }
 }
