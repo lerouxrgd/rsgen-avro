@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, VecDeque, HashSet};
 use std::fs;
 use std::io::prelude::*;
 
@@ -44,13 +44,15 @@ impl Generator {
         match source {
             Source::Schema(schema) => {
                 let mut deps = deps_stack(schema, vec![]);
-                self.gen_in_order(&mut deps, output)?;
+                let includes = self.gen_in_order(&mut deps, output)?;
+                output.write_all(includes.into_iter().collect::<Vec<&str>>().concat().as_bytes())?;
             }
 
             Source::SchemaStr(raw_schema) => {
                 let schema = Schema::parse_str(&raw_schema)?;
                 let mut deps = deps_stack(&schema, vec![]);
-                self.gen_in_order(&mut deps, output)?;
+                let includes = self.gen_in_order(&mut deps, output)?;
+                output.write_all(includes.into_iter().collect::<Vec<&str>>().concat().as_bytes())?;
             }
 
             Source::GlobPattern(pattern) => {
@@ -68,7 +70,8 @@ impl Generator {
                     .iter()
                     .fold(vec![], |deps, schema| deps_stack(&schema, deps));
 
-                self.gen_in_order(&mut deps, output)?;
+                let includes = self.gen_in_order(&mut deps, output)?;
+                output.write_all(includes.into_iter().collect::<Vec<&str>>().concat().as_bytes())?;
             }
         }
 
@@ -80,56 +83,61 @@ impl Generator {
     /// * Pops sub-schemas and generate appropriate Rust types
     /// * Keeps tracks of nested schema->name with `GenState` mapping
     /// * Appends generated Rust types to the output
-    fn gen_in_order(&self, deps: &mut Vec<Schema>, output: &mut impl Write) -> Result<()> {
+    fn gen_in_order(&self, deps: &mut Vec<Schema>, output: &mut impl Write) -> Result<HashSet<&str>> {
         let mut gs = GenState::new();
+        let mut includes = HashSet::new();
 
         while let Some(s) = deps.pop() {
             match s {
                 // Simply generate code
                 Schema::Fixed { .. } => {
                     let code = &self.templater.str_fixed(&s)?;
-                    output.write_all(code.as_bytes())?
+                    output.write_all(code.as_bytes())?;
                 }
                 Schema::Enum { .. } => {
                     let code = &self.templater.str_enum(&s)?;
-                    output.write_all(code.as_bytes())?
+                    output.write_all(code.as_bytes())?;
                 }
 
                 // Generate code with potentially nested types
                 Schema::Record { .. } => {
                     let code = &self.templater.str_record(&s, &gs)?;
-                    output.write_all(code.as_bytes())?
+                    output.write_all(code.as_bytes())?;
                 }
 
                 // Register inner type for it to be used as a nested type later
                 Schema::Array(ref inner) => {
                     let type_str = array_type(inner, &gs)?;
-                    gs.put_type(&s, type_str)
+                    gs.put_type(&s, type_str);
                 }
                 Schema::Map(ref inner) => {
                     let type_str = map_type(inner, &gs)?;
-                    gs.put_type(&s, type_str)
+                    gs.put_type(&s, type_str);
                 }
 
                 Schema::Union(ref union) => {
+
                     // Generate custom enum with potentially nested types
                     if (union.is_nullable() && union.variants().len() > 2)
                         || (!union.is_nullable() && union.variants().len() > 1)
                     {
                         let code = &self.templater.str_union_enum(&s, &gs)?;
-                        output.write_all(code.as_bytes())?
+                        output.write_all(code.as_bytes())?;
+                        if cfg!(variant_access) {
+                            includes.insert("use variant_access_traits::*;\n");
+                        }
                     }
 
                     // Register inner union for it to be used as a nested type later
                     let type_str = union_type(union, &gs, true)?;
-                    gs.put_type(&s, type_str)
+                    gs.put_type(&s, type_str);
                 }
 
                 _ => Err(Error::Schema(format!("Not a valid root schema: {:?}", s)))?,
             }
         }
 
-        Ok(())
+        Ok(includes)
     }
 }
 
@@ -565,6 +573,7 @@ impl Default for KsqlDataSourceSchema {
     }
 
     #[test]
+    #[cfg(not(variant_access))]
     fn multi_valued_union() {
         let raw_schema = r#"
 {
@@ -668,6 +677,119 @@ impl Default for AvroFileId {
         }
     }
 }
+"#;
+
+        let g = Generator::new().unwrap();
+        assert_schema_gen!(g, expected, raw_schema);
+    }
+
+    #[test]
+    #[cfg(variant_access)]
+    fn multi_valued_union() {
+        let raw_schema = r#"
+{
+  "type": "record",
+  "name": "Contact",
+  "namespace": "com.test",
+  "fields": [ {
+    "name": "extra",
+    "type": "map",
+    "values" : [ "null", "string", "long", "double", "boolean" ]
+  } ]
+}
+"#;
+
+        let expected = r#"
+/// Auto-generated type for unnamed Avro union variants.
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize, variant_access_derive::VariantAccess)]
+pub enum UnionStringLongDoubleBoolean {
+    String(String),
+    Long(i64),
+    Double(f64),
+    Boolean(bool),
+}
+
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+pub struct Contact {
+    pub extra: ::std::collections::HashMap<String, Option<UnionStringLongDoubleBoolean>>,
+}
+
+impl Default for Contact {
+    fn default() -> Contact {
+        Contact {
+            extra: ::std::collections::HashMap::new(),
+        }
+    }
+}
+use variant_access_traits::*;
+"#;
+
+        let g = Generator::new().unwrap();
+        assert_schema_gen!(g, expected, raw_schema);
+
+        let raw_schema = r#"
+{
+  "type": "record",
+  "name": "AvroFileId",
+  "fields": [ {
+    "name": "id",
+    "type": [
+      "string", {
+      "type": "record",
+      "name": "AvroShortUUID",
+      "fields": [ {
+        "name": "mostBits",
+        "type": "long"
+      }, {
+        "name": "leastBits",
+        "type": "long"
+      } ]
+    } ]
+  } ]
+}
+"#;
+
+        let expected = r#"
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+pub struct AvroShortUuid {
+    #[serde(rename = "mostBits")]
+    pub most_bits: i64,
+    #[serde(rename = "leastBits")]
+    pub least_bits: i64,
+}
+
+impl Default for AvroShortUuid {
+    fn default() -> AvroShortUuid {
+        AvroShortUuid {
+            most_bits: 0,
+            least_bits: 0,
+        }
+    }
+}
+
+/// Auto-generated type for unnamed Avro union variants.
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize, variant_access_derive::VariantAccess)]
+pub enum UnionStringAvroShortUuid {
+    String(String),
+    AvroShortUuid(AvroShortUuid),
+}
+
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+pub struct AvroFileId {
+    pub id: UnionStringAvroShortUuid,
+}
+
+impl Default for AvroFileId {
+    fn default() -> AvroFileId {
+        AvroFileId {
+            id: UnionStringAvroShortUuid::String(String::default()),
+        }
+    }
+}
+use variant_access_traits::*;
 "#;
 
         let g = Generator::new().unwrap();

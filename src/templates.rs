@@ -82,7 +82,18 @@ pub enum {{ name }} {
 "#;
 
 pub const UNION_TERA: &str = "union.tera";
-pub const UNION_TEMPLATE: &str = r#"
+pub const UNION_TEMPLATE: &str = if cfg!(variant_access) {
+r#"
+/// Auto-generated type for unnamed Avro union variants.
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize, variant_access_derive::VariantAccess)]
+pub enum {{ name }} {
+    {%- for s in symbols %}
+    {{ s }},
+    {%- endfor %}
+}
+"#
+} else {
+r#"
 /// Auto-generated type for unnamed Avro union variants.
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 pub enum {{ name }} {
@@ -90,7 +101,8 @@ pub enum {{ name }} {
     {{ s }},
     {%- endfor %}
 }
-"#;
+"#
+};
 
 pub const FIXED_TERA: &str = "fixed.tera";
 pub const FIXED_TEMPLATE: &str = "
