@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque, HashSet};
+use std::collections::{HashMap, VecDeque};
 use std::fs;
 use std::io::prelude::*;
 
@@ -44,15 +44,13 @@ impl Generator {
         match source {
             Source::Schema(schema) => {
                 let mut deps = deps_stack(schema, vec![]);
-                let includes = self.gen_in_order(&mut deps, output)?;
-                output.write_all(includes.into_iter().collect::<Vec<&str>>().concat().as_bytes())?;
+                self.gen_in_order(&mut deps, output)?;
             }
 
             Source::SchemaStr(raw_schema) => {
                 let schema = Schema::parse_str(&raw_schema)?;
                 let mut deps = deps_stack(&schema, vec![]);
-                let includes = self.gen_in_order(&mut deps, output)?;
-                output.write_all(includes.into_iter().collect::<Vec<&str>>().concat().as_bytes())?;
+                self.gen_in_order(&mut deps, output)?;
             }
 
             Source::GlobPattern(pattern) => {
@@ -70,8 +68,7 @@ impl Generator {
                     .iter()
                     .fold(vec![], |deps, schema| deps_stack(&schema, deps));
 
-                let includes = self.gen_in_order(&mut deps, output)?;
-                output.write_all(includes.into_iter().collect::<Vec<&str>>().concat().as_bytes())?;
+                self.gen_in_order(&mut deps, output)?;
             }
         }
 
@@ -83,9 +80,8 @@ impl Generator {
     /// * Pops sub-schemas and generate appropriate Rust types
     /// * Keeps tracks of nested schema->name with `GenState` mapping
     /// * Appends generated Rust types to the output
-    fn gen_in_order(&self, deps: &mut Vec<Schema>, output: &mut impl Write) -> Result<HashSet<&str>> {
+    fn gen_in_order(&self, deps: &mut Vec<Schema>, output: &mut impl Write) -> Result<()> {
         let mut gs = GenState::new();
-        let mut includes = HashSet::new();
 
         while let Some(s) = deps.pop() {
             match s {
@@ -123,9 +119,6 @@ impl Generator {
                     {
                         let code = &self.templater.str_union_enum(&s, &gs)?;
                         output.write_all(code.as_bytes())?;
-                        if cfg!(variant_access) {
-                            includes.insert("use variant_access_traits::*;\n");
-                        }
                     }
 
                     // Register inner union for it to be used as a nested type later
@@ -136,8 +129,7 @@ impl Generator {
                 _ => Err(Error::Schema(format!("Not a valid root schema: {:?}", s)))?,
             }
         }
-
-        Ok(includes)
+        Ok(())
     }
 }
 
@@ -266,6 +258,7 @@ fn deps_stack(schema: &Schema, mut deps: Vec<Schema>) -> Vec<Schema> {
 pub struct GeneratorBuilder {
     precision: usize,
     nullable: bool,
+    use_variant_access: bool,
 }
 
 impl GeneratorBuilder {
@@ -274,6 +267,7 @@ impl GeneratorBuilder {
         GeneratorBuilder {
             precision: 3,
             nullable: false,
+            use_variant_access: false,
         }
     }
 
@@ -290,11 +284,17 @@ impl GeneratorBuilder {
         self
     }
 
+    pub fn use_variant_access(mut self, use_variant_access: bool) -> GeneratorBuilder {
+        self.use_variant_access = use_variant_access;
+        self
+    }
+
     /// Create a `Generator` with the builder parameters.
     pub fn build(self) -> Result<Generator> {
         let mut templater = Templater::new()?;
         templater.precision = self.precision;
         templater.nullable = self.nullable;
+        templater.use_variant_access = self.use_variant_access;
         Ok(Generator { templater })
     }
 }
@@ -573,7 +573,6 @@ impl Default for KsqlDataSourceSchema {
     }
 
     #[test]
-    #[cfg(not(variant_access))]
     fn multi_valued_union() {
         let raw_schema = r#"
 {
@@ -684,8 +683,7 @@ impl Default for AvroFileId {
     }
 
     #[test]
-    #[cfg(variant_access)]
-    fn multi_valued_union() {
+    fn multi_valued_union_with_variant_access() {
         let raw_schema = r#"
 {
   "type": "record",
@@ -722,10 +720,9 @@ impl Default for Contact {
         }
     }
 }
-use variant_access_traits::*;
 "#;
 
-        let g = Generator::new().unwrap();
+        let g = Generator::builder().use_variant_access(true).build().unwrap();
         assert_schema_gen!(g, expected, raw_schema);
 
         let raw_schema = r#"
@@ -789,10 +786,9 @@ impl Default for AvroFileId {
         }
     }
 }
-use variant_access_traits::*;
 "#;
 
-        let g = Generator::new().unwrap();
+        let g = Generator::builder().use_variant_access(true).build().unwrap();
         assert_schema_gen!(g, expected, raw_schema);
     }
 
