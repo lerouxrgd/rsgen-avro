@@ -112,13 +112,12 @@ impl Generator {
                 }
 
                 Schema::Union(ref union) => {
-
                     // Generate custom enum with potentially nested types
                     if (union.is_nullable() && union.variants().len() > 2)
                         || (!union.is_nullable() && union.variants().len() > 1)
                     {
                         let code = &self.templater.str_union_enum(&s, &gs)?;
-                        output.write_all(code.as_bytes())?;
+                        output.write_all(code.as_bytes())?
                     }
 
                     // Register inner union for it to be used as a nested type later
