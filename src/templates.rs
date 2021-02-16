@@ -84,7 +84,7 @@ pub enum {{ name }} {
 pub const UNION_TERA: &str = "union.tera";
 pub const UNION_TEMPLATE: &str = r#"
 /// Auto-generated type for unnamed Avro union variants.
-#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize {%- if use_variant_access %}, variant_access_derive::VariantAccess {%- endif %})]
 pub enum {{ name }} {
     {%- for s in symbols %}
     {{ s }},
@@ -158,6 +158,7 @@ pub struct Templater {
     tera: Tera,
     pub precision: usize,
     pub nullable: bool,
+    pub use_variant_access: bool,
 }
 
 impl Templater {
@@ -174,6 +175,7 @@ impl Templater {
             tera,
             precision: 3,
             nullable: false,
+            use_variant_access: false,
         })
     }
 
@@ -498,6 +500,7 @@ impl Templater {
             let mut ctx = Context::new();
             ctx.insert("name", &e_name);
             ctx.insert("symbols", &symbols);
+            ctx.insert("use_variant_access", &self.use_variant_access);
 
             Ok(self.tera.render(UNION_TERA, &ctx)?)
         } else {

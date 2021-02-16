@@ -128,7 +128,6 @@ impl Generator {
                 _ => Err(Error::Schema(format!("Not a valid root schema: {:?}", s)))?,
             }
         }
-
         Ok(())
     }
 }
@@ -258,6 +257,7 @@ fn deps_stack(schema: &Schema, mut deps: Vec<Schema>) -> Vec<Schema> {
 pub struct GeneratorBuilder {
     precision: usize,
     nullable: bool,
+    use_variant_access: bool,
 }
 
 impl GeneratorBuilder {
@@ -266,6 +266,7 @@ impl GeneratorBuilder {
         GeneratorBuilder {
             precision: 3,
             nullable: false,
+            use_variant_access: false,
         }
     }
 
@@ -282,11 +283,17 @@ impl GeneratorBuilder {
         self
     }
 
+    pub fn use_variant_access(mut self, use_variant_access: bool) -> GeneratorBuilder {
+        self.use_variant_access = use_variant_access;
+        self
+    }
+
     /// Create a `Generator` with the builder parameters.
     pub fn build(self) -> Result<Generator> {
         let mut templater = Templater::new()?;
         templater.precision = self.precision;
         templater.nullable = self.nullable;
+        templater.use_variant_access = self.use_variant_access;
         Ok(Generator { templater })
     }
 }
@@ -671,6 +678,116 @@ impl Default for AvroFileId {
 "#;
 
         let g = Generator::new().unwrap();
+        assert_schema_gen!(g, expected, raw_schema);
+    }
+
+    #[test]
+    fn multi_valued_union_with_variant_access() {
+        let raw_schema = r#"
+{
+  "type": "record",
+  "name": "Contact",
+  "namespace": "com.test",
+  "fields": [ {
+    "name": "extra",
+    "type": "map",
+    "values" : [ "null", "string", "long", "double", "boolean" ]
+  } ]
+}
+"#;
+
+        let expected = r#"
+/// Auto-generated type for unnamed Avro union variants.
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize, variant_access_derive::VariantAccess)]
+pub enum UnionStringLongDoubleBoolean {
+    String(String),
+    Long(i64),
+    Double(f64),
+    Boolean(bool),
+}
+
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+pub struct Contact {
+    pub extra: ::std::collections::HashMap<String, Option<UnionStringLongDoubleBoolean>>,
+}
+
+impl Default for Contact {
+    fn default() -> Contact {
+        Contact {
+            extra: ::std::collections::HashMap::new(),
+        }
+    }
+}
+"#;
+
+        let g = Generator::builder().use_variant_access(true).build().unwrap();
+        assert_schema_gen!(g, expected, raw_schema);
+
+        let raw_schema = r#"
+{
+  "type": "record",
+  "name": "AvroFileId",
+  "fields": [ {
+    "name": "id",
+    "type": [
+      "string", {
+      "type": "record",
+      "name": "AvroShortUUID",
+      "fields": [ {
+        "name": "mostBits",
+        "type": "long"
+      }, {
+        "name": "leastBits",
+        "type": "long"
+      } ]
+    } ]
+  } ]
+}
+"#;
+
+        let expected = r#"
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+pub struct AvroShortUuid {
+    #[serde(rename = "mostBits")]
+    pub most_bits: i64,
+    #[serde(rename = "leastBits")]
+    pub least_bits: i64,
+}
+
+impl Default for AvroShortUuid {
+    fn default() -> AvroShortUuid {
+        AvroShortUuid {
+            most_bits: 0,
+            least_bits: 0,
+        }
+    }
+}
+
+/// Auto-generated type for unnamed Avro union variants.
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize, variant_access_derive::VariantAccess)]
+pub enum UnionStringAvroShortUuid {
+    String(String),
+    AvroShortUuid(AvroShortUuid),
+}
+
+#[serde(default)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+pub struct AvroFileId {
+    pub id: UnionStringAvroShortUuid,
+}
+
+impl Default for AvroFileId {
+    fn default() -> AvroFileId {
+        AvroFileId {
+            id: UnionStringAvroShortUuid::String(String::default()),
+        }
+    }
+}
+"#;
+
+        let g = Generator::builder().use_variant_access(true).build().unwrap();
         assert_schema_gen!(g, expected, raw_schema);
     }
 
