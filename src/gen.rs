@@ -88,27 +88,27 @@ impl Generator {
                 // Simply generate code
                 Schema::Fixed { .. } => {
                     let code = &self.templater.str_fixed(&s)?;
-                    output.write_all(code.as_bytes())?;
+                    output.write_all(code.as_bytes())?
                 }
                 Schema::Enum { .. } => {
                     let code = &self.templater.str_enum(&s)?;
-                    output.write_all(code.as_bytes())?;
+                    output.write_all(code.as_bytes())?
                 }
 
                 // Generate code with potentially nested types
                 Schema::Record { .. } => {
                     let code = &self.templater.str_record(&s, &gs)?;
-                    output.write_all(code.as_bytes())?;
+                    output.write_all(code.as_bytes())?
                 }
 
                 // Register inner type for it to be used as a nested type later
                 Schema::Array(ref inner) => {
                     let type_str = array_type(inner, &gs)?;
-                    gs.put_type(&s, type_str);
+                    gs.put_type(&s, type_str)
                 }
                 Schema::Map(ref inner) => {
                     let type_str = map_type(inner, &gs)?;
-                    gs.put_type(&s, type_str);
+                    gs.put_type(&s, type_str)
                 }
 
                 Schema::Union(ref union) => {
@@ -123,7 +123,7 @@ impl Generator {
 
                     // Register inner union for it to be used as a nested type later
                     let type_str = union_type(union, &gs, true)?;
-                    gs.put_type(&s, type_str);
+                    gs.put_type(&s, type_str)
                 }
 
                 _ => Err(Error::Schema(format!("Not a valid root schema: {:?}", s)))?,
