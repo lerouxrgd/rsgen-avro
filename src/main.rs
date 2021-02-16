@@ -16,16 +16,12 @@ Usage:
   rsgen-avro (-V | --version)
 
 Options:
-  --fmt          Run rustfmt on the resulting <output-file>
-  --nullable     Replace null fields with their default value
-                 when deserializing.
-  --precision=P  Precision for f32/f64 default values
-                 that aren't round numbers [default: 3].
-  --use-variant-access  Derive the traits in the
-                        variant_access_traits crate on union
-                        types.
-  -V, --version  Show version.
-  -h, --help     Show this screen.
+  --fmt             Run rustfmt on the resulting <output-file>
+  --nullable        Replace null fields with their default value when deserializing.
+  --precision=P     Precision for f32/f64 default values that aren't round numbers [default: 3].
+  --variant-access  Derive the traits in the variant_access_traits crate on union types.
+  -V, --version     Show version.
+  -h, --help        Show this screen.
 ";
 
 #[derive(Debug, Deserialize)]
@@ -35,7 +31,7 @@ struct CmdArgs {
     flag_fmt: bool,
     flag_nullable: bool,
     flag_precision: Option<usize>,
-    flag_use_variant_access: bool,
+    flag_variant_access: bool,
     flag_version: bool,
 }
 
@@ -64,7 +60,7 @@ fn run() -> Result<(), Box<dyn Error>> {
     let g = Generator::builder()
         .precision(args.flag_precision.unwrap())
         .nullable(args.flag_nullable)
-        .use_variant_access(args.flag_use_variant_access)
+        .use_variant_access(args.flag_variant_access)
         .build()?;
 
     g.gen(&source, &mut out)?;

@@ -128,6 +128,7 @@ impl Generator {
                 _ => Err(Error::Schema(format!("Not a valid root schema: {:?}", s)))?,
             }
         }
+
         Ok(())
     }
 }
@@ -283,6 +284,7 @@ impl GeneratorBuilder {
         self
     }
 
+    /// Adds variant_access_derive to the enums generated from union types.
     pub fn use_variant_access(mut self, use_variant_access: bool) -> GeneratorBuilder {
         self.use_variant_access = use_variant_access;
         self
@@ -721,7 +723,10 @@ impl Default for Contact {
 }
 "#;
 
-        let g = Generator::builder().use_variant_access(true).build().unwrap();
+        let g = Generator::builder()
+            .use_variant_access(true)
+            .build()
+            .unwrap();
         assert_schema_gen!(g, expected, raw_schema);
 
         let raw_schema = r#"
@@ -787,7 +792,10 @@ impl Default for AvroFileId {
 }
 "#;
 
-        let g = Generator::builder().use_variant_access(true).build().unwrap();
+        let g = Generator::builder()
+            .use_variant_access(true)
+            .build()
+            .unwrap();
         assert_schema_gen!(g, expected, raw_schema);
     }
 
