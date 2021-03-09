@@ -866,22 +866,26 @@ impl Templater {
         default: &Option<Value>,
     ) -> Result<String> {
         let default_str = if let Some(Value::Object(o)) = default {
-            let vals = o
-                .iter()
-                .map(|(k, v)| {
-                    Ok(format!(
-                        "m.insert({}, {});",
-                        format!("\"{}\".to_owned()", k),
-                        self.coerce_default_fn(inner, gen_state)(v)?
-                    ))
-                })
-                .collect::<Result<Vec<String>>>()?
-                .as_slice()
-                .join(" ");
-            format!(
-                "{{ let mut m = ::std::collections::HashMap::new(); {} m }}",
-                vals
-            )
+            if o.is_empty() {
+                "::std::collections::HashMap::new()".to_string()
+            } else {
+                let vals = o
+                    .iter()
+                    .map(|(k, v)| {
+                        Ok(format!(
+                            "m.insert({}, {});",
+                            format!("\"{}\".to_owned()", k),
+                            self.coerce_default_fn(inner, gen_state)(v)?
+                        ))
+                    })
+                    .collect::<Result<Vec<String>>>()?
+                    .as_slice()
+                    .join(" ");
+                format!(
+                    "{{ let mut m = ::std::collections::HashMap::new(); {} m }}",
+                    vals
+                )
+            }
         } else {
             "::std::collections::HashMap::new()".to_string()
         };
