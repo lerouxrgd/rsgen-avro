@@ -1121,7 +1121,7 @@ pub(crate) fn union_type(
 
     if variants.len() == 0 {
         err!("Invalid empty Schema::Union")?
-    } else if variants.len() == 1 && variants[1] == Schema::Null {
+    } else if variants.len() == 1 && variants[0] == Schema::Null {
         err!("Invalid Schema::Union of only Schema::Null")?
     }
 
