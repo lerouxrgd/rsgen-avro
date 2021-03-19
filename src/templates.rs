@@ -2,7 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use avro_rs::schema::{Name, RecordField, UnionSchema};
+use avro_rs::schema::*;
 use avro_rs::Schema;
 use heck::{CamelCase, SnakeCase};
 use lazy_static::lazy_static;
@@ -138,14 +138,14 @@ impl GenState {
     }
 
     /// Stores the String type of a given schema.
-    pub fn put_type(&mut self, schema: &Schema, t: String) {
-        let k = serde_json::to_string(schema).expect("Unexpected invalid schema");
+    pub fn put_type(&mut self, schema: SchemaType, t: String) {
+        let k = serde_json::to_string(&schema).expect("Unexpected invalid schema");
         self.0.insert(k, t);
     }
 
     /// Retrieves the String type of a given schema.
-    pub fn get_type(&self, schema: &Schema) -> Option<&String> {
-        let k = serde_json::to_string(schema).expect("Unexpected invalid schema");
+    pub fn get_type(&self, schema: SchemaType) -> Option<&String> {
+        let k = serde_json::to_string(&schema).expect("Unexpected invalid schema");
         self.0.get(&k)
     }
 }
@@ -179,34 +179,29 @@ impl Templater {
         })
     }
 
-    /// Generates a Rust type based on a Schema::Fixed schema.
-    pub fn str_fixed(&self, schema: &Schema) -> Result<String> {
-        if let Schema::Fixed {
-            name: Name { name, .. },
-            size,
-        } = schema
-        {
+    /// Generates a Rust type based on a SchemaType::Fixed schema.
+    pub fn str_fixed(&self, schema: SchemaType) -> Result<String> {
+        if let SchemaType::Fixed(fixed) = schema {
             let mut ctx = Context::new();
-            ctx.insert("name", &sanitize(name.to_camel_case()));
-            ctx.insert("size", size);
+            ctx.insert("name", &sanitize(fixed.name().name().to_camel_case()));
+            ctx.insert("size", &fixed.size());
             Ok(self.tera.render(FIXED_TERA, &ctx)?)
         } else {
-            err!("Requires Schema::Fixed, found {:?}", schema)?
+            err!("Requires SchemaType::Fixed, found {:?}", schema)?
         }
     }
 
-    /// Generates a Rust enum based on a Schema::Enum schema
-    pub fn str_enum(&self, schema: &Schema) -> Result<String> {
-        if let Schema::Enum {
-            name: Name { name, .. },
-            symbols,
-            doc,
-            ..
-        } = schema
-        {
+    /// Generates a Rust enum based on a SchemaType::Enum schema
+    pub fn str_enum(&self, schema: SchemaType) -> Result<String> {
+        if let SchemaType::Enum(inner) = schema {
+            let symbols = inner.symbols();
+            let name = inner.name().name();
+            let doc = inner.doc();
+
             if symbols.len() == 0 {
                 err!("No symbol for emum: {:?}", name)?
             }
+
             let mut ctx = Context::new();
             ctx.insert("name", &sanitize(name.to_camel_case()));
             let doc = if let Some(d) = doc { d } else { "" };
@@ -223,22 +218,20 @@ impl Templater {
             ctx.insert("symbols", &s);
             Ok(self.tera.render(ENUM_TERA, &ctx)?)
         } else {
-            err!("Requires Schema::Enum, found {:?}", schema)?
+            err!("Requires SchemaType::Enum, found {:?}", schema)?
         }
     }
 
-    /// Generates a Rust struct based on a Schema::Record schema.
+    /// Generates a Rust struct based on a SchemaType::Record schema.
     /// Makes use of a `GenState` for nested schemas (i.e. Array/Map/Union).
-    pub fn str_record(&self, schema: &Schema, gen_state: &GenState) -> Result<String> {
-        if let Schema::Record {
-            name: Name { name, .. },
-            fields,
-            doc,
-            ..
-        } = schema
-        {
+    pub fn str_record(&self, schema: SchemaType, gen_state: &GenState) -> Result<String> {
+        if let SchemaType::Record(record) = schema {
+            let name = record.name();
+            let fields = record.fields();
+            let doc = record.doc();
+
             let mut ctx = Context::new();
-            ctx.insert("name", &name.to_camel_case());
+            ctx.insert("name", &name.name().to_camel_case());
             let doc = if let Some(d) = doc { d } else { "" };
             ctx.insert("doc", doc);
 
@@ -249,107 +242,101 @@ impl Templater {
 
             let by_pos = fields
                 .iter()
-                .map(|f| (f.position, f))
+                .map(|f| (f.position(), f))
                 .collect::<HashMap<_, _>>();
             let mut i = 0;
-            while let Some(RecordField {
-                schema,
-                name,
-                default,
-                ..
-            }) = by_pos.get(&i)
-            {
-                let name_std = sanitize(name.to_snake_case());
-                o.insert(name_std.clone(), name);
 
-                match schema {
-                    Schema::Boolean => {
+            while let Some(field) = by_pos.get(&i) {
+                let name_std = sanitize(field.name().to_snake_case());
+                o.insert(name_std.clone(), name.name());
+
+                let default = field.default();
+
+                match field.schema() {
+                    SchemaType::Boolean => {
                         let default = self.parse_default(schema, gen_state, default)?;
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), "bool".to_string());
                         d.insert(name_std.clone(), default);
                     }
 
-                    Schema::Int | Schema::Date | Schema::TimeMillis => {
+                    SchemaType::Int | SchemaType::Date | SchemaType::TimeMillis => {
                         let default = self.parse_default(schema, gen_state, default)?;
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), "i32".to_string());
                         d.insert(name_std.clone(), default);
                     }
 
-                    Schema::Long
-                    | Schema::TimeMicros
-                    | Schema::TimestampMillis
-                    | Schema::TimestampMicros => {
+                    SchemaType::Long
+                    | SchemaType::TimeMicros
+                    | SchemaType::TimestampMillis
+                    | SchemaType::TimestampMicros => {
                         let default = self.parse_default(schema, gen_state, default)?;
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), "i64".to_string());
                         d.insert(name_std.clone(), default);
                     }
 
-                    Schema::Float => {
+                    SchemaType::Float => {
                         let default = self.parse_default(schema, gen_state, default)?;
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), "f32".to_string());
                         d.insert(name_std.clone(), default);
                     }
 
-                    Schema::Double => {
+                    SchemaType::Double => {
                         let default = self.parse_default(schema, gen_state, default)?;
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), "f64".to_string());
                         d.insert(name_std.clone(), default);
                     }
 
-                    Schema::Bytes => {
+                    SchemaType::Bytes => {
                         let default = self.parse_default(schema, gen_state, default)?;
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), "Vec<u8>".to_string());
                         d.insert(name_std.clone(), default);
                     }
 
-                    Schema::String => {
+                    SchemaType::String => {
                         let default = self.parse_default(schema, gen_state, default)?;
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), "String".to_string());
                         d.insert(name_std.clone(), default);
                     }
 
-                    Schema::Uuid => {
+                    SchemaType::Uuid => {
                         let default = self.parse_default(schema, gen_state, default)?;
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), "uuid::Uuid".to_string());
                         d.insert(name_std.clone(), default);
                     }
 
-                    Schema::Duration => {
+                    SchemaType::Duration => {
                         let default = self.parse_default(schema, gen_state, default)?;
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), "avro_rs::Duration".to_string());
                         d.insert(name_std.clone(), default);
                     }
 
-                    Schema::Decimal { .. } => {
+                    SchemaType::Decimal(_) => {
                         let default = self.parse_default(schema, gen_state, default)?;
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), "avro_rs::Decimal".to_string());
                         d.insert(name_std.clone(), default);
                     }
 
-                    Schema::Fixed {
-                        name: Name { name: f_name, .. },
-                        ..
-                    } => {
+                    SchemaType::Fixed(fixed) => {
                         let default = self.parse_default(schema, gen_state, default)?;
-                        let f_name = sanitize(f_name.to_camel_case());
+                        let f_name = sanitize(fixed.name().name().to_camel_case());
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), f_name.clone());
                         d.insert(name_std.clone(), default);
                     }
 
-                    Schema::Array(inner) => match inner.as_ref() {
-                        Schema::Null => err!("Invalid use of Schema::Null")?,
-                        _ => {
+                    SchemaType::Array(array) => match array.items() {
+                        SchemaType::Null => err!("Invalid use of SchemaType::Null")?,
+                        inner => {
                             let default = self.parse_default(schema, gen_state, default)?;
                             let type_str = array_type(inner, gen_state)?;
                             f.push(name_std.clone());
@@ -358,9 +345,9 @@ impl Templater {
                         }
                     },
 
-                    Schema::Map(inner) => match inner.as_ref() {
-                        Schema::Null => err!("Invalid use of Schema::Null")?,
-                        _ => {
+                    SchemaType::Map(map) => match map.items() {
+                        SchemaType::Null => err!("Invalid use of SchemaType::Null")?,
+                        inner => {
                             let default = self.parse_default(schema, gen_state, default)?;
                             let type_str = map_type(inner, gen_state)?;
                             f.push(name_std.clone());
@@ -369,29 +356,23 @@ impl Templater {
                         }
                     },
 
-                    Schema::Record {
-                        name: Name { name: r_name, .. },
-                        ..
-                    } => {
+                    SchemaType::Record(record) => {
                         let default = self.parse_default(schema, gen_state, default)?;
-                        let r_name = sanitize(r_name.to_camel_case());
+                        let r_name = sanitize(record.name().name().to_camel_case());
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), r_name.clone());
                         d.insert(name_std.clone(), default);
                     }
 
-                    Schema::Enum {
-                        name: Name { name: e_name, .. },
-                        ..
-                    } => {
+                    SchemaType::Enum(enumeration) => {
                         let default = self.parse_default(schema, gen_state, default)?;
-                        let e_name = sanitize(e_name.to_camel_case());
+                        let e_name = sanitize(enumeration.name().name().to_camel_case());
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), e_name);
                         d.insert(name_std.clone(), default);
                     }
 
-                    Schema::Union(union) => {
+                    SchemaType::Union(union) => {
                         let default = self.parse_default(schema, gen_state, default)?;
                         let type_str = union_type(union, gen_state, true)?;
                         f.push(name_std.clone());
@@ -399,7 +380,7 @@ impl Templater {
                         d.insert(name_std.clone(), default);
                     }
 
-                    Schema::Null => err!("Invalid use of Schema::Null")?,
+                    SchemaType::Null => err!("Invalid use of SchemaType::Null")?,
                 };
 
                 i += 1;
@@ -415,83 +396,74 @@ impl Templater {
 
             Ok(self.tera.render(RECORD_TERA, &ctx)?)
         } else {
-            err!("Requires Schema::Record, found {:?}", schema)?
+            err!("Requires SchemaType::Record, found {:?}", schema)?
         }
     }
 
-    pub fn str_union_enum(&self, schema: &Schema, gen_state: &GenState) -> Result<String> {
-        if let Schema::Union(union) = schema {
-            let variants = union.variants();
+    pub fn str_union_enum(&self, schema: SchemaType, gen_state: &GenState) -> Result<String> {
+        if let SchemaType::Union(union) = schema {
+            let mut variants = union.variants();
 
             if variants.is_empty() {
-                err!("Invalid empty Schema::Union")?
+                err!("Invalid empty SchemaType::Union")?
             } else if variants.len() == 1 {
-                err!("Invalid Schema::Union of a single element")?
+                err!("Invalid SchemaType::Union of a single element")?
             } else if union.is_nullable() && variants.len() == 2 {
                 err!("Attempt to generate a union enum for an optional")?
             }
 
-            let schemas = if variants[0] == Schema::Null {
-                &variants[1..]
-            } else {
-                variants
-            };
+            if variants[0] == SchemaType::Null {
+                variants.remove(0);
+            }
+
+            let schemas = variants;
 
             let e_name = union_type(union, gen_state, false)?;
 
             let mut symbols = vec![];
             for sc in schemas {
                 let symbol_str = match sc {
-                    Schema::Boolean => "Boolean(bool)".into(),
-                    Schema::Int => "Int(i32)".into(),
-                    Schema::Long => "Long(i64)".into(),
-                    Schema::Float => "Float(f32)".into(),
-                    Schema::Double => "Double(f64)".into(),
-                    Schema::Bytes => "Bytes(Vec<u8>)".into(),
-                    Schema::String => "String(String)".into(),
-                    Schema::Array(inner) => {
+                    SchemaType::Boolean => "Boolean(bool)".into(),
+                    SchemaType::Int => "Int(i32)".into(),
+                    SchemaType::Long => "Long(i64)".into(),
+                    SchemaType::Float => "Float(f32)".into(),
+                    SchemaType::Double => "Double(f64)".into(),
+                    SchemaType::Bytes => "Bytes(Vec<u8>)".into(),
+                    SchemaType::String => "String(String)".into(),
+                    SchemaType::Array(inner) => {
                         format!(
                             "Array{}({})",
-                            union_enum_variant(inner.as_ref(), gen_state)?,
-                            array_type(inner.as_ref(), gen_state)?
+                            union_enum_variant(inner.items(), gen_state)?,
+                            array_type(inner.items(), gen_state)?
                         )
                     }
-                    Schema::Map(inner) => format!(
+                    SchemaType::Map(inner) => format!(
                         "Map{}({})",
-                        union_enum_variant(inner.as_ref(), gen_state)?,
+                        union_enum_variant(inner.items(), gen_state)?,
                         map_type(sc, gen_state)?
                     ),
-                    Schema::Union(union) => {
+                    SchemaType::Union(union) => {
                         format!("{u}({u})", u = union_type(union, gen_state, false)?)
                     }
-                    Schema::Record {
-                        name: Name { name, .. },
-                        ..
-                    } => {
-                        format!("{rec}({rec})", rec = name.to_camel_case())
+                    SchemaType::Record(record) => {
+                        format!("{rec}({rec})", rec = record.name().name().to_camel_case())
                     }
-                    Schema::Enum {
-                        name: Name { name, .. },
-                        ..
-                    } => {
-                        format!("{e}({e})", e = sanitize(name.to_camel_case()))
+                    SchemaType::Enum(inner) => {
+                        format!("{e}({e})", e = sanitize(inner.name().name().to_camel_case()))
                     }
-                    Schema::Fixed {
-                        name: Name { name, .. },
-                        ..
-                    } => {
-                        format!("{f}({f})", f = sanitize(name.to_camel_case()))
+                    SchemaType::Fixed(fixed) => {
+                        format!("{f}({f})", f = sanitize(fixed.name().name().to_camel_case()))
                     }
-                    Schema::Decimal { .. } => "Decimal(avro_rs::Decimal)".into(),
-                    Schema::Uuid => "Uuid(uuid::Uuid)".into(),
-                    Schema::Date => "Date(i32)".into(),
-                    Schema::TimeMillis => "TimeMillis(i32)".into(),
-                    Schema::TimeMicros => "TimeMicros(i64)".into(),
-                    Schema::TimestampMillis => "TimestampMillis(i64)".into(),
-                    Schema::TimestampMicros => "TimestampMicros(i64)".into(),
-                    Schema::Duration => "Duration(avro_rs::Duration)".into(),
-                    Schema::Null => err!(
-                        "Invalid Schema::Null not in first position on an UnionSchema variants"
+                    SchemaType::Decimal(_) => "Decimal(avro_rs::Decimal)".into(),
+                    SchemaType::Uuid => "Uuid(uuid::Uuid)".into(),
+                    SchemaType::Date => "Date(i32)".into(),
+                    SchemaType::TimeMillis => "TimeMillis(i32)".into(),
+                    SchemaType::TimeMicros => "TimeMicros(i64)".into(),
+                    SchemaType::TimestampMillis => "TimestampMillis(i64)".into(),
+                    SchemaType::TimestampMicros => "TimestampMicros(i64)".into(),
+                    SchemaType::Duration => "Duration(avro_rs::Duration)".into(),
+                    SchemaType::Null => err!(
+                        "Invalid SchemaType::Null not in first position on an UnionSchema variants"
                     )?,
                 };
                 symbols.push(symbol_str);
@@ -504,39 +476,39 @@ impl Templater {
 
             Ok(self.tera.render(UNION_TERA, &ctx)?)
         } else {
-            err!("Requires Schema::Union, found {:?}", schema)?
+            err!("Requires SchemaType::Union, found {:?}", schema)?
         }
     }
 
     fn parse_default(
         &self,
-        schema: &Schema,
+        schema: SchemaType,
         gen_state: &GenState,
-        default: &Option<serde_json::Value>,
+        default: Option<&serde_json::Value>,
     ) -> Result<String> {
         let default_str = match schema {
-            Schema::Boolean => match default {
+            SchemaType::Boolean => match default {
                 Some(Value::Bool(b)) => b.to_string(),
                 None => bool::default().to_string(),
                 _ => err!("Invalid default: {:?}", default)?,
             },
 
-            Schema::Int | Schema::Date | Schema::TimeMillis => match default {
+            SchemaType::Int | SchemaType::Date | SchemaType::TimeMillis => match default {
                 Some(Value::Number(n)) if n.is_i64() => (n.as_i64().unwrap() as i32).to_string(),
                 None => i32::default().to_string(),
                 _ => err!("Invalid default: {:?}", default)?,
             },
 
-            Schema::Long
-            | Schema::TimeMicros
-            | Schema::TimestampMillis
-            | Schema::TimestampMicros => match default {
+            SchemaType::Long
+            | SchemaType::TimeMicros
+            | SchemaType::TimestampMillis
+            | SchemaType::TimestampMicros => match default {
                 Some(Value::Number(n)) if n.is_i64() => n.to_string(),
                 None => i64::default().to_string(),
                 _ => err!("Invalid default: {:?}", default)?,
             },
 
-            Schema::Float => match default {
+            SchemaType::Float => match default {
                 Some(Value::Number(n)) if n.is_f64() => {
                     let n = n.as_f64().unwrap() as f32;
                     if n == n.ceil() {
@@ -549,7 +521,7 @@ impl Templater {
                 _ => err!("Invalid default: {:?}", default)?,
             },
 
-            Schema::Double => match default {
+            SchemaType::Double => match default {
                 Some(Value::Number(n)) if n.is_f64() => {
                     let n = n.as_f64().unwrap();
                     if n == n.ceil() {
@@ -562,7 +534,7 @@ impl Templater {
                 _ => err!("Invalid default: {:?}", default)?,
             },
 
-            Schema::Bytes => match default {
+            SchemaType::Bytes => match default {
                 Some(Value::String(s)) => {
                     let bytes = s.clone().into_bytes();
                     format!("vec!{:?}", bytes)
@@ -571,19 +543,19 @@ impl Templater {
                 _ => err!("Invalid default: {:?}", default)?,
             },
 
-            Schema::String => match default {
+            SchemaType::String => match default {
                 Some(Value::String(s)) => format!("\"{}\".to_owned()", s),
                 None => "String::default()".to_string(),
                 _ => err!("Invalid default: {:?}", default)?,
             },
 
-            Schema::Uuid => match default {
+            SchemaType::Uuid => match default {
                 Some(Value::String(s)) => Uuid::parse_str(&s)?.to_string(),
                 None => Uuid::nil().to_string(),
                 _ => err!("Invalid default: {:?}", default)?,
             },
 
-            Schema::Duration => match default {
+            SchemaType::Duration => match default {
                 Some(Value::String(s)) => {
                     let bytes = s.clone().into_bytes();
                     if bytes.len() != 12 {
@@ -595,8 +567,8 @@ impl Templater {
                 _ => err!("Invalid default: {:?}", default)?,
             },
 
-            Schema::Decimal { inner, .. } => match inner.as_ref() {
-                Schema::Bytes => match default {
+            SchemaType::Decimal(decimal) => match decimal.size() {
+                None => match default {
                     Some(Value::String(s)) => {
                         let bytes = s.clone().into_bytes();
                         format!("vec!{:?}", bytes)
@@ -604,58 +576,46 @@ impl Templater {
                     None => "vec![]".to_string(),
                     _ => err!("Invalid default: {:?}", default)?,
                 },
-                Schema::Fixed {
-                    name: Name { name: f_name, .. },
-                    size,
-                } => match default {
+                Some(size) => match default {
                     Some(Value::String(s)) => {
                         let bytes = s.clone().into_bytes();
-                        if bytes.len() != *size {
+                        if bytes.len() != size as usize {
                             err!("Invalid default: {:?}", bytes)?
                         }
                         format!("{:?}", bytes)
                     }
-                    None => format!("{}::default()", f_name),
+                    None => format!("{}::default()", decimal.name().name()),
                     _ => err!("Invalid default: {:?}", default)?,
                 },
-                _ => err!("Invalid Decimal inner Schema: {:?}", inner)?,
             },
 
-            Schema::Fixed {
-                name: Name { name: f_name, .. },
-                size,
-            } => match default {
+            SchemaType::Fixed(fixed) => match default {
                 Some(Value::String(s)) => {
                     let bytes = s.clone().into_bytes();
-                    if bytes.len() != *size {
+                    if bytes.len() != fixed.size() {
                         err!("Invalid default: {:?}", bytes)?
                     }
                     format!("{:?}", bytes)
                 }
-                None => format!("{}::default()", f_name),
+                None => format!("{}::default()", fixed.name().name()),
                 _ => err!("Invalid default: {:?}", default)?,
             },
 
-            Schema::Array(inner) => match inner.as_ref() {
-                Schema::Null => err!("Invalid use of Schema::Null")?,
-                _ => self.array_default(inner, gen_state, default)?,
+            SchemaType::Array(inner) => match inner.items() {
+                SchemaType::Null => err!("Invalid use of SchemaType::Null")?,
+                items => self.array_default(items, gen_state, default)?,
             },
 
-            Schema::Map(inner) => match inner.as_ref() {
-                Schema::Null => err!("Invalid use of Schema::Null")?,
-                _ => self.map_default(inner, gen_state, default)?,
+            SchemaType::Map(inner) => match inner.items() {
+                SchemaType::Null => err!("Invalid use of SchemaType::Null")?,
+                items => self.map_default(items, gen_state, default)?,
             },
 
-            Schema::Record { .. } => self.record_default(schema, gen_state, default)?,
+            SchemaType::Record(_) => self.record_default(schema, gen_state, default)?,
 
-            Schema::Enum {
-                name: Name { name: e_name, .. },
-                symbols,
-                ..
-            } => {
-                let e_name = sanitize(e_name.to_camel_case());
-                let valids: HashSet<_> = symbols
-                    .iter()
+            SchemaType::Enum(inner) => {
+                let e_name = sanitize(inner.name().name().to_camel_case());
+                let valids: HashSet<_> = inner.iter_symbols()
                     .map(|s| sanitize(s.to_camel_case()))
                     .collect();
                 match default {
@@ -667,16 +627,16 @@ impl Templater {
                             err!("Invalid default: {:?}", default)?
                         }
                     }
-                    None if !symbols.is_empty() => {
-                        format!("{}::{}", e_name, sanitize(symbols[0].to_camel_case()))
+                    None if !inner.symbols().is_empty() => {
+                        format!("{}::{}", e_name, sanitize(inner.symbols()[0].to_camel_case()))
                     }
                     _ => err!("Invalid default: {:?}", default)?,
                 }
             }
 
-            Schema::Union(union) => self.union_default(union, gen_state, default)?,
+            SchemaType::Union(union) => self.union_default(union, gen_state, default)?,
 
-            Schema::Null => err!("Invalid use of Schema::Null")?,
+            SchemaType::Null => err!("Invalid use of SchemaType::Null")?,
         };
 
         Ok(default_str)
@@ -685,31 +645,31 @@ impl Templater {
     /// Helper to coerce defaults from an Avro schema to Rust types.
     fn coerce_default_fn<'a>(
         &'a self,
-        schema: &'a Schema,
+        schema: SchemaType<'a>,
         gen_state: &'a GenState,
     ) -> Box<dyn Fn(&'a Value) -> Result<String> + 'a> {
         match schema {
-            Schema::Null => Box::new(|_| err!("Invalid use of Schema::Null")?),
+            SchemaType::Null => Box::new(|_| err!("Invalid use of SchemaType::Null")?),
 
-            Schema::Boolean => Box::new(|v: &Value| match v {
+            SchemaType::Boolean => Box::new(|v: &Value| match v {
                 Value::Bool(b) => Ok(b.to_string()),
                 _ => err!("Invalid defaults: {:?}", v),
             }),
 
-            Schema::Int | Schema::Date | Schema::TimeMillis => Box::new(|v: &Value| match v {
+            SchemaType::Int | SchemaType::Date | SchemaType::TimeMillis => Box::new(|v: &Value| match v {
                 Value::Number(n) if n.is_i64() => Ok((n.as_i64().unwrap() as i32).to_string()),
                 _ => err!("Invalid defaults: {:?}", v),
             }),
 
-            Schema::Long
-            | Schema::TimeMicros
-            | Schema::TimestampMillis
-            | Schema::TimestampMicros => Box::new(|v: &Value| match v {
+            SchemaType::Long
+            | SchemaType::TimeMicros
+            | SchemaType::TimestampMillis
+            | SchemaType::TimestampMicros => Box::new(|v: &Value| match v {
                 Value::Number(n) if n.is_i64() => Ok(n.to_string()),
                 _ => err!("Invalid defaults: {:?}", v),
             }),
 
-            Schema::Float => Box::new(move |v: &Value| match v {
+            SchemaType::Float => Box::new(move |v: &Value| match v {
                 Value::Number(n) if n.is_f64() => {
                     let n = n.as_f64().unwrap() as f32;
                     if n == n.ceil() {
@@ -721,7 +681,7 @@ impl Templater {
                 _ => err!("Invalid defaults: {:?}", v),
             }),
 
-            Schema::Double => Box::new(move |v: &Value| match v {
+            SchemaType::Double => Box::new(move |v: &Value| match v {
                 Value::Number(n) if n.is_f64() => {
                     let n = n.as_f64().unwrap();
                     if n == n.ceil() {
@@ -733,7 +693,7 @@ impl Templater {
                 _ => err!("Invalid defaults: {:?}", v),
             }),
 
-            Schema::Bytes => Box::new(|v: &Value| match v {
+            SchemaType::Bytes => Box::new(|v: &Value| match v {
                 Value::String(s) => {
                     let bytes = s.clone().into_bytes();
                     Ok(format!("vec!{:?}", bytes))
@@ -741,17 +701,17 @@ impl Templater {
                 _ => err!("Invalid defaults: {:?}", v),
             }),
 
-            Schema::String => Box::new(|v: &Value| match v {
+            SchemaType::String => Box::new(|v: &Value| match v {
                 Value::String(s) => Ok(format!("\"{}\".to_owned()", s)),
                 _ => err!("Invalid defaults: {:?}", v),
             }),
 
-            Schema::Uuid => Box::new(|v: &Value| match v {
+            SchemaType::Uuid => Box::new(|v: &Value| match v {
                 Value::String(s) => Ok(Uuid::parse_str(s)?.to_string()),
                 _ => err!("Invalid defaults: {:?}", v),
             }),
 
-            Schema::Duration => Box::new(|v: &Value| match v {
+            SchemaType::Duration => Box::new(|v: &Value| match v {
                 Value::String(s) => {
                     let bytes = s.clone().into_bytes();
                     if bytes.len() == 12 {
@@ -763,31 +723,30 @@ impl Templater {
                 _ => err!("Invalid defaults: {:?}", v),
             }),
 
-            Schema::Decimal { inner, .. } => Box::new(move |v: &Value| match inner.as_ref() {
-                Schema::Bytes => match v {
+            SchemaType::Decimal(decimal) => Box::new(move |v: &Value| match decimal.size() {
+                None => match v {
                     Value::String(s) => {
                         let bytes = s.clone().into_bytes();
                         Ok(format!("vec!{:?}", bytes))
                     }
                     _ => err!("Invalid default: {:?}", v),
                 },
-                Schema::Fixed { size, .. } => match v {
+                Some(size) => match v {
                     Value::String(s) => {
                         let bytes = s.clone().into_bytes();
-                        if bytes.len() != *size {
+                        if bytes.len() != size as usize {
                             return err!("Invalid default: {:?}", bytes);
                         }
                         Ok(format!("{:?}", bytes))
                     }
                     _ => err!("Invalid default: {:?}", v),
                 },
-                _ => err!("Invalid Decimal inner Schema: {:?}", inner),
             }),
 
-            Schema::Fixed { size, .. } => Box::new(move |v: &Value| match v {
+            SchemaType::Fixed(fixed) => Box::new(move |v: &Value| match v {
                 Value::String(s) => {
                     let bytes = s.clone().into_bytes();
-                    if bytes.len() == *size {
+                    if bytes.len() == fixed.size() {
                         Ok(format!("{:?}", bytes))
                     } else {
                         err!("Invalid defaults: {:?}", bytes)
@@ -796,21 +755,19 @@ impl Templater {
                 _ => err!("Invalid defaults: {:?}", v),
             }),
 
-            Schema::Array(s) => {
-                Box::new(move |v: &Value| self.array_default(s, gen_state, &Some(v.clone())))
+            SchemaType::Array(array) => {
+                let items = array.items();
+                Box::new(move |v: &Value| self.array_default(items, gen_state, Some(v)))
             }
 
-            Schema::Map(s) => {
-                Box::new(move |v: &Value| self.map_default(s, gen_state, &Some(v.clone())))
+            SchemaType::Map(map) => {
+                let items = map.items();
+                Box::new(move |v: &Value| self.map_default(items, gen_state, Some(v)))
             }
 
-            Schema::Enum {
-                name: Name { name: e_name, .. },
-                symbols,
-                ..
-            } => {
-                let e_name = sanitize(e_name.to_camel_case());
-                let valids: HashSet<_> = symbols
+            SchemaType::Enum(enumeration) => {
+                let e_name = sanitize(enumeration.name().name().to_camel_case());
+                let valids: HashSet<_> = enumeration.symbols()
                     .iter()
                     .map(|s| sanitize(s.to_camel_case()))
                     .collect();
@@ -827,12 +784,12 @@ impl Templater {
                 })
             }
 
-            Schema::Union(union) => {
-                Box::new(move |v: &Value| self.union_default(union, gen_state, &Some(v.clone())))
+            SchemaType::Union(union) => {
+                Box::new(move |v: &Value| self.union_default(union, gen_state, Some(v)))
             }
 
-            Schema::Record { .. } => {
-                Box::new(move |v: &Value| self.record_default(schema, gen_state, &Some(v.clone())))
+            SchemaType::Record { .. } => {
+                Box::new(move |v: &Value| self.record_default(schema, gen_state, Some(v)))
             }
         }
     }
@@ -840,9 +797,9 @@ impl Templater {
     /// Generates Rust default values for the inner schema of an Avro array.
     fn array_default(
         &self,
-        inner: &Schema,
+        inner: SchemaType,
         gen_state: &GenState,
-        default: &Option<Value>,
+        default: Option<&Value>,
     ) -> Result<String> {
         let default_str = if let Some(Value::Array(vals)) = default {
             let vals = vals
@@ -861,9 +818,9 @@ impl Templater {
     /// Generates Rust default values for the inner schema of an Avro map.
     fn map_default(
         &self,
-        inner: &Schema,
+        inner: SchemaType,
         gen_state: &GenState,
-        default: &Option<Value>,
+        default: Option<&Value>,
     ) -> Result<String> {
         let default_str = if let Some(Value::Object(o)) = default {
             if o.is_empty() {
@@ -895,27 +852,21 @@ impl Templater {
     /// Generates Rust default values for an Avro record
     fn record_default(
         &self,
-        inner: &Schema,
+        inner: SchemaType,
         gen_state: &GenState,
-        default: &Option<Value>,
+        default: Option<&Value>,
     ) -> Result<String> {
         match inner {
-            Schema::Record {
-                name: Name { name, .. },
-                fields,
-                lookup,
-                ..
-            } => {
+            SchemaType::Record(record) => {
+                let name = record.name().name();
                 let default_str = if let Some(Value::Object(o)) = default {
                     if o.len() > 0 {
                         let vals = o
                             .iter()
                             .map(|(k, v)| {
                                 let f = sanitize(k.to_snake_case());
-                                let rf = fields
-                                    .get(*lookup.get(k).expect("Missing lookup"))
-                                    .expect("Missing record field");
-                                let d = self.coerce_default_fn(&rf.schema, gen_state)(v)?;
+                                let rf = record.field(k).expect("Missing record field");
+                                let d = self.coerce_default_fn(rf.schema(), gen_state)(v)?;
                                 Ok(format!("r.{} = {};", f, d))
                             })
                             .collect::<Result<Vec<String>>>()?
@@ -941,9 +892,9 @@ impl Templater {
     /// Generates Rust default values for the inner schemas of an Avro union.
     fn union_default(
         &self,
-        union: &UnionSchema,
+        union: UnionSchema,
         gen_state: &GenState,
-        default: &Option<Value>,
+        default: Option<&Value>,
     ) -> Result<String> {
         if union.is_nullable() {
             let default_str = match default {
@@ -954,43 +905,50 @@ impl Templater {
             Ok(default_str)
         } else {
             let e_name = union_type(union, gen_state, false)?;
-            let e_variant = union_enum_variant(&union.variants()[0], gen_state)?;
-            let default_str = self.parse_default(&union.variants()[0], gen_state, default)?;
+            let e_variant = union_enum_variant(union.variants()[0], gen_state)?;
+            let default_str = self.parse_default(union.variants()[0], gen_state, default)?;
             Ok(format!("{}::{}({})", e_name, e_variant, default_str))
         }
     }
 }
 
 /// Generates the Rust type of the inner schema of an Avro array.
-pub(crate) fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
+pub(crate) fn array_type(inner: SchemaType, gen_state: &GenState) -> Result<String> {
     let type_str = match inner {
-        Schema::Boolean => "Vec<bool>".into(),
-        Schema::Int => "Vec<i32>".into(),
-        Schema::Long => "Vec<i64>".into(),
-        Schema::Float => "Vec<f32>".into(),
-        Schema::Double => "Vec<f64>".into(),
-        Schema::Bytes => "Vec<Vec<u8>>".into(),
-        Schema::String => "Vec<String>".into(),
+        SchemaType::Boolean => "Vec<bool>".into(),
+        SchemaType::Int => "Vec<i32>".into(),
+        SchemaType::Long => "Vec<i64>".into(),
+        SchemaType::Float => "Vec<f32>".into(),
+        SchemaType::Double => "Vec<f64>".into(),
+        SchemaType::Bytes => "Vec<Vec<u8>>".into(),
+        SchemaType::String => "Vec<String>".into(),
 
-        Schema::Date => "Vec<i32>".into(),
-        Schema::TimeMillis => "Vec<i32>".into(),
-        Schema::TimeMicros => "Vec<i64>".into(),
-        Schema::TimestampMillis => "Vec<i64>".into(),
-        Schema::TimestampMicros => "Vec<i64>".into(),
+        SchemaType::Date => "Vec<i32>".into(),
+        SchemaType::TimeMillis => "Vec<i32>".into(),
+        SchemaType::TimeMicros => "Vec<i64>".into(),
+        SchemaType::TimestampMillis => "Vec<i64>".into(),
+        SchemaType::TimestampMicros => "Vec<i64>".into(),
 
-        Schema::Uuid => "Vec<uuid::Uuid>".into(),
-        Schema::Decimal { .. } => "Vec<avro_rs::Decimal>".into(),
-        Schema::Duration { .. } => "Vec<avro_rs::Duration>".into(),
+        SchemaType::Uuid => "Vec<uuid::Uuid>".into(),
+        SchemaType::Decimal { .. } => "Vec<avro_rs::Decimal>".into(),
+        SchemaType::Duration { .. } => "Vec<avro_rs::Duration>".into(),
 
-        Schema::Fixed {
-            name: Name { name: f_name, .. },
-            ..
-        } => {
-            let f_name = sanitize(f_name.to_camel_case());
+        SchemaType::Fixed(fixed) => {
+            let f_name = sanitize(fixed.name().name().to_camel_case());
             format!("Vec<{}>", f_name)
         }
 
-        Schema::Array(..) | Schema::Map(..) | Schema::Union(..) => {
+        SchemaType::Array(inner) | SchemaType::Map(inner) => {
+            let nested_type = gen_state.get_type(inner.items()).ok_or_else(|| {
+                Error::Template(format!(
+                    "Didn't find schema {:?} in state {:?}",
+                    inner, &gen_state
+                ))
+            })?;
+            format!("Vec<{}>", nested_type)
+        }
+
+        SchemaType::Union(_) => {
             let nested_type = gen_state.get_type(inner).ok_or_else(|| {
                 Error::Template(format!(
                     "Didn't find schema {:?} in state {:?}",
@@ -1000,54 +958,60 @@ pub(crate) fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String>
             format!("Vec<{}>", nested_type)
         }
 
-        Schema::Record {
-            name: Name { name, .. },
-            ..
+        SchemaType::Record(inner) => {
+            format!("Vec<{}>", &sanitize(inner.name().name().to_camel_case()))
         }
-        | Schema::Enum {
-            name: Name { name, .. },
-            ..
-        } => format!("Vec<{}>", &sanitize(name.to_camel_case())),
 
-        Schema::Null => err!("Invalid use of Schema::Null")?,
+        SchemaType::Enum(inner) => {
+            format!("Vec<{}>", &sanitize(inner.name().name().to_camel_case()))
+        }
+
+        SchemaType::Null => err!("Invalid use of SchemaType::Null")?,
     };
     Ok(type_str)
 }
 
 /// Generates the Rust type of the inner schema of an Avro map.
-pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
+pub(crate) fn map_type(inner: SchemaType, gen_state: &GenState) -> Result<String> {
     fn map_of(t: &str) -> String {
         format!("::std::collections::HashMap<String, {}>", t)
     }
 
     let type_str = match inner {
-        Schema::Boolean => map_of("bool"),
-        Schema::Int => map_of("i32"),
-        Schema::Long => map_of("i64"),
-        Schema::Float => map_of("f32"),
-        Schema::Double => map_of("f64"),
-        Schema::Bytes => map_of("Vec<u8>"),
-        Schema::String => map_of("String"),
+        SchemaType::Boolean => map_of("bool"),
+        SchemaType::Int => map_of("i32"),
+        SchemaType::Long => map_of("i64"),
+        SchemaType::Float => map_of("f32"),
+        SchemaType::Double => map_of("f64"),
+        SchemaType::Bytes => map_of("Vec<u8>"),
+        SchemaType::String => map_of("String"),
 
-        Schema::Date => map_of("i32"),
-        Schema::TimeMillis => map_of("i32"),
-        Schema::TimeMicros => map_of("i64"),
-        Schema::TimestampMillis => map_of("i64"),
-        Schema::TimestampMicros => map_of("i64"),
+        SchemaType::Date => map_of("i32"),
+        SchemaType::TimeMillis => map_of("i32"),
+        SchemaType::TimeMicros => map_of("i64"),
+        SchemaType::TimestampMillis => map_of("i64"),
+        SchemaType::TimestampMicros => map_of("i64"),
 
-        Schema::Uuid => map_of("uuid::Uuid"),
-        Schema::Decimal { .. } => map_of("avro_rs::Decimal"),
-        Schema::Duration { .. } => map_of("avro_rs::Duration"),
+        SchemaType::Uuid => map_of("uuid::Uuid"),
+        SchemaType::Decimal(_) => map_of("avro_rs::Decimal"),
+        SchemaType::Duration => map_of("avro_rs::Duration"),
 
-        Schema::Fixed {
-            name: Name { name: f_name, .. },
-            ..
-        } => {
-            let f_name = sanitize(f_name.to_camel_case());
+        SchemaType::Fixed(fixed) => {
+            let f_name = sanitize(fixed.name().name().to_camel_case());
             map_of(&f_name)
         }
 
-        Schema::Array(..) | Schema::Map(..) | Schema::Union(..) => {
+        SchemaType::Array(inner) | SchemaType::Map(inner) => {
+            let nested_type = gen_state.get_type(inner.items()).ok_or_else(|| {
+                Error::Template(format!(
+                    "Didn't find schema {:?} in state {:?}",
+                    inner, &gen_state
+                ))
+            })?;
+            map_of(nested_type)
+        }
+
+        SchemaType::Union(_) => {
             let nested_type = gen_state.get_type(inner).ok_or_else(|| {
                 Error::Template(format!(
                     "Didn't find schema {:?} in state {:?}",
@@ -1057,55 +1021,39 @@ pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
             map_of(nested_type)
         }
 
-        Schema::Record {
-            name: Name { name, .. },
-            ..
-        }
-        | Schema::Enum {
-            name: Name { name, .. },
-            ..
-        } => map_of(&sanitize(name.to_camel_case())),
+        SchemaType::Record(inner) => map_of(&sanitize(inner.name().name().to_camel_case())),
+        SchemaType::Enum(inner) => map_of(&sanitize(inner.name().name().to_camel_case())),
 
-        Schema::Null => err!("Invalid use of Schema::Null")?,
+        SchemaType::Null => err!("Invalid use of SchemaType::Null")?,
     };
     Ok(type_str)
 }
 
-fn union_enum_variant(schema: &Schema, gen_state: &GenState) -> Result<String> {
+fn union_enum_variant(schema: SchemaType, gen_state: &GenState) -> Result<String> {
     let variant_str = match schema {
-        Schema::Boolean => "Boolean".into(),
-        Schema::Int => "Int".into(),
-        Schema::Long => "Long".into(),
-        Schema::Float => "Float".into(),
-        Schema::Double => "Double".into(),
-        Schema::Bytes => "Bytes".into(),
-        Schema::String => "String".into(),
-        Schema::Array(inner) => format!("Array{:?}", union_enum_variant(inner.as_ref(), gen_state)),
-        Schema::Map(inner) => format!("Map{:?}", union_enum_variant(inner.as_ref(), gen_state)),
-        Schema::Union(union) => union_type(union, gen_state, false)?,
-        Schema::Record {
-            name: Name { name, .. },
-            ..
-        } => name.to_camel_case(),
-        Schema::Enum {
-            name: Name { name, .. },
-            ..
-        } => sanitize(name.to_camel_case()),
-        Schema::Fixed {
-            name: Name { name, .. },
-            ..
-        } => sanitize(name.to_camel_case()),
-
-        Schema::Decimal { .. } => "Decimal".into(),
-        Schema::Uuid => "Uuid".into(),
-        Schema::Date => "Date".into(),
-        Schema::TimeMillis => "TimeMillis".into(),
-        Schema::TimeMicros => "TimeMicros".into(),
-        Schema::TimestampMillis => "TimestampMillis".into(),
-        Schema::TimestampMicros => "TimestampMicros".into(),
-        Schema::Duration => "Duration".into(),
-        Schema::Null => {
-            err!("Invalid Schema::Null not in first position on an UnionSchema variants")?
+        SchemaType::Boolean => "Boolean".into(),
+        SchemaType::Int => "Int".into(),
+        SchemaType::Long => "Long".into(),
+        SchemaType::Float => "Float".into(),
+        SchemaType::Double => "Double".into(),
+        SchemaType::Bytes => "Bytes".into(),
+        SchemaType::String => "String".into(),
+        SchemaType::Array(inner) => format!("Array{:?}", union_enum_variant(inner.items(), gen_state)),
+        SchemaType::Map(inner) => format!("Map{:?}", union_enum_variant(inner.items(), gen_state)),
+        SchemaType::Union(union) => union_type(union, gen_state, false)?,
+        SchemaType::Record(record) => record.name().name().to_camel_case(),
+        SchemaType::Enum(enumeration) => sanitize(enumeration.name().name().to_camel_case()),
+        SchemaType::Fixed(fixed) => sanitize(fixed.name().name().to_camel_case()),
+        SchemaType::Decimal(_)=> "Decimal".into(),
+        SchemaType::Uuid => "Uuid".into(),
+        SchemaType::Date => "Date".into(),
+        SchemaType::TimeMillis => "TimeMillis".into(),
+        SchemaType::TimeMicros => "TimeMicros".into(),
+        SchemaType::TimestampMillis => "TimestampMillis".into(),
+        SchemaType::TimestampMicros => "TimestampMicros".into(),
+        SchemaType::Duration => "Duration".into(),
+        SchemaType::Null => {
+            err!("Invalid SchemaType::Null not in first position on an UnionSchema variants")?
         }
     };
 
@@ -1113,34 +1061,34 @@ fn union_enum_variant(schema: &Schema, gen_state: &GenState) -> Result<String> {
 }
 
 pub(crate) fn union_type(
-    union: &UnionSchema,
+    union: UnionSchema,
     gen_state: &GenState,
     wrap_if_optional: bool,
 ) -> Result<String> {
-    let variants = union.variants();
+    let mut variants = union.variants();
 
     if variants.len() == 0 {
-        err!("Invalid empty Schema::Union")?
-    } else if variants.len() == 1 && variants[0] == Schema::Null {
-        err!("Invalid Schema::Union of only Schema::Null")?
+        err!("Invalid empty SchemaType::Union")?
+    } else if variants.len() == 1 && variants[0] == SchemaType::Null {
+        err!("Invalid SchemaType::Union of only SchemaType::Null")?
     }
 
     if union.is_nullable() && variants.len() == 2 {
-        return Ok(option_type(&variants[1], gen_state)?);
+        return Ok(option_type(variants[1], gen_state)?);
     }
 
-    let schemas = if variants[0] == Schema::Null {
-        &variants[1..]
-    } else {
-        variants
-    };
+    if variants[0] == SchemaType::Null {
+        variants.remove(0);
+    }
+
+    let schemas = variants;
 
     let mut type_str = String::from("Union");
     for sc in schemas {
         type_str.push_str(&union_enum_variant(sc, gen_state)?);
     }
 
-    if variants[0] == Schema::Null && wrap_if_optional {
+    if variants[0] == SchemaType::Null && wrap_if_optional {
         Ok(format!("Option<{}>", type_str))
     } else {
         Ok(type_str.into())
@@ -1148,35 +1096,43 @@ pub(crate) fn union_type(
 }
 
 /// Generates the Rust type of the inner schema of an Avro optional union.
-pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
+pub(crate) fn option_type(inner: SchemaType, gen_state: &GenState) -> Result<String> {
     let type_str = match inner {
-        Schema::Boolean => "Option<bool>".into(),
-        Schema::Int => "Option<i32>".into(),
-        Schema::Long => "Option<i64>".into(),
-        Schema::Float => "Option<f32>".into(),
-        Schema::Double => "Option<f64>".into(),
-        Schema::Bytes => "Option<Vec<u8>>".into(),
-        Schema::String => "Option<String>".into(),
+        SchemaType::Boolean => "Option<bool>".into(),
+        SchemaType::Int => "Option<i32>".into(),
+        SchemaType::Long => "Option<i64>".into(),
+        SchemaType::Float => "Option<f32>".into(),
+        SchemaType::Double => "Option<f64>".into(),
+        SchemaType::Bytes => "Option<Vec<u8>>".into(),
+        SchemaType::String => "Option<String>".into(),
 
-        Schema::Date => "Option<i32>".into(),
-        Schema::TimeMillis => "Option<i32>".into(),
-        Schema::TimeMicros => "Option<i64>".into(),
-        Schema::TimestampMillis => "Option<i64>".into(),
-        Schema::TimestampMicros => "Option<i64>".into(),
+        SchemaType::Date => "Option<i32>".into(),
+        SchemaType::TimeMillis => "Option<i32>".into(),
+        SchemaType::TimeMicros => "Option<i64>".into(),
+        SchemaType::TimestampMillis => "Option<i64>".into(),
+        SchemaType::TimestampMicros => "Option<i64>".into(),
 
-        Schema::Uuid => "Option<uuid::Uuid>".into(),
-        Schema::Decimal { .. } => "Option<avro_rs::Decimal>".into(),
-        Schema::Duration { .. } => "Option<avro_rs::Duration>".into(),
+        SchemaType::Uuid => "Option<uuid::Uuid>".into(),
+        SchemaType::Decimal(_) => "Option<avro_rs::Decimal>".into(),
+        SchemaType::Duration => "Option<avro_rs::Duration>".into(),
 
-        Schema::Fixed {
-            name: Name { name: f_name, .. },
-            ..
-        } => {
-            let f_name = sanitize(f_name.to_camel_case());
+        SchemaType::Fixed(fixed) => {
+            let f_name = sanitize(fixed.name().name().to_camel_case());
             format!("Option<{}>", f_name)
         }
 
-        Schema::Array(..) | Schema::Map(..) | Schema::Union(..) => {
+        // TODO(Bowyer) - This duplication is irritating
+        SchemaType::Array(inner) | SchemaType::Map(inner) => {
+            let nested_type = gen_state.get_type(inner.items()).ok_or_else(|| {
+                Error::Template(format!(
+                    "Didn't find schema {:?} in state {:?}",
+                    inner, &gen_state
+                ))
+            })?;
+            format!("Option<{}>", nested_type)
+        },
+
+        SchemaType::Union(_) => {
             let nested_type = gen_state.get_type(inner).ok_or_else(|| {
                 Error::Template(format!(
                     "Didn't find schema {:?} in state {:?}",
@@ -1186,16 +1142,15 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
             format!("Option<{}>", nested_type)
         }
 
-        Schema::Record {
-            name: Name { name, .. },
-            ..
+        SchemaType::Record(inner) => {
+            format!("Option<{}>", &sanitize(inner.name().name().to_camel_case()))
         }
-        | Schema::Enum {
-            name: Name { name, .. },
-            ..
-        } => format!("Option<{}>", &sanitize(name.to_camel_case())),
 
-        Schema::Null => err!("Invalid use of Schema::Null")?,
+        SchemaType::Enum(inner) => {
+            format!("Option<{}>", &sanitize(inner.name().name().to_camel_case()))
+        }
+
+        SchemaType::Null => err!("Invalid use of SchemaType::Null")?,
     };
     Ok(type_str)
 }
@@ -1257,7 +1212,7 @@ impl Default for User {
         let templater = Templater::new().unwrap();
         let schema = Schema::parse_str(&raw_schema).unwrap();
         let gs = GenState::new();
-        let res = templater.str_record(&schema, &gs).unwrap();
+        let res = templater.str_record(schema.root(), &gs).unwrap();
 
         assert_eq!(expected, res);
     }
@@ -1296,7 +1251,7 @@ impl Default for User {
         let templater = Templater::new().unwrap();
         let schema = Schema::parse_str(&raw_schema).unwrap();
         let gs = GenState::new();
-        let res = templater.str_record(&schema, &gs).unwrap();
+        let res = templater.str_record(schema.root(), &gs).unwrap();
 
         assert_eq!(expected, res);
     }
@@ -1341,7 +1296,7 @@ impl Default for User {
         let templater = Templater::new().unwrap();
         let schema = Schema::parse_str(&raw_schema).unwrap();
         let gs = GenState::new();
-        let res = templater.str_record(&schema, &gs).unwrap();
+        let res = templater.str_record(schema.root(), &gs).unwrap();
 
         assert_eq!(expected, res);
     }
@@ -1359,7 +1314,7 @@ impl Default for User {
 
         let templater = Templater::new().unwrap();
         let schema = Schema::parse_str(&raw_schema).unwrap();
-        let res = templater.str_enum(&schema).unwrap();
+        let res = templater.str_enum(schema.root()).unwrap();
 
         let expected = r#"
 /// Roses are red violets are blue.
@@ -1389,7 +1344,7 @@ pub enum Colors {
 
         let templater = Templater::new().unwrap();
         let schema = Schema::parse_str(&raw_schema).unwrap();
-        let res = templater.str_fixed(&schema).unwrap();
+        let res = templater.str_fixed(schema.root()).unwrap();
 
         let expected = "
 pub type Md5 = [u8; 16];
@@ -1414,7 +1369,7 @@ pub type Md5 = [u8; 16];
         let templater = Templater::new().unwrap();
         let schema = Schema::parse_str(&raw_schema).unwrap();
         let gs = GenState::new();
-        let res = templater.str_record(&schema, &gs).unwrap();
+        let res = templater.str_record(schema.root(), &gs).unwrap();
 
         let expected = "
 #[serde(default)]

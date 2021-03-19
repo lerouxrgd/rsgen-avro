@@ -2,7 +2,7 @@ use std::collections::{HashMap, VecDeque};
 use std::fs;
 use std::io::prelude::*;
 
-use avro_rs::{schema::RecordField, Schema};
+use avro_rs::{schema::*, Schema};
 
 use crate::error::{Error, Result};
 use crate::templates::*;
@@ -80,49 +80,49 @@ impl Generator {
     /// * Pops sub-schemas and generate appropriate Rust types
     /// * Keeps tracks of nested schema->name with `GenState` mapping
     /// * Appends generated Rust types to the output
-    fn gen_in_order(&self, deps: &mut Vec<Schema>, output: &mut impl Write) -> Result<()> {
+    fn gen_in_order(&self, deps: &mut Vec<SchemaType>, output: &mut impl Write) -> Result<()> {
         let mut gs = GenState::new();
 
         while let Some(s) = deps.pop() {
             match s {
                 // Simply generate code
-                Schema::Fixed { .. } => {
-                    let code = &self.templater.str_fixed(&s)?;
+                SchemaType::Fixed(_) => {
+                    let code = &self.templater.str_fixed(s)?;
                     output.write_all(code.as_bytes())?
                 }
-                Schema::Enum { .. } => {
-                    let code = &self.templater.str_enum(&s)?;
+                SchemaType::Enum(_) => {
+                    let code = &self.templater.str_enum(s)?;
                     output.write_all(code.as_bytes())?
                 }
 
                 // Generate code with potentially nested types
-                Schema::Record { .. } => {
-                    let code = &self.templater.str_record(&s, &gs)?;
+                SchemaType::Record(_) => {
+                    let code = &self.templater.str_record(s, &gs)?;
                     output.write_all(code.as_bytes())?
                 }
 
                 // Register inner type for it to be used as a nested type later
-                Schema::Array(ref inner) => {
-                    let type_str = array_type(inner, &gs)?;
-                    gs.put_type(&s, type_str)
+                SchemaType::Array(array) => {
+                    let type_str = array_type(array.items(), &gs)?;
+                    gs.put_type(s, type_str)
                 }
-                Schema::Map(ref inner) => {
-                    let type_str = map_type(inner, &gs)?;
-                    gs.put_type(&s, type_str)
+                SchemaType::Map(map) => {
+                    let type_str = map_type(map.items(), &gs)?;
+                    gs.put_type(s, type_str)
                 }
 
-                Schema::Union(ref union) => {
+                SchemaType::Union(union) => {
                     // Generate custom enum with potentially nested types
                     if (union.is_nullable() && union.variants().len() > 2)
                         || (!union.is_nullable() && union.variants().len() > 1)
                     {
-                        let code = &self.templater.str_union_enum(&s, &gs)?;
+                        let code = &self.templater.str_union_enum(s, &gs)?;
                         output.write_all(code.as_bytes())?
                     }
 
                     // Register inner union for it to be used as a nested type later
                     let type_str = union_type(union, &gs, true)?;
-                    gs.put_type(&s, type_str)
+                    gs.put_type(s, type_str)
                 }
 
                 _ => Err(Error::Schema(format!("Not a valid root schema: {:?}", s)))?,
@@ -137,69 +137,71 @@ impl Generator {
 /// Explores nested `schema`s in a breadth-first fashion, pushing them on a stack
 /// at the same time in order to have them ordered.
 /// It is similar to traversing the `schema` tree in a post-order fashion.
-fn deps_stack(schema: &Schema, mut deps: Vec<Schema>) -> Vec<Schema> {
-    fn push_unique(deps: &mut Vec<Schema>, s: Schema) {
+fn deps_stack<'a>(schema: &'a Schema, mut deps: Vec<SchemaType<'a>>) -> Vec<SchemaType<'a>> {
+
+    fn push_unique<'a>(deps: &mut Vec<SchemaType<'a>>, s: SchemaType<'a>) {
         if !deps.contains(&s) {
             deps.push(s);
         }
     }
 
     let mut q = VecDeque::new();
+    q.push_back(schema.root());
 
-    q.push_back(schema);
     while !q.is_empty() {
         let s = q.pop_front().unwrap();
 
         match s {
             // No nested schemas, add them to the result stack
-            Schema::Enum { .. } => push_unique(&mut deps, s.clone()),
-            Schema::Fixed { .. } => push_unique(&mut deps, s.clone()),
-            Schema::Decimal { inner, .. } if matches!(**inner, Schema::Fixed{ .. }) => {
+            SchemaType::Enum(_) => push_unique(&mut deps, s.clone()),
+            SchemaType::Fixed(_) => push_unique(&mut deps, s.clone()),
+            SchemaType::Decimal(decimal) if decimal.is_fixed() => {
                 push_unique(&mut deps, s.clone())
             }
 
             // Explore the record fields for potentially nested schemas
-            Schema::Record { fields, .. } => {
+            SchemaType::Record(record) => {
                 push_unique(&mut deps, s.clone());
 
-                let by_pos = fields
-                    .iter()
-                    .map(|f| (f.position, f))
+                let by_pos = record
+                    .iter_fields()
+                    .map(|f| (f.position(), f))
                     .collect::<HashMap<_, _>>();
                 let mut i = 0;
-                while let Some(RecordField { schema: sr, .. }) = by_pos.get(&i) {
+                while let Some(field) = by_pos.get(&i) {
+                    let sr = field.schema();
                     match sr {
                         // No nested schemas, add them to the result stack
-                        Schema::Fixed { .. } => push_unique(&mut deps, sr.clone()),
-                        Schema::Enum { .. } => push_unique(&mut deps, sr.clone()),
+                        SchemaType::Fixed(_) => push_unique(&mut deps, sr.clone()),
+                        SchemaType::Enum(_) => push_unique(&mut deps, sr.clone()),
 
                         // Push to the exploration queue for further checks
-                        Schema::Record { .. } => q.push_back(sr),
+                        SchemaType::Record(_) => q.push_back(sr.clone()),
 
                         // Push to the exploration queue, depending on the inner schema format
-                        Schema::Map(sc) | Schema::Array(sc) => match &**sc {
-                            Schema::Fixed { .. }
-                            | Schema::Enum { .. }
-                            | Schema::Record { .. }
-                            | Schema::Map(..)
-                            | Schema::Array(..)
-                            | Schema::Union(..) => q.push_back(&**sc),
+                        SchemaType::Map(sc) | SchemaType::Array(sc) => match sc.items() {
+                            SchemaType::Fixed(_)
+                            | SchemaType::Enum(_)
+                            | SchemaType::Record(_)
+                            | SchemaType::Map(_)
+                            | SchemaType::Array(_)
+                            | SchemaType::Union(_) => q.push_back(sc.items()),
                             _ => (),
                         },
-                        Schema::Union(union) => {
+                        SchemaType::Union(union) => {
                             if (union.is_nullable() && union.variants().len() > 2)
                                 || (!union.is_nullable() && union.variants().len() > 1)
                             {
                                 push_unique(&mut deps, sr.clone());
                             }
 
-                            union.variants().iter().for_each(|sc| match sc {
-                                Schema::Fixed { .. }
-                                | Schema::Enum { .. }
-                                | Schema::Record { .. }
-                                | Schema::Map(..)
-                                | Schema::Array(..)
-                                | Schema::Union(..) => {
+                            union.iter_variants().for_each(|sc| match sc {
+                                SchemaType::Fixed(_)
+                                | SchemaType::Enum(_)
+                                | SchemaType::Record(_)
+                                | SchemaType::Map(_)
+                                | SchemaType::Array(_)
+                                | SchemaType::Union(_) => {
                                     q.push_back(sc);
                                     push_unique(&mut deps, sc.clone());
                                 }
@@ -214,33 +216,33 @@ fn deps_stack(schema: &Schema, mut deps: Vec<Schema>) -> Vec<Schema> {
             }
 
             // Depending on the inner schema type ...
-            Schema::Map(sc) | Schema::Array(sc) => match &**sc {
+            SchemaType::Map(sc) | SchemaType::Array(sc) => match sc.items() {
                 // ... Needs further checks, push to the exploration queue
-                Schema::Fixed { .. }
-                | Schema::Enum { .. }
-                | Schema::Record { .. }
-                | Schema::Map(..)
-                | Schema::Array(..)
-                | Schema::Union(..) => q.push_back(&**sc),
+                SchemaType::Fixed(_)
+                | SchemaType::Enum(_)
+                | SchemaType::Record(_)
+                | SchemaType::Map(_)
+                | SchemaType::Array(_)
+                | SchemaType::Union(_) => q.push_back(sc.items()),
                 // ... Not nested, can be pushed to the result stack
                 _ => push_unique(&mut deps, s.clone()),
             },
 
-            Schema::Union(union) => {
+            SchemaType::Union(union) => {
                 if (union.is_nullable() && union.variants().len() > 2)
                     || (!union.is_nullable() && union.variants().len() > 1)
                 {
                     push_unique(&mut deps, s.clone());
                 }
 
-                union.variants().iter().for_each(|sc| match sc {
+                union.iter_variants().for_each(|sc| match sc {
                     // ... Needs further checks, push to the exploration queue
-                    Schema::Fixed { .. }
-                    | Schema::Enum { .. }
-                    | Schema::Record { .. }
-                    | Schema::Map(..)
-                    | Schema::Array(..)
-                    | Schema::Union(..) => q.push_back(sc),
+                    SchemaType::Fixed(_)
+                    | SchemaType::Enum(_)
+                    | SchemaType::Record(_)
+                    | SchemaType::Map(_)
+                    | SchemaType::Array(_)
+                    | SchemaType::Union(_) => q.push_back(sc),
                     // ... Not nested, can be pushed to the result stack
                     _ => push_unique(&mut deps, s.clone()),
                 });
@@ -923,13 +925,13 @@ impl Default for Test {
         let mut deps = deps_stack(&schema, vec![]);
 
         let s = deps.pop().unwrap();
-        assert!(matches!(s, Schema::Enum{ name: Name { ref name, ..}, ..} if name == "Country"));
+        assert!(matches!(s, SchemaType::Enum(e) if e.name().name() == "Country"));
 
         let s = deps.pop().unwrap();
-        assert!(matches!(s, Schema::Record{ name: Name { ref name, ..}, ..} if name == "Address"));
+        assert!(matches!(s, SchemaType::Record(r) if r.name().name() == "Address"));
 
         let s = deps.pop().unwrap();
-        assert!(matches!(s, Schema::Record{ name: Name { ref name, ..}, ..} if name == "User"));
+        assert!(matches!(s, Schema::Record(r) if r.name().name() == "User"));
 
         let s = deps.pop();
         assert!(matches!(s, None));
