@@ -333,8 +333,8 @@ mod tests {
 "#;
 
         let expected = "
-#[serde(default)]
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct Test {
     pub a: i64,
     pub b: String,
@@ -375,8 +375,8 @@ impl Default for Test {
 
         let expected = r#"
 /// Hi there.
-#[serde(default)]
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct User {
     pub name: String,
     pub favorite_number: i32,
@@ -454,8 +454,8 @@ impl Default for User {
 "#;
 
         let expected = r#"
-#[serde(default)]
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct Variable {
     pub oid: Option<Vec<i64>>,
     pub val: Option<String>,
@@ -470,8 +470,8 @@ impl Default for Variable {
     }
 }
 
-#[serde(default)]
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct TrapV1 {
     pub var: Option<Vec<Variable>>,
 }
@@ -484,8 +484,8 @@ impl Default for TrapV1 {
     }
 }
 
-#[serde(default)]
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct V1 {
     pub pdu: Option<TrapV1>,
 }
@@ -498,8 +498,8 @@ impl Default for V1 {
     }
 }
 
-#[serde(default)]
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct Snmp {
     pub v1: Option<V1>,
 }
@@ -547,8 +547,8 @@ impl Default for Snmp {
 "#;
 
         let expected = r#"
-#[serde(default)]
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct KsqlDataSourceSchema {
     #[serde(rename = "ID")]
     pub id: Option<String>,
@@ -598,8 +598,8 @@ pub enum UnionStringLongDoubleBoolean {
     Boolean(bool),
 }
 
-#[serde(default)]
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct Contact {
     pub extra: ::std::collections::HashMap<String, Option<UnionStringLongDoubleBoolean>>,
 }
@@ -639,8 +639,8 @@ impl Default for Contact {
 "#;
 
         let expected = r#"
-#[serde(default)]
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct AvroShortUuid {
     #[serde(rename = "mostBits")]
     pub most_bits: i64,
@@ -664,8 +664,8 @@ pub enum UnionStringAvroShortUuid {
     AvroShortUuid(AvroShortUuid),
 }
 
-#[serde(default)]
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct AvroFileId {
     pub id: UnionStringAvroShortUuid,
 }
@@ -708,8 +708,8 @@ pub enum UnionStringLongDoubleBoolean {
     Boolean(bool),
 }
 
-#[serde(default)]
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct Contact {
     pub extra: ::std::collections::HashMap<String, Option<UnionStringLongDoubleBoolean>>,
 }
@@ -752,8 +752,8 @@ impl Default for Contact {
 "#;
 
         let expected = r#"
-#[serde(default)]
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct AvroShortUuid {
     #[serde(rename = "mostBits")]
     pub most_bits: i64,
@@ -777,8 +777,8 @@ pub enum UnionStringAvroShortUuid {
     AvroShortUuid(AvroShortUuid),
 }
 
-#[serde(default)]
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct AvroFileId {
     pub id: UnionStringAvroShortUuid,
 }
@@ -826,8 +826,8 @@ macro_rules! deser(
     );
 );
 
-#[serde(default)]
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct Test {
     #[serde(deserialize_with = "nullable_test_a")]
     pub a: i64,
@@ -868,8 +868,8 @@ impl Default for Test {
             );
         );
 
-        #[serde(default)]
         #[derive(Debug, PartialEq, serde::Deserialize, serde::Serialize)]
+        #[serde(default)]
         pub struct Test {
             #[serde(deserialize_with = "nullable_test_a")]
             pub a: i64,
@@ -964,8 +964,8 @@ impl Default for Test {
         schema_b_file.write_all(schema_b_str.as_bytes())?;
 
         let expected = r#"
-#[serde(default)]
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct B {
     pub field_one: A,
 }
@@ -978,8 +978,8 @@ impl Default for B {
     }
 }
 
-#[serde(default)]
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct A {
     pub field_one: f32,
 }

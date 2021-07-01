@@ -31,8 +31,8 @@ pub const RECORD_TEMPLATE: &str = r#"
 {%- if doc %}
 /// {{ doc }}
 {%- endif %}
-#[serde(default)]
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct {{ name }} {
     {%- for f in fields %}
     {%- set type = types[f] %}
@@ -1223,8 +1223,8 @@ mod tests {
 "#;
 
         let expected = r#"
-#[serde(default)]
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct User {
     pub r#as: String,
     #[serde(rename = "favoriteNumber")]
@@ -1277,8 +1277,8 @@ impl Default for User {
 "#;
 
         let expected = r#"
-#[serde(default)]
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct User {
     #[serde(rename = "m-f64")]
     pub m_f64: ::std::collections::HashMap<String, f64>,
@@ -1323,8 +1323,8 @@ impl Default for User {
 "#;
 
         let expected = r#"
-#[serde(default)]
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct User {
     pub info: Info,
 }
@@ -1417,8 +1417,8 @@ pub type Md5 = [u8; 16];
         let res = templater.str_record(&schema, &gs).unwrap();
 
         let expected = "
-#[serde(default)]
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct Contact {
     pub extra: Option<UnionStringLongDoubleBoolean>,
 }
