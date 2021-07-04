@@ -100,11 +100,12 @@ pub type {{ name }} = [u8; {{ size }}];
 lazy_static! {
     static ref RESERVED: HashSet<String> = {
         let s: HashSet<_> = vec![
-            "as", "break", "const", "continue", "crate", "dyn", "else", "enum", "extern", "false",
-            "fn", "for", "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut", "pub",
-            "ref", "return", "Self", "self", "static", "struct", "super", "trait", "true", "type",
-            "unsafe", "use", "where", "while", "abstract", "async", "await", "become", "box", "do",
-            "final", "macro", "override", "priv", "try", "typeof", "unsized", "virtual", "yield",
+            "Self", "abstract", "as", "async", "await", "become", "box", "break", "const",
+            "continue", "crate", "do", "dyn", "else", "enum", "extern", "false", "final", "fn",
+            "for", "if", "impl", "in", "let", "loop", "macro", "match", "mod", "move", "mut",
+            "override", "priv", "pub", "ref", "return", "self", "static", "struct", "super",
+            "trait", "true", "try", "type", "typeof", "union", "unsafe", "unsized", "use",
+            "virtual", "where", "while", "yield",
         ]
         .iter()
         .map(|s| s.to_string())
@@ -247,17 +248,15 @@ impl Templater {
             let mut o = HashMap::new(); // field name -> original name
             let mut d = HashMap::new(); // field name -> default value
 
-            let by_pos = fields
-                .iter()
-                .map(|f| (f.position, f))
-                .collect::<HashMap<_, _>>();
-            let mut i = 0;
-            while let Some(RecordField {
+            let mut fields_by_pos = fields.iter().clone().collect::<Vec<_>>();
+            fields_by_pos.sort_by_key(|f| f.position);
+
+            for RecordField {
                 schema,
                 name,
                 default,
                 ..
-            }) = by_pos.get(&i)
+            } in fields_by_pos.iter()
             {
                 let name_std = sanitize(name.to_snake_case());
                 o.insert(name_std.clone(), name);
@@ -403,8 +402,6 @@ impl Templater {
 
                     Schema::Null => err!("Invalid use of Schema::Null")?,
                 };
-
-                i += 1;
             }
 
             ctx.insert("fields", &f);
