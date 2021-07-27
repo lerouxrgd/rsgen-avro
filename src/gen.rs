@@ -154,7 +154,7 @@ fn deps_stack(schema: &Schema, mut deps: Vec<Schema>) -> Vec<Schema> {
             // No nested schemas, add them to the result stack
             Schema::Enum { .. } => push_unique(&mut deps, s.clone()),
             Schema::Fixed { .. } => push_unique(&mut deps, s.clone()),
-            Schema::Decimal { inner, .. } if matches!(**inner, Schema::Fixed{ .. }) => {
+            Schema::Decimal { inner, .. } if matches!(**inner, Schema::Fixed { .. }) => {
                 push_unique(&mut deps, s.clone())
             }
 
@@ -259,6 +259,7 @@ pub struct GeneratorBuilder {
     precision: usize,
     nullable: bool,
     use_variant_access: bool,
+    use_avro_rs_unions: bool,
 }
 
 impl GeneratorBuilder {
@@ -268,6 +269,7 @@ impl GeneratorBuilder {
             precision: 3,
             nullable: false,
             use_variant_access: false,
+            use_avro_rs_unions: false,
         }
     }
 
@@ -290,12 +292,21 @@ impl GeneratorBuilder {
         self
     }
 
+    /// Adds support for deserializing union types from the `avro-rs` crate.
+    /// Only necessary for unions of 3 or more types or 2-type unions without "null".
+    /// Note that only int, long, float, double, and boolean values are currently supported.
+    pub fn use_avro_rs_unions(mut self, use_avro_rs_unions: bool) -> GeneratorBuilder {
+        self.use_avro_rs_unions = use_avro_rs_unions;
+        self
+    }
+
     /// Create a `Generator` with the builder parameters.
     pub fn build(self) -> Result<Generator> {
         let mut templater = Templater::new()?;
         templater.precision = self.precision;
         templater.nullable = self.nullable;
         templater.use_variant_access = self.use_variant_access;
+        templater.use_avro_rs_unions = self.use_avro_rs_unions;
         Ok(Generator { templater })
     }
 }
@@ -794,6 +805,183 @@ impl Default for AvroFileId {
 
         let g = Generator::builder()
             .use_variant_access(true)
+            .build()
+            .unwrap();
+        assert_schema_gen!(g, expected, raw_schema);
+    }
+
+    #[test]
+    fn multi_valued_union_with_avro_rs_unions() {
+        let raw_schema = r#"
+{
+  "type": "record",
+  "name": "Contact",
+  "namespace": "com.test",
+  "fields": [ {
+    "name": "extra",
+    "type": "map",
+    "values" : [ "null", "string", "long", "double", "boolean" ]
+  } ]
+}
+"#;
+
+        let expected = r#"
+/// Auto-generated type for unnamed Avro union variants.
+#[derive(Debug, PartialEq, Clone, serde::Serialize)]
+pub enum UnionStringLongDoubleBoolean {
+    String(String),
+    Long(i64),
+    Double(f64),
+    Boolean(bool),
+}
+
+impl<'de> serde::Deserialize<'de> for UnionStringLongDoubleBoolean {
+    fn deserialize<D>(deserializer: D) -> Result<UnionStringLongDoubleBoolean, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        /// Serde visitor for the auto-generated unnamed Avro union type.
+        struct UnionStringLongDoubleBooleanVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for UnionStringLongDoubleBooleanVisitor {
+            type Value = UnionStringLongDoubleBoolean;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a UnionStringLongDoubleBoolean")
+            }
+
+            fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(UnionStringLongDoubleBoolean::Long(value))
+            }
+
+            fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(UnionStringLongDoubleBoolean::Double(value))
+            }
+
+            fn visit_bool<E>(self, value: bool) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(UnionStringLongDoubleBoolean::Boolean(value))
+            }
+        }
+
+        deserializer.deserialize_any(UnionStringLongDoubleBooleanVisitor)
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct Contact {
+    pub extra: ::std::collections::HashMap<String, Option<UnionStringLongDoubleBoolean>>,
+}
+
+impl Default for Contact {
+    fn default() -> Contact {
+        Contact {
+            extra: ::std::collections::HashMap::new(),
+        }
+    }
+}
+"#;
+
+        let g = Generator::builder()
+            .use_avro_rs_unions(true)
+            .build()
+            .unwrap();
+        assert_schema_gen!(g, expected, raw_schema);
+
+        let raw_schema = r#"
+{
+  "type": "record",
+  "name": "AvroFileId",
+  "fields": [ {
+    "name": "id",
+    "type": [
+      "string", {
+      "type": "record",
+      "name": "AvroShortUUID",
+      "fields": [ {
+        "name": "mostBits",
+        "type": "long"
+      }, {
+        "name": "leastBits",
+        "type": "long"
+      } ]
+    } ]
+  } ]
+}
+"#;
+
+        let expected = r#"
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct AvroShortUuid {
+    #[serde(rename = "mostBits")]
+    pub most_bits: i64,
+    #[serde(rename = "leastBits")]
+    pub least_bits: i64,
+}
+
+impl Default for AvroShortUuid {
+    fn default() -> AvroShortUuid {
+        AvroShortUuid {
+            most_bits: 0,
+            least_bits: 0,
+        }
+    }
+}
+
+/// Auto-generated type for unnamed Avro union variants.
+#[derive(Debug, PartialEq, Clone, serde::Serialize)]
+pub enum UnionStringAvroShortUuid {
+    String(String),
+    AvroShortUuid(AvroShortUuid),
+}
+
+impl<'de> serde::Deserialize<'de> for UnionStringAvroShortUuid {
+    fn deserialize<D>(deserializer: D) -> Result<UnionStringAvroShortUuid, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        /// Serde visitor for the auto-generated unnamed Avro union type.
+        struct UnionStringAvroShortUuidVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for UnionStringAvroShortUuidVisitor {
+            type Value = UnionStringAvroShortUuid;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a UnionStringAvroShortUuid")
+            }
+        }
+
+        deserializer.deserialize_any(UnionStringAvroShortUuidVisitor)
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct AvroFileId {
+    pub id: UnionStringAvroShortUuid,
+}
+
+impl Default for AvroFileId {
+    fn default() -> AvroFileId {
+        AvroFileId {
+            id: UnionStringAvroShortUuid::String(String::default()),
+        }
+    }
+}
+"#;
+
+        let g = Generator::builder()
+            .use_avro_rs_unions(true)
             .build()
             .unwrap();
         assert_schema_gen!(g, expected, raw_schema);
