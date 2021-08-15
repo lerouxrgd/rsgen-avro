@@ -20,6 +20,7 @@ Options:
   --nullable        Replace null fields with their default value when deserializing.
   --precision=P     Precision for f32/f64 default values that aren't round numbers [default: 3].
   --variant-access  Derive the traits in the variant_access_traits crate on union types.
+  --union-deser     Custom deserialization for avro-rs multi-valued union types.
   -V, --version     Show version.
   -h, --help        Show this screen.
 ";
@@ -32,6 +33,7 @@ struct CmdArgs {
     flag_nullable: bool,
     flag_precision: Option<usize>,
     flag_variant_access: bool,
+    flag_union_deser: bool,
     flag_version: bool,
 }
 
@@ -61,6 +63,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         .precision(args.flag_precision.unwrap())
         .nullable(args.flag_nullable)
         .use_variant_access(args.flag_variant_access)
+        .use_avro_rs_unions(args.flag_union_deser)
         .build()?;
 
     g.gen(&source, &mut out)?;
