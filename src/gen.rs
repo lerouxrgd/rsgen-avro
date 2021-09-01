@@ -260,6 +260,7 @@ pub struct GeneratorBuilder {
     nullable: bool,
     use_variant_access: bool,
     use_avro_rs_unions: bool,
+    derive_builders: bool,
 }
 
 impl GeneratorBuilder {
@@ -270,6 +271,7 @@ impl GeneratorBuilder {
             nullable: false,
             use_variant_access: false,
             use_avro_rs_unions: false,
+            derive_builders: false,
         }
     }
 
@@ -300,6 +302,13 @@ impl GeneratorBuilder {
         self
     }
 
+    /// Adds support to derive builders using the `rust-derive-builder` crate.
+    /// Will derive builders for record structs.
+    pub fn derive_builders(mut self, derive_builders: bool) -> GeneratorBuilder {
+        self.derive_builders = derive_builders;
+        self
+    }
+
     /// Create a `Generator` with the builder parameters.
     pub fn build(self) -> Result<Generator> {
         let mut templater = Templater::new()?;
@@ -307,6 +316,7 @@ impl GeneratorBuilder {
         templater.nullable = self.nullable;
         templater.use_variant_access = self.use_variant_access;
         templater.use_avro_rs_unions = self.use_avro_rs_unions;
+        templater.derive_builders = self.derive_builders;
         Ok(Generator { templater })
     }
 }
