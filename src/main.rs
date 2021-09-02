@@ -16,13 +16,14 @@ Usage:
   rsgen-avro (-V | --version)
 
 Options:
-  --fmt             Run rustfmt on the resulting <output-file>
-  --nullable        Replace null fields with their default value when deserializing.
-  --precision=P     Precision for f32/f64 default values that aren't round numbers [default: 3].
-  --variant-access  Derive the traits in the variant_access_traits crate on union types.
-  --union-deser     Custom deserialization for avro-rs multi-valued union types.
-  -V, --version     Show version.
-  -h, --help        Show this screen.
+  --fmt              Run rustfmt on the resulting <output-file>
+  --nullable         Replace null fields with their default value when deserializing.
+  --precision=P      Precision for f32/f64 default values that aren't round numbers [default: 3].
+  --variant-access   Derive the traits in the variant_access_traits crate on union types.
+  --union-deser      Custom deserialization for avro-rs multi-valued union types.
+  --derive-builders  Derive builders for generated record structs.
+  -V, --version      Show version.
+  -h, --help         Show this screen.
 ";
 
 #[derive(Debug, Deserialize)]
@@ -34,6 +35,7 @@ struct CmdArgs {
     flag_precision: Option<usize>,
     flag_variant_access: bool,
     flag_union_deser: bool,
+    flag_derive_builders: bool,
     flag_version: bool,
 }
 
@@ -64,6 +66,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         .nullable(args.flag_nullable)
         .use_variant_access(args.flag_variant_access)
         .use_avro_rs_unions(args.flag_union_deser)
+        .derive_builders(args.flag_derive_builders)
         .build()?;
 
     g.gen(&source, &mut out)?;

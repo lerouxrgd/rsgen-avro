@@ -31,6 +31,7 @@ Options:
   --precision=P     Precision for f32/f64 default values that aren't round numbers [default: 3].
   --variant-access  Derive the traits in the variant_access_traits crate on union types.
   --union-deser     Custom deserialization for avro-rs multi-valued union types.
+  --derive-builders Derive builders for generated record structs.
   -V, --version     Show version.
   -h, --help        Show this screen.
 ```
@@ -97,6 +98,9 @@ Note also that the `Generator` can be customized with a builder:
 let g = Generator::builder().precision(2).build().unwrap();
 ```
 
+The `derive_builders` option will use the [derive-builder][] crate to derive builders for the generated structs.
+The builders will only be derived for those structs that are generated from Avro records.
+
 ## Limitations
 
 * Avro schema `namespace` fields are ignored, therefore names from a single schema must
@@ -105,3 +109,4 @@ let g = Generator::builder().precision(2).build().unwrap();
 [schemas]: https://avro.apache.org/docs/current/spec.html
 [avro-rs]: https://github.com/flavray/avro-rs
 [serde]: https://serde.rs
+[derive-builder]: https://github.com/colin-kiegel/rust-derive-builder

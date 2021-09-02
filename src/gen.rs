@@ -260,6 +260,7 @@ pub struct GeneratorBuilder {
     nullable: bool,
     use_variant_access: bool,
     use_avro_rs_unions: bool,
+    derive_builders: bool,
 }
 
 impl GeneratorBuilder {
@@ -270,6 +271,7 @@ impl GeneratorBuilder {
             nullable: false,
             use_variant_access: false,
             use_avro_rs_unions: false,
+            derive_builders: false,
         }
     }
 
@@ -300,6 +302,13 @@ impl GeneratorBuilder {
         self
     }
 
+    /// Adds support to derive builders using the `rust-derive-builder` crate.
+    /// Will derive builders for record structs.
+    pub fn derive_builders(mut self, derive_builders: bool) -> GeneratorBuilder {
+        self.derive_builders = derive_builders;
+        self
+    }
+
     /// Create a `Generator` with the builder parameters.
     pub fn build(self) -> Result<Generator> {
         let mut templater = Templater::new()?;
@@ -307,6 +316,7 @@ impl GeneratorBuilder {
         templater.nullable = self.nullable;
         templater.use_variant_access = self.use_variant_access;
         templater.use_avro_rs_unions = self.use_avro_rs_unions;
+        templater.derive_builders = self.derive_builders;
         Ok(Generator { templater })
     }
 }
@@ -362,6 +372,45 @@ impl Default for Test {
 ";
 
         let g = Generator::new().unwrap();
+        assert_schema_gen!(g, expected, raw_schema);
+    }
+
+    #[test]
+    fn simple_with_builders() {
+        let raw_schema = r#"
+{
+  "type": "record",
+  "name": "test",
+  "fields": [
+    {"name": "a", "type": "long", "default": 42},
+    {"name": "b", "type": "string"}
+  ]
+}
+"#;
+
+        let expected = "
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize, derive_builder::Builder)]
+#[serde(default)]
+#[builder(setter(into))]
+pub struct Test {
+    pub a: i64,
+    pub b: String,
+}
+
+impl Default for Test {
+    fn default() -> Test {
+        Test {
+            a: 42,
+            b: String::default(),
+        }
+    }
+}
+";
+
+        let g = GeneratorBuilder::new()
+            .derive_builders(true)
+            .build()
+            .unwrap();
         assert_schema_gen!(g, expected, raw_schema);
     }
 

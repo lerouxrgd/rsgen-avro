@@ -31,8 +31,11 @@ pub const RECORD_TEMPLATE: &str = r#"
 {%- if doc %}
 /// {{ doc }}
 {%- endif %}
-#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize{%- if derive_builders %}, derive_builder::Builder {%- endif %})]
 #[serde(default)]
+{%- if derive_builders %}
+#[builder(setter(into))]
+{%- endif %}
 pub struct {{ name }} {
     {%- for f in fields %}
     {%- set type = types[f] %}
@@ -199,6 +202,7 @@ pub struct Templater {
     pub nullable: bool,
     pub use_variant_access: bool,
     pub use_avro_rs_unions: bool,
+    pub derive_builders: bool,
 }
 
 impl Templater {
@@ -217,6 +221,7 @@ impl Templater {
             nullable: false,
             use_variant_access: false,
             use_avro_rs_unions: false,
+            derive_builders: false,
         })
     }
 
@@ -282,6 +287,7 @@ impl Templater {
             ctx.insert("name", &name.to_camel_case());
             let doc = if let Some(d) = doc { d } else { "" };
             ctx.insert("doc", doc);
+            ctx.insert("derive_builders", &self.derive_builders);
 
             let mut f = Vec::new(); // field names;
             let mut t = HashMap::new(); // field name -> field type
