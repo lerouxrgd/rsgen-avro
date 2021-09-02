@@ -376,6 +376,45 @@ impl Default for Test {
     }
 
     #[test]
+    fn simple_with_builders() {
+        let raw_schema = r#"
+{
+  "type": "record",
+  "name": "test",
+  "fields": [
+    {"name": "a", "type": "long", "default": 42},
+    {"name": "b", "type": "string"}
+  ]
+}
+"#;
+
+        let expected = "
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize, derive_builder::Builder)]
+#[serde(default)]
+#[builder(setter(into))]
+pub struct Test {
+    pub a: i64,
+    pub b: String,
+}
+
+impl Default for Test {
+    fn default() -> Test {
+        Test {
+            a: 42,
+            b: String::default(),
+        }
+    }
+}
+";
+
+        let g = GeneratorBuilder::new()
+            .derive_builders(true)
+            .build()
+            .unwrap();
+        assert_schema_gen!(g, expected, raw_schema);
+    }
+
+    #[test]
     fn complex() {
         let raw_schema = r#"
 {
