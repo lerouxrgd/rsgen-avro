@@ -650,8 +650,13 @@ impl Templater {
             },
 
             Schema::Uuid => match default {
-                Some(Value::String(s)) => Uuid::parse_str(&s)?.to_string(),
-                None => Uuid::nil().to_string(),
+                Some(Value::String(s)) => {
+                    format!(
+                        r#"uuid::Uuid::parse_str("{}").unwrap()"#,
+                        Uuid::parse_str(&s)?.to_string()
+                    )
+                }
+                None => "uuid::Uuid::nil()".to_string(),
                 _ => err!("Invalid default: {:?}", default)?,
             },
 
