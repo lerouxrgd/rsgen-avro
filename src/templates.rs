@@ -1,5 +1,7 @@
 //! Logic for templating Rust types and default values from Avro schema.
 
+#![allow(clippy::try_err)]
+
 use std::collections::{HashMap, HashSet};
 
 use avro_rs::schema::{Name, RecordField, UnionSchema};
@@ -256,7 +258,7 @@ impl Templater {
             ..
         } = schema
         {
-            if symbols.len() == 0 {
+            if symbols.is_empty() {
                 err!("No symbol for emum: {:?}", name)?
             }
             let mut ctx = Context::new();
@@ -659,7 +661,7 @@ impl Templater {
                 Some(Value::String(s)) => {
                     format!(
                         r#"uuid::Uuid::parse_str("{}").unwrap()"#,
-                        Uuid::parse_str(&s)?.to_string()
+                        Uuid::parse_str(s)?
                     )
                 }
                 None => "uuid::Uuid::nil()".to_string(),
@@ -674,7 +676,7 @@ impl Templater {
                     }
                     format!("{:?}", bytes)
                 }
-                None => String::from_utf8_lossy(&vec![0; 12]).to_string(),
+                None => String::from_utf8_lossy(&[0; 12]).to_string(),
                 _ => err!("Invalid default: {:?}", default)?,
             },
 
@@ -835,7 +837,7 @@ impl Templater {
                 ..
             } => {
                 let default_str = if let Some(Value::Object(o)) = default {
-                    if o.len() > 0 {
+                    if !o.is_empty() {
                         let vals = o
                             .iter()
                             .map(|(k, v)| {
@@ -1047,14 +1049,14 @@ pub(crate) fn union_type(
 ) -> Result<String> {
     let variants = union.variants();
 
-    if variants.len() == 0 {
+    if variants.is_empty() {
         err!("Invalid empty Schema::Union")?
     } else if variants.len() == 1 && variants[0] == Schema::Null {
         err!("Invalid Schema::Union of only Schema::Null")?
     }
 
     if union.is_nullable() && variants.len() == 2 {
-        return Ok(option_type(&variants[1], gen_state)?);
+        return option_type(&variants[1], gen_state);
     }
 
     let schemas = if variants[0] == Schema::Null {
@@ -1071,7 +1073,7 @@ pub(crate) fn union_type(
     if variants[0] == Schema::Null && wrap_if_optional {
         Ok(format!("Option<{}>", type_str))
     } else {
-        Ok(type_str.into())
+        Ok(type_str)
     }
 }
 
@@ -1183,7 +1185,7 @@ impl Default for User {
 "#;
 
         let templater = Templater::new().unwrap();
-        let schema = Schema::parse_str(&raw_schema).unwrap();
+        let schema = Schema::parse_str(raw_schema).unwrap();
         let gs = GenState::new();
         let res = templater.str_record(&schema, &gs).unwrap();
 
@@ -1222,7 +1224,7 @@ impl Default for User {
 "#;
 
         let templater = Templater::new().unwrap();
-        let schema = Schema::parse_str(&raw_schema).unwrap();
+        let schema = Schema::parse_str(raw_schema).unwrap();
         let gs = GenState::new();
         let res = templater.str_record(&schema, &gs).unwrap();
 
@@ -1267,7 +1269,7 @@ impl Default for User {
 "#;
 
         let templater = Templater::new().unwrap();
-        let schema = Schema::parse_str(&raw_schema).unwrap();
+        let schema = Schema::parse_str(raw_schema).unwrap();
         let gs = GenState::new();
         let res = templater.str_record(&schema, &gs).unwrap();
 
@@ -1286,7 +1288,7 @@ impl Default for User {
 "#;
 
         let templater = Templater::new().unwrap();
-        let schema = Schema::parse_str(&raw_schema).unwrap();
+        let schema = Schema::parse_str(raw_schema).unwrap();
         let res = templater.str_enum(&schema).unwrap();
 
         let expected = r#"
@@ -1316,7 +1318,7 @@ pub enum Colors {
 "#;
 
         let templater = Templater::new().unwrap();
-        let schema = Schema::parse_str(&raw_schema).unwrap();
+        let schema = Schema::parse_str(raw_schema).unwrap();
         let res = templater.str_fixed(&schema).unwrap();
 
         let expected = "
@@ -1340,7 +1342,7 @@ pub type Md5 = [u8; 16];
 "#;
 
         let templater = Templater::new().unwrap();
-        let schema = Schema::parse_str(&raw_schema).unwrap();
+        let schema = Schema::parse_str(raw_schema).unwrap();
         let gs = GenState::new();
         let res = templater.str_record(&schema, &gs).unwrap();
 
@@ -1375,7 +1377,7 @@ impl Default for Contact {
 "#;
 
         let templater = Templater::new().unwrap();
-        let schema = Schema::parse_str(&raw_schema).unwrap();
+        let schema = Schema::parse_str(raw_schema).unwrap();
         let res = templater.str_enum(&schema).unwrap();
 
         let expected = r#"
@@ -1423,7 +1425,7 @@ impl Default for User {
 "#;
 
         let templater = Templater::new().unwrap();
-        let schema = Schema::parse_str(&raw_schema).unwrap();
+        let schema = Schema::parse_str(raw_schema).unwrap();
         let gs = GenState::new();
         let res = templater.str_record(&schema, &gs).unwrap();
 
