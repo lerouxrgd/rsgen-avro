@@ -7,9 +7,9 @@ use docopt::Docopt;
 use rsgen_avro::{Generator, Source};
 use serde::Deserialize;
 
-const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-const USAGE: &'static str = "
+const USAGE: &str = "
 Usage:
   rsgen-avro [options] <schema-file-pattern> <output-file>
   rsgen-avro (-h | --help)

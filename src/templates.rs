@@ -1,10 +1,12 @@
 //! Logic for templating Rust types and default values from Avro schema.
 
+#![allow(clippy::try_err)]
+
 use std::collections::{HashMap, HashSet};
 
 use avro_rs::schema::{Name, RecordField, UnionSchema};
 use avro_rs::Schema;
-use heck::{CamelCase, SnakeCase};
+use heck::{ToSnakeCase, ToUpperCamelCase};
 use lazy_static::lazy_static;
 use serde_json::Value;
 use tera::{Context, Tera};
@@ -29,7 +31,10 @@ macro_rules! deser(
 pub const RECORD_TERA: &str = "record.tera";
 pub const RECORD_TEMPLATE: &str = r#"
 {%- if doc %}
-/// {{ doc }}
+{%- set doc_lines = doc | split(pat="\n") %}
+{%- for doc_line in doc_lines %}
+/// {{ doc_line }}
+{%- endfor %}
 {%- endif %}
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize{%- if derive_builders %}, derive_builder::Builder {%- endif %})]
 #[serde(default)]
@@ -71,7 +76,10 @@ impl Default for {{ name }} {
 pub const ENUM_TERA: &str = "enum.tera";
 pub const ENUM_TEMPLATE: &str = r#"
 {%- if doc %}
-/// {{ doc }}
+{%- set doc_lines = doc | split(pat="\n") %}
+{%- for doc_line in doc_lines %}
+/// {{ doc_line }}
+{%- endfor %}
 {%- endif %}
 #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, serde::Deserialize, serde::Serialize)]
 pub enum {{ name }} {
@@ -233,7 +241,7 @@ impl Templater {
         } = schema
         {
             let mut ctx = Context::new();
-            ctx.insert("name", &sanitize(name.to_camel_case()));
+            ctx.insert("name", &sanitize(name.to_upper_camel_case()));
             ctx.insert("size", size);
             Ok(self.tera.render(FIXED_TERA, &ctx)?)
         } else {
@@ -250,20 +258,20 @@ impl Templater {
             ..
         } = schema
         {
-            if symbols.len() == 0 {
+            if symbols.is_empty() {
                 err!("No symbol for emum: {:?}", name)?
             }
             let mut ctx = Context::new();
-            ctx.insert("name", &sanitize(name.to_camel_case()));
+            ctx.insert("name", &sanitize(name.to_upper_camel_case()));
             let doc = if let Some(d) = doc { d } else { "" };
             ctx.insert("doc", doc);
             let o: HashMap<_, _> = symbols
                 .iter()
-                .map(|s| (sanitize(s.to_camel_case()), s))
+                .map(|s| (sanitize(s.to_upper_camel_case()), s))
                 .collect();
             let s: Vec<_> = symbols
                 .iter()
-                .map(|s| sanitize(s.to_camel_case()))
+                .map(|s| sanitize(s.to_upper_camel_case()))
                 .collect();
             ctx.insert("originals", &o);
             ctx.insert("symbols", &s);
@@ -284,7 +292,7 @@ impl Templater {
         } = schema
         {
             let mut ctx = Context::new();
-            ctx.insert("name", &name.to_camel_case());
+            ctx.insert("name", &name.to_upper_camel_case());
             let doc = if let Some(d) = doc { d } else { "" };
             ctx.insert("doc", doc);
             ctx.insert("derive_builders", &self.derive_builders);
@@ -386,7 +394,7 @@ impl Templater {
                         ..
                     } => {
                         let default = self.parse_default(schema, gen_state, default.as_ref())?;
-                        let f_name = sanitize(f_name.to_camel_case());
+                        let f_name = sanitize(f_name.to_upper_camel_case());
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), f_name.clone());
                         d.insert(name_std.clone(), default);
@@ -421,7 +429,7 @@ impl Templater {
                         ..
                     } => {
                         let default = self.parse_default(schema, gen_state, default.as_ref())?;
-                        let r_name = sanitize(r_name.to_camel_case());
+                        let r_name = sanitize(r_name.to_upper_camel_case());
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), r_name.clone());
                         d.insert(name_std.clone(), default);
@@ -432,7 +440,7 @@ impl Templater {
                         ..
                     } => {
                         let default = self.parse_default(schema, gen_state, default.as_ref())?;
-                        let e_name = sanitize(e_name.to_camel_case());
+                        let e_name = sanitize(e_name.to_upper_camel_case());
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), e_name);
                         d.insert(name_std.clone(), default);
@@ -514,19 +522,19 @@ impl Templater {
                         name: Name { name, .. },
                         ..
                     } => {
-                        format!("{rec}({rec})", rec = name.to_camel_case())
+                        format!("{rec}({rec})", rec = name.to_upper_camel_case())
                     }
                     Schema::Enum {
                         name: Name { name, .. },
                         ..
                     } => {
-                        format!("{e}({e})", e = sanitize(name.to_camel_case()))
+                        format!("{e}({e})", e = sanitize(name.to_upper_camel_case()))
                     }
                     Schema::Fixed {
                         name: Name { name, .. },
                         ..
                     } => {
-                        format!("{f}({f})", f = sanitize(name.to_camel_case()))
+                        format!("{f}({f})", f = sanitize(name.to_upper_camel_case()))
                     }
                     Schema::Decimal { .. } => "Decimal(avro_rs::Decimal)".into(),
                     Schema::Uuid => "Uuid(uuid::Uuid)".into(),
@@ -653,7 +661,7 @@ impl Templater {
                 Some(Value::String(s)) => {
                     format!(
                         r#"uuid::Uuid::parse_str("{}").unwrap()"#,
-                        Uuid::parse_str(&s)?.to_string()
+                        Uuid::parse_str(s)?
                     )
                 }
                 None => "uuid::Uuid::nil()".to_string(),
@@ -668,7 +676,7 @@ impl Templater {
                     }
                     format!("{:?}", bytes)
                 }
-                None => String::from_utf8_lossy(&vec![0; 12]).to_string(),
+                None => String::from_utf8_lossy(&[0; 12]).to_string(),
                 _ => err!("Invalid default: {:?}", default)?,
             },
 
@@ -730,22 +738,22 @@ impl Templater {
                 symbols,
                 ..
             } => {
-                let e_name = sanitize(e_name.to_camel_case());
+                let e_name = sanitize(e_name.to_upper_camel_case());
                 let valids: HashSet<_> = symbols
                     .iter()
-                    .map(|s| sanitize(s.to_camel_case()))
+                    .map(|s| sanitize(s.to_upper_camel_case()))
                     .collect();
                 match default {
                     Some(Value::String(ref s)) => {
-                        let s = sanitize(s.to_camel_case());
+                        let s = sanitize(s.to_upper_camel_case());
                         if valids.contains(&s) {
-                            format!("{}::{}", e_name, sanitize(s.to_camel_case()))
+                            format!("{}::{}", e_name, sanitize(s.to_upper_camel_case()))
                         } else {
                             err!("Invalid default: {:?}", default)?
                         }
                     }
                     None if !symbols.is_empty() => {
-                        format!("{}::{}", e_name, sanitize(symbols[0].to_camel_case()))
+                        format!("{}::{}", e_name, sanitize(symbols[0].to_upper_camel_case()))
                     }
                     _ => err!("Invalid default: {:?}", default)?,
                 }
@@ -829,7 +837,7 @@ impl Templater {
                 ..
             } => {
                 let default_str = if let Some(Value::Object(o)) = default {
-                    if o.len() > 0 {
+                    if !o.is_empty() {
                         let vals = o
                             .iter()
                             .map(|(k, v)| {
@@ -845,14 +853,14 @@ impl Templater {
                             .join(" ");
                         format!(
                             "{{ let mut r = {}::default(); {} r }}",
-                            sanitize(name.to_camel_case()),
+                            sanitize(name.to_upper_camel_case()),
                             vals
                         )
                     } else {
-                        format!("{}::default()", sanitize(name.to_camel_case()))
+                        format!("{}::default()", sanitize(name.to_upper_camel_case()))
                     }
                 } else {
-                    format!("{}::default()", sanitize(name.to_camel_case()))
+                    format!("{}::default()", sanitize(name.to_upper_camel_case()))
                 };
                 Ok(default_str)
             }
@@ -908,7 +916,7 @@ pub(crate) fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String>
             name: Name { name: f_name, .. },
             ..
         } => {
-            let f_name = sanitize(f_name.to_camel_case());
+            let f_name = sanitize(f_name.to_upper_camel_case());
             format!("Vec<{}>", f_name)
         }
 
@@ -929,7 +937,7 @@ pub(crate) fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String>
         | Schema::Enum {
             name: Name { name, .. },
             ..
-        } => format!("Vec<{}>", &sanitize(name.to_camel_case())),
+        } => format!("Vec<{}>", &sanitize(name.to_upper_camel_case())),
 
         Schema::Null => err!("Invalid use of Schema::Null")?,
     };
@@ -965,7 +973,7 @@ pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
             name: Name { name: f_name, .. },
             ..
         } => {
-            let f_name = sanitize(f_name.to_camel_case());
+            let f_name = sanitize(f_name.to_upper_camel_case());
             map_of(&f_name)
         }
 
@@ -986,7 +994,7 @@ pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
         | Schema::Enum {
             name: Name { name, .. },
             ..
-        } => map_of(&sanitize(name.to_camel_case())),
+        } => map_of(&sanitize(name.to_upper_camel_case())),
 
         Schema::Null => err!("Invalid use of Schema::Null")?,
     };
@@ -1008,15 +1016,15 @@ fn union_enum_variant(schema: &Schema, gen_state: &GenState) -> Result<String> {
         Schema::Record {
             name: Name { name, .. },
             ..
-        } => name.to_camel_case(),
+        } => name.to_upper_camel_case(),
         Schema::Enum {
             name: Name { name, .. },
             ..
-        } => sanitize(name.to_camel_case()),
+        } => sanitize(name.to_upper_camel_case()),
         Schema::Fixed {
             name: Name { name, .. },
             ..
-        } => sanitize(name.to_camel_case()),
+        } => sanitize(name.to_upper_camel_case()),
 
         Schema::Decimal { .. } => "Decimal".into(),
         Schema::Uuid => "Uuid".into(),
@@ -1041,14 +1049,14 @@ pub(crate) fn union_type(
 ) -> Result<String> {
     let variants = union.variants();
 
-    if variants.len() == 0 {
+    if variants.is_empty() {
         err!("Invalid empty Schema::Union")?
     } else if variants.len() == 1 && variants[0] == Schema::Null {
         err!("Invalid Schema::Union of only Schema::Null")?
     }
 
     if union.is_nullable() && variants.len() == 2 {
-        return Ok(option_type(&variants[1], gen_state)?);
+        return option_type(&variants[1], gen_state);
     }
 
     let schemas = if variants[0] == Schema::Null {
@@ -1065,7 +1073,7 @@ pub(crate) fn union_type(
     if variants[0] == Schema::Null && wrap_if_optional {
         Ok(format!("Option<{}>", type_str))
     } else {
-        Ok(type_str.into())
+        Ok(type_str)
     }
 }
 
@@ -1094,7 +1102,7 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
             name: Name { name: f_name, .. },
             ..
         } => {
-            let f_name = sanitize(f_name.to_camel_case());
+            let f_name = sanitize(f_name.to_upper_camel_case());
             format!("Option<{}>", f_name)
         }
 
@@ -1115,7 +1123,7 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
         | Schema::Enum {
             name: Name { name, .. },
             ..
-        } => format!("Option<{}>", &sanitize(name.to_camel_case())),
+        } => format!("Option<{}>", &sanitize(name.to_upper_camel_case())),
 
         Schema::Null => err!("Invalid use of Schema::Null")?,
     };
@@ -1177,7 +1185,7 @@ impl Default for User {
 "#;
 
         let templater = Templater::new().unwrap();
-        let schema = Schema::parse_str(&raw_schema).unwrap();
+        let schema = Schema::parse_str(raw_schema).unwrap();
         let gs = GenState::new();
         let res = templater.str_record(&schema, &gs).unwrap();
 
@@ -1216,7 +1224,7 @@ impl Default for User {
 "#;
 
         let templater = Templater::new().unwrap();
-        let schema = Schema::parse_str(&raw_schema).unwrap();
+        let schema = Schema::parse_str(raw_schema).unwrap();
         let gs = GenState::new();
         let res = templater.str_record(&schema, &gs).unwrap();
 
@@ -1261,7 +1269,7 @@ impl Default for User {
 "#;
 
         let templater = Templater::new().unwrap();
-        let schema = Schema::parse_str(&raw_schema).unwrap();
+        let schema = Schema::parse_str(raw_schema).unwrap();
         let gs = GenState::new();
         let res = templater.str_record(&schema, &gs).unwrap();
 
@@ -1280,7 +1288,7 @@ impl Default for User {
 "#;
 
         let templater = Templater::new().unwrap();
-        let schema = Schema::parse_str(&raw_schema).unwrap();
+        let schema = Schema::parse_str(raw_schema).unwrap();
         let res = templater.str_enum(&schema).unwrap();
 
         let expected = r#"
@@ -1310,7 +1318,7 @@ pub enum Colors {
 "#;
 
         let templater = Templater::new().unwrap();
-        let schema = Schema::parse_str(&raw_schema).unwrap();
+        let schema = Schema::parse_str(raw_schema).unwrap();
         let res = templater.str_fixed(&schema).unwrap();
 
         let expected = "
@@ -1334,7 +1342,7 @@ pub type Md5 = [u8; 16];
 "#;
 
         let templater = Templater::new().unwrap();
-        let schema = Schema::parse_str(&raw_schema).unwrap();
+        let schema = Schema::parse_str(raw_schema).unwrap();
         let gs = GenState::new();
         let res = templater.str_record(&schema, &gs).unwrap();
 
@@ -1353,6 +1361,73 @@ impl Default for Contact {
     }
 }
 ";
+
+        assert_eq!(expected, res);
+    }
+
+    #[test]
+    fn multiline_enum_doc() {
+        let raw_schema = r#"
+{
+  "type": "enum",
+  "name": "Colors",
+  "doc": "Roses are red\nviolets are blue.",
+  "symbols": ["RED"]
+}
+"#;
+
+        let templater = Templater::new().unwrap();
+        let schema = Schema::parse_str(raw_schema).unwrap();
+        let res = templater.str_enum(&schema).unwrap();
+
+        let expected = r#"
+/// Roses are red
+/// violets are blue.
+#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, serde::Deserialize, serde::Serialize)]
+pub enum Colors {
+    #[serde(rename = "RED")]
+    Red,
+}
+"#;
+
+        assert_eq!(expected, res);
+    }
+
+    #[test]
+    fn multiline_record_doc() {
+        let raw_schema = r#"
+{
+  "type": "record",
+  "name": "User",
+  "doc": "Some user representation\nUsers love pizzas!",
+  "fields": [
+    {"name": "likes_pizza", "type": "boolean", "default": false}
+  ]
+}
+"#;
+
+        let expected = r#"
+/// Some user representation
+/// Users love pizzas!
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct User {
+    pub likes_pizza: bool,
+}
+
+impl Default for User {
+    fn default() -> User {
+        User {
+            likes_pizza: false,
+        }
+    }
+}
+"#;
+
+        let templater = Templater::new().unwrap();
+        let schema = Schema::parse_str(raw_schema).unwrap();
+        let gs = GenState::new();
+        let res = templater.str_record(&schema, &gs).unwrap();
 
         assert_eq!(expected, res);
     }

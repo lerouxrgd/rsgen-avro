@@ -48,7 +48,7 @@ impl Generator {
             }
 
             Source::SchemaStr(raw_schema) => {
-                let schema = Schema::parse_str(&raw_schema)?;
+                let schema = Schema::parse_str(raw_schema)?;
                 let mut deps = deps_stack(&schema, vec![]);
                 self.gen_in_order(&mut deps, output)?;
             }
@@ -63,10 +63,10 @@ impl Generator {
                 }
 
                 let schemas = &raw_schemas.iter().map(|s| s.as_str()).collect::<Vec<_>>();
-                let schemas = Schema::parse_list(&schemas)?;
+                let schemas = Schema::parse_list(schemas)?;
                 let mut deps = schemas
                     .iter()
-                    .fold(vec![], |deps, schema| deps_stack(&schema, deps));
+                    .fold(vec![], |deps, schema| deps_stack(schema, deps));
 
                 self.gen_in_order(&mut deps, output)?;
             }
@@ -125,7 +125,7 @@ impl Generator {
                     gs.put_type(&s, type_str)
                 }
 
-                _ => Err(Error::Schema(format!("Not a valid root schema: {:?}", s)))?,
+                _ => return Err(Error::Schema(format!("Not a valid root schema: {:?}", s))),
             }
         }
 
@@ -263,16 +263,22 @@ pub struct GeneratorBuilder {
     derive_builders: bool,
 }
 
-impl GeneratorBuilder {
-    /// Creates a new `GeneratorBuilder`.
-    pub fn new() -> GeneratorBuilder {
-        GeneratorBuilder {
+impl Default for GeneratorBuilder {
+    fn default() -> Self {
+        Self {
             precision: 3,
             nullable: false,
             use_variant_access: false,
             use_avro_rs_unions: false,
             derive_builders: false,
         }
+    }
+}
+
+impl GeneratorBuilder {
+    /// Creates a new `GeneratorBuilder`.
+    pub fn new() -> GeneratorBuilder {
+        GeneratorBuilder::default()
     }
 
     /// Sets the precision for default values of f32/f64 fields.
@@ -1156,7 +1162,7 @@ impl Default for Test {
 }
 "#;
 
-        let schema = Schema::parse_str(&raw_schema).unwrap();
+        let schema = Schema::parse_str(raw_schema).unwrap();
         let mut deps = deps_stack(&schema, vec![]);
 
         let s = deps.pop().unwrap();
