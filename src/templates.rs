@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 
 use avro_rs::schema::{Name, RecordField, UnionSchema};
 use avro_rs::Schema;
-use heck::{CamelCase, SnakeCase};
+use heck::{ToSnakeCase, ToUpperCamelCase};
 use lazy_static::lazy_static;
 use serde_json::Value;
 use tera::{Context, Tera};
@@ -241,7 +241,7 @@ impl Templater {
         } = schema
         {
             let mut ctx = Context::new();
-            ctx.insert("name", &sanitize(name.to_camel_case()));
+            ctx.insert("name", &sanitize(name.to_upper_camel_case()));
             ctx.insert("size", size);
             Ok(self.tera.render(FIXED_TERA, &ctx)?)
         } else {
@@ -262,16 +262,16 @@ impl Templater {
                 err!("No symbol for emum: {:?}", name)?
             }
             let mut ctx = Context::new();
-            ctx.insert("name", &sanitize(name.to_camel_case()));
+            ctx.insert("name", &sanitize(name.to_upper_camel_case()));
             let doc = if let Some(d) = doc { d } else { "" };
             ctx.insert("doc", doc);
             let o: HashMap<_, _> = symbols
                 .iter()
-                .map(|s| (sanitize(s.to_camel_case()), s))
+                .map(|s| (sanitize(s.to_upper_camel_case()), s))
                 .collect();
             let s: Vec<_> = symbols
                 .iter()
-                .map(|s| sanitize(s.to_camel_case()))
+                .map(|s| sanitize(s.to_upper_camel_case()))
                 .collect();
             ctx.insert("originals", &o);
             ctx.insert("symbols", &s);
@@ -292,7 +292,7 @@ impl Templater {
         } = schema
         {
             let mut ctx = Context::new();
-            ctx.insert("name", &name.to_camel_case());
+            ctx.insert("name", &name.to_upper_camel_case());
             let doc = if let Some(d) = doc { d } else { "" };
             ctx.insert("doc", doc);
             ctx.insert("derive_builders", &self.derive_builders);
@@ -394,7 +394,7 @@ impl Templater {
                         ..
                     } => {
                         let default = self.parse_default(schema, gen_state, default.as_ref())?;
-                        let f_name = sanitize(f_name.to_camel_case());
+                        let f_name = sanitize(f_name.to_upper_camel_case());
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), f_name.clone());
                         d.insert(name_std.clone(), default);
@@ -429,7 +429,7 @@ impl Templater {
                         ..
                     } => {
                         let default = self.parse_default(schema, gen_state, default.as_ref())?;
-                        let r_name = sanitize(r_name.to_camel_case());
+                        let r_name = sanitize(r_name.to_upper_camel_case());
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), r_name.clone());
                         d.insert(name_std.clone(), default);
@@ -440,7 +440,7 @@ impl Templater {
                         ..
                     } => {
                         let default = self.parse_default(schema, gen_state, default.as_ref())?;
-                        let e_name = sanitize(e_name.to_camel_case());
+                        let e_name = sanitize(e_name.to_upper_camel_case());
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), e_name);
                         d.insert(name_std.clone(), default);
@@ -522,19 +522,19 @@ impl Templater {
                         name: Name { name, .. },
                         ..
                     } => {
-                        format!("{rec}({rec})", rec = name.to_camel_case())
+                        format!("{rec}({rec})", rec = name.to_upper_camel_case())
                     }
                     Schema::Enum {
                         name: Name { name, .. },
                         ..
                     } => {
-                        format!("{e}({e})", e = sanitize(name.to_camel_case()))
+                        format!("{e}({e})", e = sanitize(name.to_upper_camel_case()))
                     }
                     Schema::Fixed {
                         name: Name { name, .. },
                         ..
                     } => {
-                        format!("{f}({f})", f = sanitize(name.to_camel_case()))
+                        format!("{f}({f})", f = sanitize(name.to_upper_camel_case()))
                     }
                     Schema::Decimal { .. } => "Decimal(avro_rs::Decimal)".into(),
                     Schema::Uuid => "Uuid(uuid::Uuid)".into(),
@@ -738,22 +738,22 @@ impl Templater {
                 symbols,
                 ..
             } => {
-                let e_name = sanitize(e_name.to_camel_case());
+                let e_name = sanitize(e_name.to_upper_camel_case());
                 let valids: HashSet<_> = symbols
                     .iter()
-                    .map(|s| sanitize(s.to_camel_case()))
+                    .map(|s| sanitize(s.to_upper_camel_case()))
                     .collect();
                 match default {
                     Some(Value::String(ref s)) => {
-                        let s = sanitize(s.to_camel_case());
+                        let s = sanitize(s.to_upper_camel_case());
                         if valids.contains(&s) {
-                            format!("{}::{}", e_name, sanitize(s.to_camel_case()))
+                            format!("{}::{}", e_name, sanitize(s.to_upper_camel_case()))
                         } else {
                             err!("Invalid default: {:?}", default)?
                         }
                     }
                     None if !symbols.is_empty() => {
-                        format!("{}::{}", e_name, sanitize(symbols[0].to_camel_case()))
+                        format!("{}::{}", e_name, sanitize(symbols[0].to_upper_camel_case()))
                     }
                     _ => err!("Invalid default: {:?}", default)?,
                 }
@@ -853,14 +853,14 @@ impl Templater {
                             .join(" ");
                         format!(
                             "{{ let mut r = {}::default(); {} r }}",
-                            sanitize(name.to_camel_case()),
+                            sanitize(name.to_upper_camel_case()),
                             vals
                         )
                     } else {
-                        format!("{}::default()", sanitize(name.to_camel_case()))
+                        format!("{}::default()", sanitize(name.to_upper_camel_case()))
                     }
                 } else {
-                    format!("{}::default()", sanitize(name.to_camel_case()))
+                    format!("{}::default()", sanitize(name.to_upper_camel_case()))
                 };
                 Ok(default_str)
             }
@@ -916,7 +916,7 @@ pub(crate) fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String>
             name: Name { name: f_name, .. },
             ..
         } => {
-            let f_name = sanitize(f_name.to_camel_case());
+            let f_name = sanitize(f_name.to_upper_camel_case());
             format!("Vec<{}>", f_name)
         }
 
@@ -937,7 +937,7 @@ pub(crate) fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String>
         | Schema::Enum {
             name: Name { name, .. },
             ..
-        } => format!("Vec<{}>", &sanitize(name.to_camel_case())),
+        } => format!("Vec<{}>", &sanitize(name.to_upper_camel_case())),
 
         Schema::Null => err!("Invalid use of Schema::Null")?,
     };
@@ -973,7 +973,7 @@ pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
             name: Name { name: f_name, .. },
             ..
         } => {
-            let f_name = sanitize(f_name.to_camel_case());
+            let f_name = sanitize(f_name.to_upper_camel_case());
             map_of(&f_name)
         }
 
@@ -994,7 +994,7 @@ pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
         | Schema::Enum {
             name: Name { name, .. },
             ..
-        } => map_of(&sanitize(name.to_camel_case())),
+        } => map_of(&sanitize(name.to_upper_camel_case())),
 
         Schema::Null => err!("Invalid use of Schema::Null")?,
     };
@@ -1016,15 +1016,15 @@ fn union_enum_variant(schema: &Schema, gen_state: &GenState) -> Result<String> {
         Schema::Record {
             name: Name { name, .. },
             ..
-        } => name.to_camel_case(),
+        } => name.to_upper_camel_case(),
         Schema::Enum {
             name: Name { name, .. },
             ..
-        } => sanitize(name.to_camel_case()),
+        } => sanitize(name.to_upper_camel_case()),
         Schema::Fixed {
             name: Name { name, .. },
             ..
-        } => sanitize(name.to_camel_case()),
+        } => sanitize(name.to_upper_camel_case()),
 
         Schema::Decimal { .. } => "Decimal".into(),
         Schema::Uuid => "Uuid".into(),
@@ -1102,7 +1102,7 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
             name: Name { name: f_name, .. },
             ..
         } => {
-            let f_name = sanitize(f_name.to_camel_case());
+            let f_name = sanitize(f_name.to_upper_camel_case());
             format!("Option<{}>", f_name)
         }
 
@@ -1123,7 +1123,7 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
         | Schema::Enum {
             name: Name { name, .. },
             ..
-        } => format!("Option<{}>", &sanitize(name.to_camel_case())),
+        } => format!("Option<{}>", &sanitize(name.to_upper_camel_case())),
 
         Schema::Null => err!("Invalid use of Schema::Null")?,
     };
