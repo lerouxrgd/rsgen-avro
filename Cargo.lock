@@ -656,7 +656,7 @@ checksum = "cabe4fa914dec5870285fa7f71f602645da47c486e68486d2b4ceb4a343e90ac"
 
 [[package]]
 name = "rsgen-avro"
-version = "0.9.8"
+version = "0.9.9"
 dependencies = [
  "avro-rs",
  "docopt",
