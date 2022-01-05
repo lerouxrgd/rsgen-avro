@@ -29,7 +29,10 @@ macro_rules! deser(
 pub const RECORD_TERA: &str = "record.tera";
 pub const RECORD_TEMPLATE: &str = r#"
 {%- if doc %}
-/// {{ doc }}
+{%- set doc_lines = doc | split(pat="\n") %}
+{%- for doc_line in doc_lines %}
+/// {{ doc_line }}
+{%- endfor %}
 {%- endif %}
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize{%- if derive_builders %}, derive_builder::Builder {%- endif %})]
 #[serde(default)]
@@ -71,7 +74,10 @@ impl Default for {{ name }} {
 pub const ENUM_TERA: &str = "enum.tera";
 pub const ENUM_TEMPLATE: &str = r#"
 {%- if doc %}
-/// {{ doc }}
+{%- set doc_lines = doc | split(pat="\n") %}
+{%- for doc_line in doc_lines %}
+/// {{ doc_line }}
+{%- endfor %}
 {%- endif %}
 #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, serde::Deserialize, serde::Serialize)]
 pub enum {{ name }} {
@@ -1353,6 +1359,73 @@ impl Default for Contact {
     }
 }
 ";
+
+        assert_eq!(expected, res);
+    }
+
+    #[test]
+    fn multiline_enum_doc() {
+        let raw_schema = r#"
+{
+  "type": "enum",
+  "name": "Colors",
+  "doc": "Roses are red\nviolets are blue.",
+  "symbols": ["RED"]
+}
+"#;
+
+        let templater = Templater::new().unwrap();
+        let schema = Schema::parse_str(&raw_schema).unwrap();
+        let res = templater.str_enum(&schema).unwrap();
+
+        let expected = r#"
+/// Roses are red
+/// violets are blue.
+#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, serde::Deserialize, serde::Serialize)]
+pub enum Colors {
+    #[serde(rename = "RED")]
+    Red,
+}
+"#;
+
+        assert_eq!(expected, res);
+    }
+
+    #[test]
+    fn multiline_record_doc() {
+        let raw_schema = r#"
+{
+  "type": "record",
+  "name": "User",
+  "doc": "Some user representation\nUsers love pizzas!",
+  "fields": [
+    {"name": "likes_pizza", "type": "boolean", "default": false}
+  ]
+}
+"#;
+
+        let expected = r#"
+/// Some user representation
+/// Users love pizzas!
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct User {
+    pub likes_pizza: bool,
+}
+
+impl Default for User {
+    fn default() -> User {
+        User {
+            likes_pizza: false,
+        }
+    }
+}
+"#;
+
+        let templater = Templater::new().unwrap();
+        let schema = Schema::parse_str(&raw_schema).unwrap();
+        let gs = GenState::new();
+        let res = templater.str_record(&schema, &gs).unwrap();
 
         assert_eq!(expected, res);
     }
