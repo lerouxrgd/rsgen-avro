@@ -4,8 +4,8 @@
 
 use std::collections::{HashMap, HashSet};
 
-use avro_rs::schema::{Name, RecordField, UnionSchema};
-use avro_rs::Schema;
+use apache_avro::schema::{Name, RecordField, UnionSchema};
+use apache_avro::Schema;
 use heck::{ToSnakeCase, ToUpperCamelCase};
 use lazy_static::lazy_static;
 use serde_json::Value;
@@ -238,6 +238,7 @@ impl Templater {
         if let Schema::Fixed {
             name: Name { name, .. },
             size,
+            ..
         } = schema
         {
             let mut ctx = Context::new();
@@ -316,6 +317,7 @@ impl Templater {
                 o.insert(name_std.clone(), name);
 
                 match schema {
+                    Schema::Ref { name: _ } => todo!("Schema::Ref"),
                     Schema::Boolean => {
                         let default = self.parse_default(schema, gen_state, default.as_ref())?;
                         f.push(name_std.clone());
@@ -496,6 +498,7 @@ impl Templater {
             let mut visitors = vec![];
             for sc in schemas {
                 let symbol_str = match sc {
+                    Schema::Ref { ref name } => name.fullname(None).into(),
                     Schema::Boolean => "Boolean(bool)".into(),
                     Schema::Int => "Int(i32)".into(),
                     Schema::Long => "Long(i64)".into(),
@@ -595,6 +598,7 @@ impl Templater {
         default: Option<&serde_json::Value>,
     ) -> Result<String> {
         let default_str = match schema {
+            Schema::Ref { name: _ } => todo!("Schema::Ref"),
             Schema::Boolean => match default {
                 Some(Value::Bool(b)) => b.to_string(),
                 None => bool::default().to_string(),
@@ -692,6 +696,7 @@ impl Templater {
                 Schema::Fixed {
                     name: Name { name: f_name, .. },
                     size,
+                    ..
                 } => match default {
                     Some(Value::String(s)) => {
                         let bytes = s.clone().into_bytes();
@@ -709,6 +714,7 @@ impl Templater {
             Schema::Fixed {
                 name: Name { name: f_name, .. },
                 size,
+                ..
             } => match default {
                 Some(Value::String(s)) => {
                     let bytes = s.clone().into_bytes();
@@ -894,6 +900,7 @@ impl Templater {
 /// Generates the Rust type of the inner schema of an Avro array.
 pub(crate) fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
     let type_str = match inner {
+        Schema::Ref { name: _ } => todo!("Schema::Ref"),
         Schema::Boolean => "Vec<bool>".into(),
         Schema::Int => "Vec<i32>".into(),
         Schema::Long => "Vec<i64>".into(),
@@ -951,6 +958,7 @@ pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
     }
 
     let type_str = match inner {
+        Schema::Ref { name: _ } => todo!("Schema::Ref"),
         Schema::Boolean => map_of("bool"),
         Schema::Int => map_of("i32"),
         Schema::Long => map_of("i64"),
@@ -1003,6 +1011,7 @@ pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
 
 fn union_enum_variant(schema: &Schema, gen_state: &GenState) -> Result<String> {
     let variant_str = match schema {
+        Schema::Ref { name: _ } => todo!("Schema::Ref"),
         Schema::Boolean => "Boolean".into(),
         Schema::Int => "Int".into(),
         Schema::Long => "Long".into(),
@@ -1080,6 +1089,7 @@ pub(crate) fn union_type(
 /// Generates the Rust type of the inner schema of an Avro optional union.
 pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
     let type_str = match inner {
+        Schema::Ref { name: _ } => todo!("Schema::Ref"),
         Schema::Boolean => "Option<bool>".into(),
         Schema::Int => "Option<i32>".into(),
         Schema::Long => "Option<i64>".into(),

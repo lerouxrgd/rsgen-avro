@@ -10,7 +10,7 @@ pub enum Error {
     #[error("Unexpected io error: {}", .0)]
     Io(#[from] std::io::Error),
     #[error("AvroRs error: {}", .0)]
-    AvroRs(#[from] avro_rs::Error),
+    AvroRs(#[from] apache_avro::Error),
     #[error("Invalid glob pattern: {}", .0)]
     GlobPattern(#[from] glob::PatternError),
 }
