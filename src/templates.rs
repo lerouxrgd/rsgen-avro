@@ -260,7 +260,7 @@ impl Templater {
         } = schema
         {
             if symbols.is_empty() {
-                err!("No symbol for emum: {:?}", name)?
+                err!("No symbol for enum: {:?}", name)?
             }
             let mut ctx = Context::new();
             ctx.insert("name", &sanitize(name.to_upper_camel_case()));
@@ -284,7 +284,7 @@ impl Templater {
 
     /// Generates a Rust struct based on a Schema::Record schema.
     /// Makes use of a `GenState` for nested schemas (i.e. Array/Map/Union).
-    pub fn str_record(&self, schema: &Schema, gen_state: &GenState) -> Result<String> {
+    pub fn str_record(&self, schema: &Schema, gen_state: &GenState, schemata_by_name: &HashMap<Name, Schema>) -> Result<String> {
         if let Schema::Record {
             name: Name { name, .. },
             fields,
@@ -316,8 +316,18 @@ impl Templater {
                 let name_std = sanitize(name.to_snake_case());
                 o.insert(name_std.clone(), name);
 
+                let schema = if let Schema::Ref { ref name } = schema {
+                        schemata_by_name
+                            .get(name)
+                            .expect(format!("Unknown schema ref: {:?}", name).as_str())
+                } else {
+                    schema
+                };
+
                 match schema {
-                    Schema::Ref { name: _ } => {},
+                    Schema::Ref { .. } => {
+                        // already resolved above
+                    }
                     Schema::Boolean => {
                         let default = self.parse_default(schema, gen_state, default.as_ref())?;
                         f.push(name_std.clone());
@@ -1197,7 +1207,7 @@ impl Default for User {
         let templater = Templater::new().unwrap();
         let schema = Schema::parse_str(raw_schema).unwrap();
         let gs = GenState::new();
-        let res = templater.str_record(&schema, &gs).unwrap();
+        let res = templater.str_record(&schema, &gs, &HashMap::new()).unwrap();
 
         assert_eq!(expected, res);
     }
@@ -1236,7 +1246,7 @@ impl Default for User {
         let templater = Templater::new().unwrap();
         let schema = Schema::parse_str(raw_schema).unwrap();
         let gs = GenState::new();
-        let res = templater.str_record(&schema, &gs).unwrap();
+        let res = templater.str_record(&schema, &gs, &HashMap::new()).unwrap();
 
         assert_eq!(expected, res);
     }
@@ -1281,7 +1291,7 @@ impl Default for User {
         let templater = Templater::new().unwrap();
         let schema = Schema::parse_str(raw_schema).unwrap();
         let gs = GenState::new();
-        let res = templater.str_record(&schema, &gs).unwrap();
+        let res = templater.str_record(&schema, &gs, &HashMap::new()).unwrap();
 
         assert_eq!(expected, res);
     }
@@ -1354,7 +1364,7 @@ pub type Md5 = [u8; 16];
         let templater = Templater::new().unwrap();
         let schema = Schema::parse_str(raw_schema).unwrap();
         let gs = GenState::new();
-        let res = templater.str_record(&schema, &gs).unwrap();
+        let res = templater.str_record(&schema, &gs, &HashMap::new()).unwrap();
 
         let expected = "
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
@@ -1437,7 +1447,7 @@ impl Default for User {
         let templater = Templater::new().unwrap();
         let schema = Schema::parse_str(raw_schema).unwrap();
         let gs = GenState::new();
-        let res = templater.str_record(&schema, &gs).unwrap();
+        let res = templater.str_record(&schema, &gs, &HashMap::new()).unwrap();
 
         assert_eq!(expected, res);
     }
