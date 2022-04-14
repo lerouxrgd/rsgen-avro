@@ -317,7 +317,7 @@ impl Templater {
                 o.insert(name_std.clone(), name);
 
                 match schema {
-                    Schema::Ref { name: _ } => todo!("Schema::Ref"),
+                    Schema::Ref { name: _ } => {},
                     Schema::Boolean => {
                         let default = self.parse_default(schema, gen_state, default.as_ref())?;
                         f.push(name_std.clone());
@@ -380,14 +380,14 @@ impl Templater {
                     Schema::Duration => {
                         let default = self.parse_default(schema, gen_state, default.as_ref())?;
                         f.push(name_std.clone());
-                        t.insert(name_std.clone(), "avro_rs::Duration".to_string());
+                        t.insert(name_std.clone(), "apache_avro::Duration".to_string());
                         d.insert(name_std.clone(), default);
                     }
 
                     Schema::Decimal { .. } => {
                         let default = self.parse_default(schema, gen_state, default.as_ref())?;
                         f.push(name_std.clone());
-                        t.insert(name_std.clone(), "avro_rs::Decimal".to_string());
+                        t.insert(name_std.clone(), "apache_avro::Decimal".to_string());
                         d.insert(name_std.clone(), default);
                     }
 
@@ -539,14 +539,14 @@ impl Templater {
                     } => {
                         format!("{f}({f})", f = sanitize(name.to_upper_camel_case()))
                     }
-                    Schema::Decimal { .. } => "Decimal(avro_rs::Decimal)".into(),
+                    Schema::Decimal { .. } => "Decimal(apache_avro::Decimal)".into(),
                     Schema::Uuid => "Uuid(uuid::Uuid)".into(),
                     Schema::Date => "Date(i32)".into(),
                     Schema::TimeMillis => "TimeMillis(i32)".into(),
                     Schema::TimeMicros => "TimeMicros(i64)".into(),
                     Schema::TimestampMillis => "TimestampMillis(i64)".into(),
                     Schema::TimestampMicros => "TimestampMicros(i64)".into(),
-                    Schema::Duration => "Duration(avro_rs::Duration)".into(),
+                    Schema::Duration => "Duration(apache_avro::Duration)".into(),
                     Schema::Null => err!(
                         "Invalid Schema::Null not in first position on an UnionSchema variants"
                     )?,
@@ -916,8 +916,8 @@ pub(crate) fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String>
         Schema::TimestampMicros => "Vec<i64>".into(),
 
         Schema::Uuid => "Vec<uuid::Uuid>".into(),
-        Schema::Decimal { .. } => "Vec<avro_rs::Decimal>".into(),
-        Schema::Duration { .. } => "Vec<avro_rs::Duration>".into(),
+        Schema::Decimal { .. } => "Vec<apache_avro::Decimal>".into(),
+        Schema::Duration { .. } => "Vec<apache_avro::Duration>".into(),
 
         Schema::Fixed {
             name: Name { name: f_name, .. },
@@ -974,8 +974,8 @@ pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
         Schema::TimestampMicros => map_of("i64"),
 
         Schema::Uuid => map_of("uuid::Uuid"),
-        Schema::Decimal { .. } => map_of("avro_rs::Decimal"),
-        Schema::Duration { .. } => map_of("avro_rs::Duration"),
+        Schema::Decimal { .. } => map_of("apache_avro::Decimal"),
+        Schema::Duration { .. } => map_of("apache_avro::Duration"),
 
         Schema::Fixed {
             name: Name { name: f_name, .. },
@@ -1105,8 +1105,8 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
         Schema::TimestampMicros => "Option<i64>".into(),
 
         Schema::Uuid => "Option<uuid::Uuid>".into(),
-        Schema::Decimal { .. } => "Option<avro_rs::Decimal>".into(),
-        Schema::Duration { .. } => "Option<avro_rs::Duration>".into(),
+        Schema::Decimal { .. } => "Option<apache_avro::Decimal>".into(),
+        Schema::Duration { .. } => "Option<apache_avro::Duration>".into(),
 
         Schema::Fixed {
             name: Name { name: f_name, .. },

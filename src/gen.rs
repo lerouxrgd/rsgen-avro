@@ -329,7 +329,7 @@ impl GeneratorBuilder {
 
 #[cfg(test)]
 mod tests {
-    use avro_rs::schema::Name;
+    use apache_avro::schema::Name;
 
     use super::*;
 

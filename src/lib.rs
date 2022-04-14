@@ -74,7 +74,7 @@
 //!
 //! ```rust
 //! pub enum Source<'a> {
-//!     Schema(&'a avro_rs::Schema), // from re-exported `avro-rs` crate
+//!     Schema(&'a apache_avro::Schema), // from re-exported `apache_avro` crate
 //!     SchemaStr(&'a str),          // schema as a json string
 //!     GlobPattern(&'a str),        // pattern to schema files
 //! }
