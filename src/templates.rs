@@ -343,7 +343,7 @@ impl Templater {
                 let schema = if let Schema::Ref { ref name } = schema {
                         gen_state
                             .get_schema(name)
-                            .expect(format!("Unknown schema ref: {:?}", name).as_str())
+                            .expect(format!("Schema reference '{:?}' cannot be resolved", name).as_str())
                 } else {
                     schema
                 };
@@ -534,7 +534,7 @@ impl Templater {
                 let symbol_str = match sc {
                     Schema::Ref { ref name } => match gen_state.get_schema(name) {
                         Some(s) => self.str_union_enum(s, gen_state)?,
-                        None => err!("Schema reference {:?} cannot be resolved", name)?,
+                        None => err!("Schema reference '{:?}' cannot be resolved", name)?,
                     },
                     Schema::Boolean => "Boolean(bool)".into(),
                     Schema::Int => "Int(i32)".into(),
@@ -637,7 +637,7 @@ impl Templater {
         let default_str = match schema {
             Schema::Ref { name } => match gen_state.get_schema(name) {
                 Some(s) => self.parse_default(s, gen_state, default)?,
-                None => err!("Schema reference {:?} cannot be resolved", name)?,
+                None => err!("Schema reference '{:?}' cannot be resolved", name)?,
             },
 
             Schema::Boolean => match default {
@@ -943,7 +943,7 @@ pub(crate) fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String>
     let type_str = match inner {
         Schema::Ref { name } => match gen_state.get_schema(name) {
             Some(s) => array_type(s, gen_state)?,
-            None => err!("Schema reference {:?} cannot be resolved", name)?,
+            None => err!("Schema reference '{:?}' cannot be resolved", name)?,
         },
         Schema::Boolean => "Vec<bool>".into(),
         Schema::Int => "Vec<i32>".into(),
@@ -1004,7 +1004,7 @@ pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
     let type_str = match inner {
         Schema::Ref { name } => match gen_state.get_schema(name) {
             Some(s) => map_type(s, gen_state)?,
-            None => err!("Schema reference {:?} cannot be resolved", name)?,
+            None => err!("Schema reference '{:?}' cannot be resolved", name)?,
         },
         Schema::Boolean => map_of("bool"),
         Schema::Int => map_of("i32"),
@@ -1060,7 +1060,7 @@ fn union_enum_variant(schema: &Schema, gen_state: &GenState) -> Result<String> {
     let variant_str = match schema {
         Schema::Ref { name } => match gen_state.get_schema(name) {
             Some(s) => union_enum_variant(s, gen_state)?,
-            None => err!("Schema reference {:?} cannot be resolved", name)?,
+            None => err!("Schema reference '{:?}' cannot be resolved", name)?,
         },
         Schema::Boolean => "Boolean".into(),
         Schema::Int => "Int".into(),
@@ -1141,7 +1141,7 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
     let type_str = match inner {
         Schema::Ref { name } => match gen_state.get_schema(name) {
             Some(s) => option_type(s, gen_state)?,
-            None => err!("Schema reference {:?} cannot be resolved", name)?,
+            None => err!("Schema reference '{:?}' cannot be resolved", name)?,
         },
         Schema::Boolean => "Option<bool>".into(),
         Schema::Int => "Option<i32>".into(),
