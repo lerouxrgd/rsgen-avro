@@ -68,7 +68,6 @@ impl Generator {
                     .iter()
                     .fold(vec![], |deps, schema| deps_stack(schema, deps));
 
-                eprintln!("-- schemas: {:?}", &deps);
                 self.gen_in_order(&mut deps, output)?;
             }
         }
