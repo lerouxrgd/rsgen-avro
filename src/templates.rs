@@ -532,7 +532,10 @@ impl Templater {
             let mut visitors = vec![];
             for sc in schemas {
                 let symbol_str = match sc {
-                    Schema::Ref { ref name } => name.fullname(None).into(),
+                    Schema::Ref { ref name } => match gen_state.get_schema(name) {
+                        Some(s) => self.str_union_enum(s, gen_state)?,
+                        None => err!("Schema reference {:?} cannot be resolved", name)?,
+                    },
                     Schema::Boolean => "Boolean(bool)".into(),
                     Schema::Int => "Int(i32)".into(),
                     Schema::Long => "Long(i64)".into(),
@@ -632,7 +635,11 @@ impl Templater {
         default: Option<&serde_json::Value>,
     ) -> Result<String> {
         let default_str = match schema {
-            Schema::Ref { name: _ } => todo!("Schema::Ref"),
+            Schema::Ref { name } => match gen_state.get_schema(name) {
+                Some(s) => self.parse_default(s, gen_state, default)?,
+                None => err!("Schema reference {:?} cannot be resolved", name)?,
+            },
+
             Schema::Boolean => match default {
                 Some(Value::Bool(b)) => b.to_string(),
                 None => bool::default().to_string(),
@@ -934,7 +941,10 @@ impl Templater {
 /// Generates the Rust type of the inner schema of an Avro array.
 pub(crate) fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
     let type_str = match inner {
-        Schema::Ref { name: _ } => todo!("Schema::Ref"),
+        Schema::Ref { name } => match gen_state.get_schema(name) {
+            Some(s) => array_type(s, gen_state)?,
+            None => err!("Schema reference {:?} cannot be resolved", name)?,
+        },
         Schema::Boolean => "Vec<bool>".into(),
         Schema::Int => "Vec<i32>".into(),
         Schema::Long => "Vec<i64>".into(),
@@ -992,7 +1002,10 @@ pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
     }
 
     let type_str = match inner {
-        Schema::Ref { name: _ } => todo!("Schema::Ref"),
+        Schema::Ref { name } => match gen_state.get_schema(name) {
+            Some(s) => map_type(s, gen_state)?,
+            None => err!("Schema reference {:?} cannot be resolved", name)?,
+        },
         Schema::Boolean => map_of("bool"),
         Schema::Int => map_of("i32"),
         Schema::Long => map_of("i64"),
@@ -1045,7 +1058,10 @@ pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
 
 fn union_enum_variant(schema: &Schema, gen_state: &GenState) -> Result<String> {
     let variant_str = match schema {
-        Schema::Ref { name: _ } => todo!("Schema::Ref"),
+        Schema::Ref { name } => match gen_state.get_schema(name) {
+            Some(s) => union_enum_variant(s, gen_state)?,
+            None => err!("Schema reference {:?} cannot be resolved", name)?,
+        },
         Schema::Boolean => "Boolean".into(),
         Schema::Int => "Int".into(),
         Schema::Long => "Long".into(),
@@ -1123,7 +1139,10 @@ pub(crate) fn union_type(
 /// Generates the Rust type of the inner schema of an Avro optional union.
 pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
     let type_str = match inner {
-        Schema::Ref { name: _ } => todo!("Schema::Ref"),
+        Schema::Ref { name } => match gen_state.get_schema(name) {
+            Some(s) => option_type(s, gen_state)?,
+            None => err!("Schema reference {:?} cannot be resolved", name)?,
+        },
         Schema::Boolean => "Option<bool>".into(),
         Schema::Int => "Option<i32>".into(),
         Schema::Long => "Option<i64>".into(),
