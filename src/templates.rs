@@ -178,25 +178,49 @@ struct GenUnionVisitor {
 
 /// A helper struct for nested schema generation.
 ///
-/// Used to store inner schema String type so that outter schema String type can be created.
+/// Used to store inner schema String type so that outer schema String type can be created.
 #[derive(Debug)]
-pub struct GenState(HashMap<String, String>);
+pub struct GenState {
+    inner: HashMap<String, String>,
+    types_by_schema: HashMap<Name, Schema>
+}
 
 impl GenState {
     pub fn new() -> GenState {
-        GenState(HashMap::new())
+        GenState::with_deps(&[])
+    }
+
+    pub fn with_deps(deps: &[Schema]) -> GenState {
+        let types_by_schema: HashMap<Name, Schema> = deps
+            .iter()
+            .filter_map(|s| match s {
+                Schema::Record { name, .. }
+                | Schema::Fixed { name, .. }
+                | Schema::Enum { name, .. } => Some((name.clone(), s.clone())),
+                _ => None,
+            })
+            .collect::<HashMap<_, _>>();
+
+        GenState {
+            inner: HashMap::new(),
+            types_by_schema
+        }
+    }
+
+    pub(crate) fn get_schema(&self, name: &Name) -> Option<&Schema> {
+        self.types_by_schema.get(name)
     }
 
     /// Stores the String type of a given schema.
     pub fn put_type(&mut self, schema: &Schema, t: String) {
         let k = serde_json::to_string(schema).expect("Unexpected invalid schema");
-        self.0.insert(k, t);
+        self.inner.insert(k, t);
     }
 
     /// Retrieves the String type of a given schema.
     pub fn get_type(&self, schema: &Schema) -> Option<&String> {
         let k = serde_json::to_string(schema).expect("Unexpected invalid schema");
-        self.0.get(&k)
+        self.inner.get(&k)
     }
 }
 
@@ -284,7 +308,7 @@ impl Templater {
 
     /// Generates a Rust struct based on a Schema::Record schema.
     /// Makes use of a `GenState` for nested schemas (i.e. Array/Map/Union).
-    pub fn str_record(&self, schema: &Schema, gen_state: &GenState, schemata_by_name: &HashMap<Name, Schema>) -> Result<String> {
+    pub fn str_record(&self, schema: &Schema, gen_state: &GenState) -> Result<String> {
         if let Schema::Record {
             name: Name { name, .. },
             fields,
@@ -317,8 +341,8 @@ impl Templater {
                 o.insert(name_std.clone(), name);
 
                 let schema = if let Schema::Ref { ref name } = schema {
-                        schemata_by_name
-                            .get(name)
+                        gen_state
+                            .get_schema(name)
                             .expect(format!("Unknown schema ref: {:?}", name).as_str())
                 } else {
                     schema
@@ -1207,7 +1231,7 @@ impl Default for User {
         let templater = Templater::new().unwrap();
         let schema = Schema::parse_str(raw_schema).unwrap();
         let gs = GenState::new();
-        let res = templater.str_record(&schema, &gs, &HashMap::new()).unwrap();
+        let res = templater.str_record(&schema, &gs).unwrap();
 
         assert_eq!(expected, res);
     }
@@ -1246,7 +1270,7 @@ impl Default for User {
         let templater = Templater::new().unwrap();
         let schema = Schema::parse_str(raw_schema).unwrap();
         let gs = GenState::new();
-        let res = templater.str_record(&schema, &gs, &HashMap::new()).unwrap();
+        let res = templater.str_record(&schema, &gs).unwrap();
 
         assert_eq!(expected, res);
     }
@@ -1291,7 +1315,7 @@ impl Default for User {
         let templater = Templater::new().unwrap();
         let schema = Schema::parse_str(raw_schema).unwrap();
         let gs = GenState::new();
-        let res = templater.str_record(&schema, &gs, &HashMap::new()).unwrap();
+        let res = templater.str_record(&schema, &gs).unwrap();
 
         assert_eq!(expected, res);
     }
@@ -1364,7 +1388,7 @@ pub type Md5 = [u8; 16];
         let templater = Templater::new().unwrap();
         let schema = Schema::parse_str(raw_schema).unwrap();
         let gs = GenState::new();
-        let res = templater.str_record(&schema, &gs, &HashMap::new()).unwrap();
+        let res = templater.str_record(&schema, &gs).unwrap();
 
         let expected = "
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
@@ -1447,7 +1471,7 @@ impl Default for User {
         let templater = Templater::new().unwrap();
         let schema = Schema::parse_str(raw_schema).unwrap();
         let gs = GenState::new();
-        let res = templater.str_record(&schema, &gs, &HashMap::new()).unwrap();
+        let res = templater.str_record(&schema, &gs).unwrap();
 
         assert_eq!(expected, res);
     }

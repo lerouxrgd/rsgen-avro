@@ -3,7 +3,6 @@ use std::fs;
 use std::io::prelude::*;
 
 use apache_avro::{schema::RecordField, Schema};
-use apache_avro::schema::Name;
 
 use crate::error::{Error, Result};
 use crate::templates::*;
@@ -83,18 +82,7 @@ impl Generator {
     /// * Keeps tracks of nested schema->name with `GenState` mapping
     /// * Appends generated Rust types to the output
     fn gen_in_order(&self, deps: &mut Vec<Schema>, output: &mut impl Write) -> Result<()> {
-        let mut gs = GenState::new();
-        let mut schemata_by_name: HashMap<Name, Schema> = HashMap::new();
-        deps.iter().for_each(|s| match s {
-            Schema::Record { name, .. }
-            | Schema::Fixed { name, .. }
-            | Schema::Enum { name, .. } => {
-                let name = name.clone();
-                let schema = s.clone();
-                schemata_by_name.insert(name, schema);
-            },
-            _ => (),
-        });
+        let mut gs = GenState::with_deps(deps);
 
         while let Some(s) = deps.pop() {
             match s {
@@ -110,7 +98,7 @@ impl Generator {
 
                 // Generate code with potentially nested types
                 Schema::Record { .. } => {
-                    let code = &self.templater.str_record(&s, &gs, &schemata_by_name)?;
+                    let code = &self.templater.str_record(&s, &gs)?;
                     output.write_all(code.as_bytes())?
                 }
 
