@@ -181,8 +181,8 @@ struct GenUnionVisitor {
 /// Used to store inner schema String type so that outer schema String type can be created.
 #[derive(Debug)]
 pub struct GenState {
-    inner: HashMap<String, String>,
-    types_by_schema: HashMap<Name, Schema>
+    types_by_schema: HashMap<String, String>,
+    schemata_by_name: HashMap<Name, Schema>
 }
 
 impl GenState {
@@ -191,7 +191,7 @@ impl GenState {
     }
 
     pub fn with_deps(deps: &[Schema]) -> GenState {
-        let types_by_schema: HashMap<Name, Schema> = deps
+        let schemata_by_name: HashMap<Name, Schema> = deps
             .iter()
             .filter_map(|s| match s {
                 Schema::Record { name, .. }
@@ -202,25 +202,25 @@ impl GenState {
             .collect::<HashMap<_, _>>();
 
         GenState {
-            inner: HashMap::new(),
-            types_by_schema
+            types_by_schema: HashMap::new(),
+            schemata_by_name
         }
     }
 
     pub(crate) fn get_schema(&self, name: &Name) -> Option<&Schema> {
-        self.types_by_schema.get(name)
+        self.schemata_by_name.get(name)
     }
 
     /// Stores the String type of a given schema.
     pub fn put_type(&mut self, schema: &Schema, t: String) {
         let k = serde_json::to_string(schema).expect("Unexpected invalid schema");
-        self.inner.insert(k, t);
+        self.types_by_schema.insert(k, t);
     }
 
     /// Retrieves the String type of a given schema.
     pub fn get_type(&self, schema: &Schema) -> Option<&String> {
         let k = serde_json::to_string(schema).expect("Unexpected invalid schema");
-        self.inner.get(&k)
+        self.types_by_schema.get(&k)
     }
 }
 
