@@ -1,6 +1,6 @@
 [package]
 name = "rsgen-avro"
-version = "0.9.9"
+version = "0.9.10"
 authors = ["Romain Leroux <romain@leroux.dev>"]
 edition = "2021"
 description = "Command line and library for generating Rust types from Avro schemas"
@@ -19,7 +19,7 @@ serde = { version = "1", features = ["serde_derive"] }
 serde_json = "1"
 tera = "1"
 thiserror = "1"
-uuid = { version = "0.8", features = ["serde", "v4"] }
+uuid = { version = "1", features = ["serde", "v4"] }
 
 [dev-dependencies]
 tempfile = "3"
