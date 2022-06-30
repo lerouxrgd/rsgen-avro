@@ -359,23 +359,16 @@ mod tests {
 }
 "#;
 
-        let expected = "
+        let expected = r#"
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default)]
 pub struct Test {
+    #[serde(default = "default_test_a")]
     pub a: i64,
     pub b: String,
 }
 
-impl Default for Test {
-    fn default() -> Test {
-        Test {
-            a: 42,
-            b: String::default(),
-        }
-    }
-}
-";
+fn default_test_a() -> i64 { 42 }
+"#;
 
         let g = Generator::new().unwrap();
         assert_schema_gen!(g, expected, raw_schema);
@@ -394,24 +387,17 @@ impl Default for Test {
 }
 "#;
 
-        let expected = "
+        let expected = r#"
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize, derive_builder::Builder)]
-#[serde(default)]
 #[builder(setter(into))]
 pub struct Test {
+    #[serde(default = "default_test_a")]
     pub a: i64,
     pub b: String,
 }
 
-impl Default for Test {
-    fn default() -> Test {
-        Test {
-            a: 42,
-            b: String::default(),
-        }
-    }
-}
-";
+fn default_test_a() -> i64 { 42 }
+"#;
 
         let g = GeneratorBuilder::new()
             .derive_builders(true)
@@ -442,27 +428,29 @@ impl Default for Test {
         let expected = r#"
 /// Hi there.
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default)]
 pub struct User {
+    #[serde(default = "default_user_name")]
     pub name: String,
+    #[serde(default = "default_user_favorite_number")]
     pub favorite_number: i32,
+    #[serde(default = "default_user_likes_pizza")]
     pub likes_pizza: bool,
+    #[serde(default = "default_user_oye")]
     pub oye: f32,
     #[serde(rename = "aa-i32")]
+    #[serde(default = "default_user_aa_i32")]
     pub aa_i32: Vec<Vec<i32>>,
 }
 
-impl Default for User {
-    fn default() -> User {
-        User {
-            name: "".to_owned(),
-            favorite_number: 7,
-            likes_pizza: false,
-            oye: 1.100,
-            aa_i32: vec![vec![0], vec![12, -1]],
-        }
-    }
-}
+fn default_user_name() -> String { "".to_owned() }
+
+fn default_user_favorite_number() -> i32 { 7 }
+
+fn default_user_likes_pizza() -> bool { false }
+
+fn default_user_oye() -> f32 { 1.100 }
+
+fn default_user_aa_i32() -> Vec<Vec<i32>> { vec![vec![0], vec![12, -1]] }
 "#;
 
         let g = Generator::new().unwrap();
@@ -521,62 +509,40 @@ impl Default for User {
 
         let expected = r#"
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default)]
 pub struct Variable {
+    #[serde(default = "default_variable_oid")]
     pub oid: Option<Vec<i64>>,
+    #[serde(default = "default_variable_val")]
     pub val: Option<String>,
 }
 
-impl Default for Variable {
-    fn default() -> Variable {
-        Variable {
-            oid: None,
-            val: None,
-        }
-    }
-}
+fn default_variable_oid() -> Option<Vec<i64>> { None }
+
+fn default_variable_val() -> Option<String> { None }
 
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default)]
 pub struct TrapV1 {
+    #[serde(default = "default_trapv1_var")]
     pub var: Option<Vec<Variable>>,
 }
 
-impl Default for TrapV1 {
-    fn default() -> TrapV1 {
-        TrapV1 {
-            var: None,
-        }
-    }
-}
+fn default_trapv1_var() -> Option<Vec<Variable>> { None }
 
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default)]
 pub struct V1 {
+    #[serde(default = "default_v1_pdu")]
     pub pdu: Option<TrapV1>,
 }
 
-impl Default for V1 {
-    fn default() -> V1 {
-        V1 {
-            pdu: None,
-        }
-    }
-}
+fn default_v1_pdu() -> Option<TrapV1> { None }
 
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default)]
 pub struct Snmp {
+    #[serde(default = "default_snmp_v1")]
     pub v1: Option<V1>,
 }
 
-impl Default for Snmp {
-    fn default() -> Snmp {
-        Snmp {
-            v1: None,
-        }
-    }
-}
+fn default_snmp_v1() -> Option<V1> { None }
 "#;
 
         let g = Generator::new().unwrap();
@@ -614,25 +580,23 @@ impl Default for Snmp {
 
         let expected = r#"
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default)]
 pub struct KsqlDataSourceSchema {
     #[serde(rename = "ID")]
+    #[serde(default = "default_ksqldatasourceschema_id")]
     pub id: Option<String>,
     #[serde(rename = "GROUP_IDS")]
+    #[serde(default = "default_ksqldatasourceschema_group_ids")]
     pub group_ids: Option<Vec<Option<String>>>,
     #[serde(rename = "GROUP_NAMES")]
+    #[serde(default = "default_ksqldatasourceschema_group_names")]
     pub group_names: Option<Vec<Option<String>>>,
 }
 
-impl Default for KsqlDataSourceSchema {
-    fn default() -> KsqlDataSourceSchema {
-        KsqlDataSourceSchema {
-            id: None,
-            group_ids: None,
-            group_names: None,
-        }
-    }
-}
+fn default_ksqldatasourceschema_id() -> Option<String> { None }
+
+fn default_ksqldatasourceschema_group_ids() -> Option<Vec<Option<String>>> { None }
+
+fn default_ksqldatasourceschema_group_names() -> Option<Vec<Option<String>>> { None }
 "#;
 
         let g = Generator::new().unwrap();
@@ -665,17 +629,8 @@ pub enum UnionStringLongDoubleBoolean {
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default)]
 pub struct Contact {
     pub extra: ::std::collections::HashMap<String, Option<UnionStringLongDoubleBoolean>>,
-}
-
-impl Default for Contact {
-    fn default() -> Contact {
-        Contact {
-            extra: ::std::collections::HashMap::new(),
-        }
-    }
 }
 "#;
 
@@ -706,21 +661,11 @@ impl Default for Contact {
 
         let expected = r#"
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default)]
 pub struct AvroShortUuid {
     #[serde(rename = "mostBits")]
     pub most_bits: i64,
     #[serde(rename = "leastBits")]
     pub least_bits: i64,
-}
-
-impl Default for AvroShortUuid {
-    fn default() -> AvroShortUuid {
-        AvroShortUuid {
-            most_bits: 0,
-            least_bits: 0,
-        }
-    }
 }
 
 /// Auto-generated type for unnamed Avro union variants.
@@ -731,17 +676,8 @@ pub enum UnionStringAvroShortUuid {
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default)]
 pub struct AvroFileId {
     pub id: UnionStringAvroShortUuid,
-}
-
-impl Default for AvroFileId {
-    fn default() -> AvroFileId {
-        AvroFileId {
-            id: UnionStringAvroShortUuid::String(String::default()),
-        }
-    }
 }
 "#;
 
@@ -775,17 +711,8 @@ pub enum UnionStringLongDoubleBoolean {
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default)]
 pub struct Contact {
     pub extra: ::std::collections::HashMap<String, Option<UnionStringLongDoubleBoolean>>,
-}
-
-impl Default for Contact {
-    fn default() -> Contact {
-        Contact {
-            extra: ::std::collections::HashMap::new(),
-        }
-    }
 }
 "#;
 
@@ -819,21 +746,11 @@ impl Default for Contact {
 
         let expected = r#"
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default)]
 pub struct AvroShortUuid {
     #[serde(rename = "mostBits")]
     pub most_bits: i64,
     #[serde(rename = "leastBits")]
     pub least_bits: i64,
-}
-
-impl Default for AvroShortUuid {
-    fn default() -> AvroShortUuid {
-        AvroShortUuid {
-            most_bits: 0,
-            least_bits: 0,
-        }
-    }
 }
 
 /// Auto-generated type for unnamed Avro union variants.
@@ -844,17 +761,8 @@ pub enum UnionStringAvroShortUuid {
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default)]
 pub struct AvroFileId {
     pub id: UnionStringAvroShortUuid,
-}
-
-impl Default for AvroFileId {
-    fn default() -> AvroFileId {
-        AvroFileId {
-            id: UnionStringAvroShortUuid::String(String::default()),
-        }
-    }
 }
 "#;
 
@@ -932,17 +840,8 @@ impl<'de> serde::Deserialize<'de> for UnionStringLongDoubleBoolean {
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default)]
 pub struct Contact {
     pub extra: ::std::collections::HashMap<String, Option<UnionStringLongDoubleBoolean>>,
-}
-
-impl Default for Contact {
-    fn default() -> Contact {
-        Contact {
-            extra: ::std::collections::HashMap::new(),
-        }
-    }
 }
 "#;
 
@@ -976,21 +875,11 @@ impl Default for Contact {
 
         let expected = r#"
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default)]
 pub struct AvroShortUuid {
     #[serde(rename = "mostBits")]
     pub most_bits: i64,
     #[serde(rename = "leastBits")]
     pub least_bits: i64,
-}
-
-impl Default for AvroShortUuid {
-    fn default() -> AvroShortUuid {
-        AvroShortUuid {
-            most_bits: 0,
-            least_bits: 0,
-        }
-    }
 }
 
 /// Auto-generated type for unnamed Avro union variants.
@@ -1021,17 +910,8 @@ impl<'de> serde::Deserialize<'de> for UnionStringAvroShortUuid {
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default)]
 pub struct AvroFileId {
     pub id: UnionStringAvroShortUuid,
-}
-
-impl Default for AvroFileId {
-    fn default() -> AvroFileId {
-        AvroFileId {
-            id: UnionStringAvroShortUuid::String(String::default()),
-        }
-    }
 }
 "#;
 
@@ -1070,26 +950,24 @@ macro_rules! deser(
 );
 
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default)]
 pub struct Test {
     #[serde(deserialize_with = "nullable_test_a")]
+    #[serde(default = "default_test_a")]
     pub a: i64,
     #[serde(rename = "b-b", deserialize_with = "nullable_test_b_b")]
+    #[serde(default = "default_test_b_b")]
     pub b_b: String,
+    #[serde(default = "default_test_c")]
     pub c: Option<i32>,
 }
 deser!(nullable_test_a, i64, 42);
 deser!(nullable_test_b_b, String, "na".to_owned());
 
-impl Default for Test {
-    fn default() -> Test {
-        Test {
-            a: 42,
-            b_b: "na".to_owned(),
-            c: None,
-        }
-    }
-}
+fn default_test_a() -> i64 { 42 }
+
+fn default_test_b_b() -> String { "na".to_owned() }
+
+fn default_test_c() -> Option<i32> { None }
 "#;
         let g = Generator::builder().nullable(true).build().unwrap();
         assert_schema_gen!(g, expected, raw_schema);
@@ -1208,31 +1086,13 @@ impl Default for Test {
 
         let expected = r#"
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default)]
 pub struct B {
     pub field_one: A,
 }
 
-impl Default for B {
-    fn default() -> B {
-        B {
-            field_one: A::default(),
-        }
-    }
-}
-
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default)]
 pub struct A {
     pub field_one: f32,
-}
-
-impl Default for A {
-    fn default() -> A {
-        A {
-            field_one: 0.0,
-        }
-    }
 }
 "#;
 
