@@ -428,6 +428,7 @@ fn default_test_a() -> i64 { 42 }
         let expected = r#"
 /// Hi there.
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct User {
     #[serde(default = "default_user_name")]
     pub name: String,
@@ -451,6 +452,18 @@ fn default_user_likes_pizza() -> bool { false }
 fn default_user_oye() -> f32 { 1.100 }
 
 fn default_user_aa_i32() -> Vec<Vec<i32>> { vec![vec![0], vec![12, -1]] }
+
+impl Default for User {
+    fn default() -> User {
+        User {
+            name: default_user_name(),
+            favorite_number: default_user_favorite_number(),
+            likes_pizza: default_user_likes_pizza(),
+            oye: default_user_oye(),
+            aa_i32: default_user_aa_i32(),
+        }
+    }
+}
 "#;
 
         let g = Generator::new().unwrap();
@@ -509,6 +522,7 @@ fn default_user_aa_i32() -> Vec<Vec<i32>> { vec![vec![0], vec![12, -1]] }
 
         let expected = r#"
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct Variable {
     #[serde(default = "default_variable_oid")]
     pub oid: Option<Vec<i64>>,
@@ -520,7 +534,17 @@ fn default_variable_oid() -> Option<Vec<i64>> { None }
 
 fn default_variable_val() -> Option<String> { None }
 
+impl Default for Variable {
+    fn default() -> Variable {
+        Variable {
+            oid: default_variable_oid(),
+            val: default_variable_val(),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct TrapV1 {
     #[serde(default = "default_trapv1_var")]
     pub var: Option<Vec<Variable>>,
@@ -528,7 +552,16 @@ pub struct TrapV1 {
 
 fn default_trapv1_var() -> Option<Vec<Variable>> { None }
 
+impl Default for TrapV1 {
+    fn default() -> TrapV1 {
+        TrapV1 {
+            var: default_trapv1_var(),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct V1 {
     #[serde(default = "default_v1_pdu")]
     pub pdu: Option<TrapV1>,
@@ -536,13 +569,30 @@ pub struct V1 {
 
 fn default_v1_pdu() -> Option<TrapV1> { None }
 
+impl Default for V1 {
+    fn default() -> V1 {
+        V1 {
+            pdu: default_v1_pdu(),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct Snmp {
     #[serde(default = "default_snmp_v1")]
     pub v1: Option<V1>,
 }
 
 fn default_snmp_v1() -> Option<V1> { None }
+
+impl Default for Snmp {
+    fn default() -> Snmp {
+        Snmp {
+            v1: default_snmp_v1(),
+        }
+    }
+}
 "#;
 
         let g = Generator::new().unwrap();
@@ -580,6 +630,7 @@ fn default_snmp_v1() -> Option<V1> { None }
 
         let expected = r#"
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct KsqlDataSourceSchema {
     #[serde(rename = "ID")]
     #[serde(default = "default_ksqldatasourceschema_id")]
@@ -597,6 +648,16 @@ fn default_ksqldatasourceschema_id() -> Option<String> { None }
 fn default_ksqldatasourceschema_group_ids() -> Option<Vec<Option<String>>> { None }
 
 fn default_ksqldatasourceschema_group_names() -> Option<Vec<Option<String>>> { None }
+
+impl Default for KsqlDataSourceSchema {
+    fn default() -> KsqlDataSourceSchema {
+        KsqlDataSourceSchema {
+            id: default_ksqldatasourceschema_id(),
+            group_ids: default_ksqldatasourceschema_group_ids(),
+            group_names: default_ksqldatasourceschema_group_names(),
+        }
+    }
+}
 "#;
 
         let g = Generator::new().unwrap();
@@ -728,6 +789,7 @@ pub struct Contact {
   "name": "AvroFileId",
   "fields": [ {
     "name": "id",
+    "default": "",
     "type": [
       "string", {
       "type": "record",
@@ -761,8 +823,20 @@ pub enum UnionStringAvroShortUuid {
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct AvroFileId {
+    #[serde(default = "default_avrofileid_id")]
     pub id: UnionStringAvroShortUuid,
+}
+
+fn default_avrofileid_id() -> UnionStringAvroShortUuid { UnionStringAvroShortUuid::String("".to_owned()) }
+
+impl Default for AvroFileId {
+    fn default() -> AvroFileId {
+        AvroFileId {
+            id: default_avrofileid_id(),
+        }
+    }
 }
 "#;
 
@@ -950,6 +1024,7 @@ macro_rules! deser(
 );
 
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct Test {
     #[serde(deserialize_with = "nullable_test_a")]
     #[serde(default = "default_test_a")]
@@ -968,6 +1043,16 @@ fn default_test_a() -> i64 { 42 }
 fn default_test_b_b() -> String { "na".to_owned() }
 
 fn default_test_c() -> Option<i32> { None }
+
+impl Default for Test {
+    fn default() -> Test {
+        Test {
+            a: default_test_a(),
+            b_b: default_test_b_b(),
+            c: default_test_c(),
+        }
+    }
+}
 "#;
         let g = Generator::builder().nullable(true).build().unwrap();
         assert_schema_gen!(g, expected, raw_schema);

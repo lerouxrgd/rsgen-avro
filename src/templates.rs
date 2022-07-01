@@ -40,6 +40,9 @@ pub const RECORD_TEMPLATE: &str = r#"
 {%- if derive_builders %}
 #[builder(setter(into))]
 {%- endif %}
+{%- if fields | length == defaults | length %}
+#[serde(default)]
+{%- endif %}
 pub struct {{ name }} {
     {%- for f in fields %}
     {%- set type = types[f] %}
@@ -66,10 +69,22 @@ deser!(nullable_{{ name|lower }}_{{ f }}, {{ type }}, {{ defaults[f] }});
 
 {%- for f in fields %}
 {%- if defaults is containing(f) %}
-
+{# #}
 fn default_{{ name | lower }}_{{ f | lower | trim_start_matches(pat="r#") }}() -> {{ types[f] }} { {{ defaults[f] }} }
 {%- endif %}
 {%- endfor %}
+{%- if fields | length == defaults | length %}
+{# #}
+impl Default for {{ name }} {
+    fn default() -> {{ name }} {
+        {{ name }} {
+            {%- for f in fields %}
+            {{ f }}: default_{{ name | lower }}_{{ f | lower | trim_start_matches(pat="r#") }}(),
+            {%- endfor %}
+        }
+    }
+}
+{%- endif %}
 "#;
 
 pub const ENUM_TERA: &str = "enum.tera";
@@ -791,8 +806,7 @@ impl Templater {
                 .join(", ");
             Ok(format!("vec![{}]", vals))
         } else {
-            // "vec![]".to_string()
-            panic!()
+            err!("Invalid default: {:?}, expected: Array", default)
         }
     }
 
@@ -820,8 +834,7 @@ impl Templater {
                 ))
             }
         } else {
-            // "::std::collections::HashMap::new()".to_string()
-            panic!()
+            err!("Invalid default: {:?}, expected: Map", default)
         }
     }
 
@@ -863,8 +876,7 @@ impl Templater {
                         format!("{}::default()", sanitize(name.to_upper_camel_case()))
                     }
                 } else {
-                    // format!("{}::default()", sanitize(name.to_upper_camel_case()))
-                    panic!()
+                    err!("Invalid default: {:?}, expected: Object", default)?
                 };
                 Ok(default_str)
             }
@@ -1211,6 +1223,7 @@ fn default_user_a_i32() -> Vec<i32> { vec![12, -1] }
 
         let expected = r#"
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct User {
     #[serde(rename = "m-f64")]
     #[serde(default = "default_user_m_f64")]
@@ -1218,6 +1231,14 @@ pub struct User {
 }
 
 fn default_user_m_f64() -> ::std::collections::HashMap<String, f64> { { let mut m = ::std::collections::HashMap::new(); m.insert("a".to_owned(), 12.0); m.insert("b".to_owned(), 42.100); m } }
+
+impl Default for User {
+    fn default() -> User {
+        User {
+            m_f64: default_user_m_f64(),
+        }
+    }
+}
 "#;
 
         let templater = Templater::new().unwrap();
@@ -1251,12 +1272,21 @@ fn default_user_m_f64() -> ::std::collections::HashMap<String, f64> { { let mut 
 
         let expected = r#"
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct User {
     #[serde(default = "default_user_info")]
     pub info: Info,
 }
 
 fn default_user_info() -> Info { { let mut r = Info::default(); r.name = "bob".to_owned(); r } }
+
+impl Default for User {
+    fn default() -> User {
+        User {
+            info: default_user_info(),
+        }
+    }
+}
 "#;
 
         let templater = Templater::new().unwrap();
@@ -1392,12 +1422,21 @@ pub enum Colors {
 /// Some user representation
 /// Users love pizzas!
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct User {
     #[serde(default = "default_user_likes_pizza")]
     pub likes_pizza: bool,
 }
 
 fn default_user_likes_pizza() -> bool { false }
+
+impl Default for User {
+    fn default() -> User {
+        User {
+            likes_pizza: default_user_likes_pizza(),
+        }
+    }
+}
 "#;
 
         let templater = Templater::new().unwrap();
@@ -1406,5 +1445,149 @@ fn default_user_likes_pizza() -> bool { false }
         let res = templater.str_record(&schema, &gs).unwrap();
 
         assert_eq!(expected, res);
+    }
+    #[test]
+    fn test_bad_default_for_array() {
+        let raw_schema = r#"
+        {
+          "type": "record",
+          "name": "User",
+          "fields": [
+            {"name": "m-f64",
+             "type": {"type": "array", "items": "double"},
+             "default": {}
+             }
+          ]
+        }
+        "#;
+
+        let templater = Templater::new().unwrap();
+        let schema = Schema::parse_str(&raw_schema).unwrap();
+        let gs = GenState::new();
+        let res = templater.str_record(&schema, &gs).unwrap_err();
+        if let Error::Template(res) = res {
+            assert_eq!(
+                res,
+                "Invalid default: Object({}), expected: Array".to_owned()
+            );
+        } else {
+            assert!(false, "Unexpected error value.")
+        }
+    }
+
+    #[test]
+    fn test_bad_default_for_map() {
+        let raw_schema = r#"
+        {
+          "type": "record",
+          "name": "User",
+          "fields": [
+            {"name": "m-f64",
+             "type": {"type": "map", "values": "double"},
+             "default": []
+             }
+          ]
+        }
+        "#;
+
+        let templater = Templater::new().unwrap();
+        let schema = Schema::parse_str(&raw_schema).unwrap();
+        let gs = GenState::new();
+        let res = templater.str_record(&schema, &gs).unwrap_err();
+        if let Error::Template(res) = res {
+            assert_eq!(res, "Invalid default: Array([]), expected: Map".to_owned());
+        } else {
+            assert!(false, "Unexpected error value.")
+        }
+    }
+
+    #[test]
+    fn test_bad_default_for_record() {
+        let raw_schema = r#"
+        {
+          "type": "record",
+          "name": "User",
+          "fields": [
+            {"name": "m-f64",
+             "type": {
+                 "type": "record",
+                 "name": "Inner",
+                 "fields": [
+                     {
+                        "name": "a",
+                        "type": "boolean"
+                     }
+                 ]
+             },
+             "default": []
+             }
+          ]
+        }
+        "#;
+
+        let templater = Templater::new().unwrap();
+        let schema = Schema::parse_str(&raw_schema).unwrap();
+        let gs = GenState::new();
+        let res = templater.str_record(&schema, &gs).unwrap_err();
+        if let Error::Template(res) = res {
+            assert_eq!(
+                res,
+                "Invalid default: Array([]), expected: Object".to_owned()
+            );
+        } else {
+            assert!(false, "Unexpected error value.")
+        }
+    }
+
+    #[test]
+    fn test_record_default() {
+        let raw_schema = r#"
+        {
+          "type": "record",
+          "name": "User",
+          "fields": [
+            {"name": "m-f64",
+             "type": {
+                 "type": "record",
+                 "name": "Inner",
+                 "fields": [
+                     {
+                        "name": "a",
+                        "type": "boolean"
+                     }
+                 ]
+             },
+             "default": { "a": true }
+             }
+          ]
+        }
+        "#;
+
+        let expected = r#"
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct User {
+    #[serde(rename = "m-f64")]
+    #[serde(default = "default_user_m_f64")]
+    pub m_f64: Inner,
+}
+
+fn default_user_m_f64() -> Inner { { let mut r = Inner::default(); r.a = true; r } }
+
+impl Default for User {
+    fn default() -> User {
+        User {
+            m_f64: default_user_m_f64(),
+        }
+    }
+}
+"#;
+
+        let templater = Templater::new().unwrap();
+        let schema = Schema::parse_str(&raw_schema).unwrap();
+        let gs = GenState::new();
+        let res = templater.str_record(&schema, &gs).unwrap();
+
+        assert_eq!(expected, res)
     }
 }
