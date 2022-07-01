@@ -53,7 +53,7 @@ pub struct {{ name }} {
     {%- elif nullable and not type is starting_with("Option") %}
     #[serde(deserialize_with = "nullable_{{ name|lower }}_{{ f }}")]
     {%- endif %}
-    {%- if defaults is containing(f) %}
+    {%- if defaults is containing(f) and not fields | length == defaults | length %}
     #[serde(default = "default_{{ name | lower }}_{{ f | lower | trim_start_matches(pat="r#") }}")]
     {%- endif %}
     pub {{ f }}: {{ type }},
@@ -1226,7 +1226,6 @@ fn default_user_a_i32() -> Vec<i32> { vec![12, -1] }
 #[serde(default)]
 pub struct User {
     #[serde(rename = "m-f64")]
-    #[serde(default = "default_user_m_f64")]
     pub m_f64: ::std::collections::HashMap<String, f64>,
 }
 
@@ -1274,7 +1273,6 @@ impl Default for User {
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct User {
-    #[serde(default = "default_user_info")]
     pub info: Info,
 }
 
@@ -1424,7 +1422,6 @@ pub enum Colors {
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct User {
-    #[serde(default = "default_user_likes_pizza")]
     pub likes_pizza: bool,
 }
 
@@ -1568,7 +1565,6 @@ impl Default for User {
 #[serde(default)]
 pub struct User {
     #[serde(rename = "m-f64")]
-    #[serde(default = "default_user_m_f64")]
     pub m_f64: Inner,
 }
 

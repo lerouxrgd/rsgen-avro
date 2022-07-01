@@ -430,16 +430,11 @@ fn default_test_a() -> i64 { 42 }
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct User {
-    #[serde(default = "default_user_name")]
     pub name: String,
-    #[serde(default = "default_user_favorite_number")]
     pub favorite_number: i32,
-    #[serde(default = "default_user_likes_pizza")]
     pub likes_pizza: bool,
-    #[serde(default = "default_user_oye")]
     pub oye: f32,
     #[serde(rename = "aa-i32")]
-    #[serde(default = "default_user_aa_i32")]
     pub aa_i32: Vec<Vec<i32>>,
 }
 
@@ -524,9 +519,7 @@ impl Default for User {
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct Variable {
-    #[serde(default = "default_variable_oid")]
     pub oid: Option<Vec<i64>>,
-    #[serde(default = "default_variable_val")]
     pub val: Option<String>,
 }
 
@@ -546,7 +539,6 @@ impl Default for Variable {
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct TrapV1 {
-    #[serde(default = "default_trapv1_var")]
     pub var: Option<Vec<Variable>>,
 }
 
@@ -563,7 +555,6 @@ impl Default for TrapV1 {
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct V1 {
-    #[serde(default = "default_v1_pdu")]
     pub pdu: Option<TrapV1>,
 }
 
@@ -580,7 +571,6 @@ impl Default for V1 {
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct Snmp {
-    #[serde(default = "default_snmp_v1")]
     pub v1: Option<V1>,
 }
 
@@ -633,13 +623,10 @@ impl Default for Snmp {
 #[serde(default)]
 pub struct KsqlDataSourceSchema {
     #[serde(rename = "ID")]
-    #[serde(default = "default_ksqldatasourceschema_id")]
     pub id: Option<String>,
     #[serde(rename = "GROUP_IDS")]
-    #[serde(default = "default_ksqldatasourceschema_group_ids")]
     pub group_ids: Option<Vec<Option<String>>>,
     #[serde(rename = "GROUP_NAMES")]
-    #[serde(default = "default_ksqldatasourceschema_group_names")]
     pub group_names: Option<Vec<Option<String>>>,
 }
 
@@ -825,7 +812,6 @@ pub enum UnionStringAvroShortUuid {
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct AvroFileId {
-    #[serde(default = "default_avrofileid_id")]
     pub id: UnionStringAvroShortUuid,
 }
 
@@ -1027,12 +1013,9 @@ macro_rules! deser(
 #[serde(default)]
 pub struct Test {
     #[serde(deserialize_with = "nullable_test_a")]
-    #[serde(default = "default_test_a")]
     pub a: i64,
     #[serde(rename = "b-b", deserialize_with = "nullable_test_b_b")]
-    #[serde(default = "default_test_b_b")]
     pub b_b: String,
-    #[serde(default = "default_test_c")]
     pub c: Option<i32>,
 }
 deser!(nullable_test_a, i64, 42);
