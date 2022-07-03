@@ -1,0 +1,22 @@
+{
+  "type": "record",
+  "name": "User",
+  "fields": [ {
+    "name": "nested",
+    "type": {
+      "type": "record",
+      "name": "Nested",
+      "fields": [ {
+        "name": "a",
+        "type": "int"
+      }, {
+        "name": "b",
+        "type": "int",
+        "default": 20
+      } ]
+    },
+    "default": {
+      "a": 10
+    }
+  } ]
+}

@@ -1,0 +1,13 @@
+{
+  "type": "record",
+  "name": "User",
+  "fields": [
+    {"name": "as", "type": "string"},
+    {"name": "favoriteNumber",  "type": "int", "default": 7},
+    {"name": "likes_pizza", "type": "boolean", "default": false},
+    {"name": "b", "type": "bytes", "default": "\u00FF"},
+    {"name": "a-bool", "type": {"type": "array", "items": "boolean"}, "default": [true, false]},
+    {"name": "a-i32", "type": {"type": "array", "items": "int"}, "default": [12, -1]},
+    {"name": "m-f64", "type": {"type": "map", "values": "double"}}
+  ]
+}

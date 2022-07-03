@@ -1,0 +1,6 @@
+{
+  "type": "enum",
+  "name": "Colors",
+  "doc": "Roses are red\nviolets are blue.",
+  "symbols": ["RED"]
+}

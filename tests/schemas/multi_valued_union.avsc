@@ -1,0 +1,8 @@
+{
+  "type": "record",
+  "name": "Contact",
+  "fields": [ {
+    "name": "extra",
+    "type" : ["null", "string", "long", "double", "boolean" ]
+  } ]
+}

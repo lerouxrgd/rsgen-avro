@@ -22,4 +22,7 @@ thiserror = "1"
 uuid = { version = "1", features = ["serde", "v4"] }
 
 [dev-dependencies]
+derive_builder = "0.11"
 tempfile = "3"
+variant_access_derive = "0.3"
+variant_access_traits = "0.3"

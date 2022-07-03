@@ -1,0 +1,8 @@
+{
+  "type": "record",
+  "name": "User",
+  "doc": "Some user representation\nUsers love pizzas!",
+  "fields": [
+    {"name": "likes_pizza", "type": "boolean", "default": false}
+  ]
+}

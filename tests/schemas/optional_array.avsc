@@ -1,0 +1,45 @@
+{
+  "name": "Snmp",
+  "type": "record",
+  "fields": [ {
+    "name": "v1",
+    "type": [ "null", {
+      "name": "V1",
+      "type": "record",
+      "fields": [ {
+        "name": "pdu",
+        "type": [ "null", {
+          "name": "TrapV1",
+          "type": "record",
+          "fields": [ {
+            "name": "var",
+            "type": ["null", {
+              "type": "array",
+              "items": {
+                "name": "Variable",
+                "type": "record",
+                "fields": [ {
+                  "name": "oid",
+                  "type": ["null", {
+                    "type":"array",
+                    "items": "long"
+                  } ],
+                  "default": null
+                }, {
+                  "name": "val",
+                  "type": ["null", "string"],
+                  "default": null
+                } ],
+                "default": {}
+              }
+            } ],
+            "default": null
+          } ]
+        } ],
+        "default": null
+      } ]
+    } ],
+    "default": null
+  } ],
+  "default": {}
+}

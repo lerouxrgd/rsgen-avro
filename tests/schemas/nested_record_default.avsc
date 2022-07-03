@@ -1,0 +1,16 @@
+{
+  "type": "record",
+  "name": "User",
+  "fields": [ {
+    "name": "m-f64",
+    "type": {
+      "type": "record",
+      "name": "Inner",
+      "fields": [ {
+        "name": "a",
+        "type": "boolean"
+      } ]
+    },
+    "default": { "a": true }
+  } ]
+}

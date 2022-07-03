@@ -1,0 +1,9 @@
+{
+  "type": "record",
+  "name": "User",
+  "fields": [
+    {"name": "m-f64",
+     "type": {"type": "map", "values": "double"},
+     "default": {"a": 12.0, "b": 42.1}}
+  ]
+}
