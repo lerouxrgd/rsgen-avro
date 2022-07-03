@@ -849,19 +849,19 @@ impl Templater {
             Schema::Record {
                 name: Name { name, .. },
                 fields,
-                lookup,
                 ..
             } => {
                 let default_str = if let Value::Object(o) = default {
                     if !o.is_empty() {
-                        let vals = o
+                        let vals = fields
                             .iter()
-                            .map(|(k, v)| {
-                                let f = sanitize(k.to_snake_case());
-                                let rf = fields
-                                    .get(*lookup.get(k).expect("Missing lookup"))
-                                    .expect("Missing record field");
-                                let d = self.parse_default(&rf.schema, gen_state, v)?;
+                            .map(|rf| {
+                                let f = sanitize(rf.name.to_snake_case());
+                                let d = if let Some(v) = o.get(&rf.name) {
+                                    self.parse_default(&rf.schema, gen_state, v)?
+                                } else {
+                                    format!("default_{}_{}()", name.to_lowercase(), f)
+                                };
                                 Ok(format!("{}: {},", f, d))
                             })
                             .collect::<Result<Vec<String>>>()?
@@ -1445,12 +1445,11 @@ impl Default for User {
         {
           "type": "record",
           "name": "User",
-          "fields": [
-            {"name": "m-f64",
-             "type": {"type": "array", "items": "double"},
-             "default": {}
-             }
-          ]
+          "fields": [ {
+            "name": "m-f64",
+            "type": {"type": "array", "items": "double"},
+            "default": {}
+          } ]
         }
         "#;
 
@@ -1474,12 +1473,11 @@ impl Default for User {
         {
           "type": "record",
           "name": "User",
-          "fields": [
-            {"name": "m-f64",
-             "type": {"type": "map", "values": "double"},
-             "default": []
-             }
-          ]
+          "fields": [ {
+            "name": "m-f64",
+            "type": {"type": "map", "values": "double"},
+            "default": []
+          } ]
         }
         "#;
 
@@ -1500,21 +1498,18 @@ impl Default for User {
         {
           "type": "record",
           "name": "User",
-          "fields": [
-            {"name": "m-f64",
-             "type": {
-                 "type": "record",
-                 "name": "Inner",
-                 "fields": [
-                     {
-                        "name": "a",
-                        "type": "boolean"
-                     }
-                 ]
-             },
-             "default": []
-             }
-          ]
+          "fields": [ {
+            "name": "m-f64",
+            "type": {
+              "type": "record",
+              "name": "Inner",
+              "fields": [ {
+                "name": "a",
+                "type": "boolean"
+              } ]
+            },
+            "default": []
+          } ]
         }
         "#;
 
@@ -1538,21 +1533,18 @@ impl Default for User {
         {
           "type": "record",
           "name": "User",
-          "fields": [
-            {"name": "m-f64",
-             "type": {
-                 "type": "record",
-                 "name": "Inner",
-                 "fields": [
-                     {
-                        "name": "a",
-                        "type": "boolean"
-                     }
-                 ]
-             },
-             "default": { "a": true }
-             }
-          ]
+          "fields": [ {
+            "name": "m-f64",
+            "type": {
+              "type": "record",
+              "name": "Inner",
+              "fields": [ {
+                "name": "a",
+                "type": "boolean"
+              } ]
+            },
+            "default": { "a": true }
+          } ]
         }
         "#;
 
