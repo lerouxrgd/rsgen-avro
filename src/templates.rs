@@ -862,16 +862,12 @@ impl Templater {
                                     .get(*lookup.get(k).expect("Missing lookup"))
                                     .expect("Missing record field");
                                 let d = self.parse_default(&rf.schema, gen_state, v)?;
-                                Ok(format!("r.{} = {};", f, d))
+                                Ok(format!("{}: {},", f, d))
                             })
                             .collect::<Result<Vec<String>>>()?
                             .as_slice()
                             .join(" ");
-                        format!(
-                            "{{ let mut r = {}::default(); {} r }}",
-                            sanitize(name.to_upper_camel_case()),
-                            vals
-                        )
+                        format!("{} {{ {} }}", sanitize(name.to_upper_camel_case()), vals)
                     } else {
                         format!("{}::default()", sanitize(name.to_upper_camel_case()))
                     }
@@ -1276,7 +1272,7 @@ pub struct User {
     pub info: Info,
 }
 
-fn default_user_info() -> Info { { let mut r = Info::default(); r.name = "bob".to_owned(); r } }
+fn default_user_info() -> Info { Info { name: "bob".to_owned(), } }
 
 impl Default for User {
     fn default() -> User {
@@ -1568,7 +1564,7 @@ pub struct User {
     pub m_f64: Inner,
 }
 
-fn default_user_m_f64() -> Inner { { let mut r = Inner::default(); r.a = true; r } }
+fn default_user_m_f64() -> Inner { Inner { a: true, } }
 
 impl Default for User {
     fn default() -> User {
