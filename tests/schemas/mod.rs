@@ -5,6 +5,7 @@ extern crate variant_access_traits;
 pub mod complex;
 pub mod enums;
 pub mod enums_multiline_doc;
+#[allow(dead_code)]
 pub mod fixed;
 pub mod map_default;
 pub mod multi_valued_union;

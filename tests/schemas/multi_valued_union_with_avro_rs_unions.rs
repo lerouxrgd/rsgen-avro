@@ -23,25 +23,32 @@ impl<'de> serde::Deserialize<'de> for UnionStringLongDoubleBoolean {
                 formatter.write_str("a UnionStringLongDoubleBoolean")
             }
 
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(UnionStringLongDoubleBoolean::String(value.into()))
+            }
+
             fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
             where
                 E: serde::de::Error,
             {
-                Ok(UnionStringLongDoubleBoolean::Long(value))
+                Ok(UnionStringLongDoubleBoolean::Long(value.into()))
             }
 
             fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
             where
                 E: serde::de::Error,
             {
-                Ok(UnionStringLongDoubleBoolean::Double(value))
+                Ok(UnionStringLongDoubleBoolean::Double(value.into()))
             }
 
             fn visit_bool<E>(self, value: bool) -> Result<Self::Value, E>
             where
                 E: serde::de::Error,
             {
-                Ok(UnionStringLongDoubleBoolean::Boolean(value))
+                Ok(UnionStringLongDoubleBoolean::Boolean(value.into()))
             }
         }
 

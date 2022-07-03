@@ -134,11 +134,11 @@ impl<'de> serde::Deserialize<'de> for {{ name }} {
             }
             {%- for v in visitors %}
 
-            fn visit_{{ v.rust_type }}<E>(self, value: {{ v.rust_type }}) -> Result<Self::Value, E>
+            fn visit_{{ v.rust_type | trim_start_matches(pat="&") }}<E>(self, value: {{ v.rust_type }}) -> Result<Self::Value, E>
             where
                 E: serde::de::Error,
             {
-                Ok({{ name }}::{{ v.variant }}(value))
+                Ok({{ name }}::{{ v.variant }}(value.into()))
             }
             {%- endfor %}
         }
@@ -615,6 +615,10 @@ impl Templater {
                     Schema::Double => visitors.push(GenUnionVisitor {
                         variant: "Double",
                         rust_type: "f64",
+                    }),
+                    Schema::String => visitors.push(GenUnionVisitor {
+                        variant: "String",
+                        rust_type: "&str",
                     }),
                     _ => (),
                 };
