@@ -1,3 +1,4 @@
+#[rustfmt::skip]
 mod schemas;
 
 use rsgen_avro::{Generator, Source};
