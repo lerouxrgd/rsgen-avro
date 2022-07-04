@@ -258,7 +258,6 @@ fn deps_stack(schema: &Schema, mut deps: Vec<Schema>) -> Vec<Schema> {
 pub struct GeneratorBuilder {
     precision: usize,
     nullable: bool,
-    use_variant_access: bool,
     use_avro_rs_unions: bool,
     derive_builders: bool,
 }
@@ -268,7 +267,6 @@ impl Default for GeneratorBuilder {
         Self {
             precision: 3,
             nullable: false,
-            use_variant_access: false,
             use_avro_rs_unions: false,
             derive_builders: false,
         }
@@ -294,12 +292,6 @@ impl GeneratorBuilder {
         self
     }
 
-    /// Adds variant_access_derive to the enums generated from union types.
-    pub fn use_variant_access(mut self, use_variant_access: bool) -> GeneratorBuilder {
-        self.use_variant_access = use_variant_access;
-        self
-    }
-
     /// Adds support for deserializing union types from the `avro-rs` crate.
     /// Only necessary for unions of 3 or more types or 2-type unions without "null".
     /// Note that only int, long, float, double, and boolean values are currently supported.
@@ -320,7 +312,6 @@ impl GeneratorBuilder {
         let mut templater = Templater::new()?;
         templater.precision = self.precision;
         templater.nullable = self.nullable;
-        templater.use_variant_access = self.use_variant_access;
         templater.use_avro_rs_unions = self.use_avro_rs_unions;
         templater.derive_builders = self.derive_builders;
         Ok(Generator { templater })

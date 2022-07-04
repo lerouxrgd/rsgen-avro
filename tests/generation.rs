@@ -58,17 +58,6 @@ fn gen_multi_valued_union_map() {
 }
 
 #[test]
-fn gen_multi_valued_union_with_variant_access() {
-    validate_generation(
-        "multi_valued_union_with_variant_access",
-        Generator::builder()
-            .use_variant_access(true)
-            .build()
-            .unwrap(),
-    );
-}
-
-#[test]
 fn gen_multi_valued_union_with_avro_rs_unions() {
     validate_generation(
         "multi_valued_union_with_avro_rs_unions",

@@ -110,14 +110,33 @@ pub enum {{ name }} {
 pub const UNION_TERA: &str = "union.tera";
 pub const UNION_TEMPLATE: &str = r#"
 /// Auto-generated type for unnamed Avro union variants.
-#[derive(Debug, PartialEq, Clone{%- if not use_avro_rs_unions %}, serde::Deserialize {%- endif %}, serde::Serialize {%- if use_variant_access %}, variant_access_derive::VariantAccess {%- endif %})]
+#[derive(Debug, PartialEq, Clone{%- if not use_avro_rs_unions %}, serde::Deserialize {%- endif %}, serde::Serialize)]
 pub enum {{ name }} {
     {%- for s in symbols %}
     {{ s }},
     {%- endfor %}
 }
-{%- if use_avro_rs_unions %}
+{%- for v in visitors %}
+{# #}
+impl From<{{ v.rust_type }}> for {{ name }} {
+    fn from(v: {{ v.rust_type }}) -> Self {
+        Self::{{ v.variant }}(v)
+    }
+}
 
+impl From<{{ name }}> for Option<{{ v.rust_type }}> {
+    fn from(v: {{ name }}) -> Self {
+        if let {{ name }}::{{ v.variant }}(v) = v {
+            Some(v)
+        } else {
+            None
+        }
+    }
+}
+{%- endfor %}
+
+{%- if use_avro_rs_unions %}
+{# #}
 impl<'de> serde::Deserialize<'de> for {{ name }} {
     fn deserialize<D>(deserializer: D) -> Result<{{ name }}, D::Error>
     where
@@ -134,7 +153,7 @@ impl<'de> serde::Deserialize<'de> for {{ name }} {
             }
             {%- for v in visitors %}
 
-            fn visit_{{ v.rust_type | trim_start_matches(pat="&") }}<E>(self, value: {{ v.rust_type }}) -> Result<Self::Value, E>
+            fn visit_{{ v.serde_visitor | trim_start_matches(pat="&") }}<E>(self, value: {{ v.serde_visitor }}) -> Result<Self::Value, E>
             where
                 E: serde::de::Error,
             {
@@ -189,6 +208,7 @@ macro_rules! err (
 struct GenUnionVisitor {
     variant: &'static str,
     rust_type: &'static str,
+    serde_visitor: &'static str,
 }
 
 /// A helper struct for nested schema generation.
@@ -223,7 +243,6 @@ pub struct Templater {
     tera: Tera,
     pub precision: usize,
     pub nullable: bool,
-    pub use_variant_access: bool,
     pub use_avro_rs_unions: bool,
     pub derive_builders: bool,
 }
@@ -242,7 +261,6 @@ impl Templater {
             tera,
             precision: 3,
             nullable: false,
-            use_variant_access: false,
             use_avro_rs_unions: false,
             derive_builders: false,
         })
@@ -599,26 +617,32 @@ impl Templater {
                     Schema::Boolean => visitors.push(GenUnionVisitor {
                         variant: "Boolean",
                         rust_type: "bool",
+                        serde_visitor: "bool",
                     }),
                     Schema::Int => visitors.push(GenUnionVisitor {
                         variant: "Int",
                         rust_type: "i32",
+                        serde_visitor: "i32",
                     }),
                     Schema::Long => visitors.push(GenUnionVisitor {
                         variant: "Long",
                         rust_type: "i64",
+                        serde_visitor: "i64",
                     }),
                     Schema::Float => visitors.push(GenUnionVisitor {
                         variant: "Float",
                         rust_type: "f32",
+                        serde_visitor: "f32",
                     }),
                     Schema::Double => visitors.push(GenUnionVisitor {
                         variant: "Double",
                         rust_type: "f64",
+                        serde_visitor: "f64",
                     }),
                     Schema::String => visitors.push(GenUnionVisitor {
                         variant: "String",
-                        rust_type: "&str",
+                        rust_type: "String",
+                        serde_visitor: "&str",
                     }),
                     _ => (),
                 };
@@ -628,7 +652,6 @@ impl Templater {
             ctx.insert("name", &e_name);
             ctx.insert("symbols", &symbols);
             ctx.insert("visitors", &visitors);
-            ctx.insert("use_variant_access", &self.use_variant_access);
             ctx.insert("use_avro_rs_unions", &self.use_avro_rs_unions);
 
             Ok(self.tera.render(UNION_TERA, &ctx)?)

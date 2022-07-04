@@ -29,7 +29,6 @@ Options:
   --fmt              Run rustfmt on the resulting <output-file>
   --nullable         Replace null fields with their default value when deserializing.
   --precision=P      Precision for f32/f64 default values that aren't round numbers [default: 3].
-  --variant-access   Derive the traits in the variant_access_traits crate on union types.
   --union-deser      Custom deserialization for avro-rs multi-valued union types.
   --derive-builders  Derive builders for generated record structs.
   -V, --version      Show version.
