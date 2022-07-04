@@ -14,12 +14,14 @@ impl From<String> for UnionStringLongDoubleBoolean {
     }
 }
 
-impl From<UnionStringLongDoubleBoolean> for Option<String> {
-    fn from(v: UnionStringLongDoubleBoolean) -> Self {
+impl TryFrom<UnionStringLongDoubleBoolean> for String {
+    type Error = UnionStringLongDoubleBoolean;
+
+    fn try_from(v: UnionStringLongDoubleBoolean) -> Result<Self, Self::Error> {
         if let UnionStringLongDoubleBoolean::String(v) = v {
-            Some(v)
+            Ok(v)
         } else {
-            None
+            Err(v)
         }
     }
 }
@@ -30,12 +32,14 @@ impl From<i64> for UnionStringLongDoubleBoolean {
     }
 }
 
-impl From<UnionStringLongDoubleBoolean> for Option<i64> {
-    fn from(v: UnionStringLongDoubleBoolean) -> Self {
+impl TryFrom<UnionStringLongDoubleBoolean> for i64 {
+    type Error = UnionStringLongDoubleBoolean;
+
+    fn try_from(v: UnionStringLongDoubleBoolean) -> Result<Self, Self::Error> {
         if let UnionStringLongDoubleBoolean::Long(v) = v {
-            Some(v)
+            Ok(v)
         } else {
-            None
+            Err(v)
         }
     }
 }
@@ -46,12 +50,14 @@ impl From<f64> for UnionStringLongDoubleBoolean {
     }
 }
 
-impl From<UnionStringLongDoubleBoolean> for Option<f64> {
-    fn from(v: UnionStringLongDoubleBoolean) -> Self {
+impl TryFrom<UnionStringLongDoubleBoolean> for f64 {
+    type Error = UnionStringLongDoubleBoolean;
+
+    fn try_from(v: UnionStringLongDoubleBoolean) -> Result<Self, Self::Error> {
         if let UnionStringLongDoubleBoolean::Double(v) = v {
-            Some(v)
+            Ok(v)
         } else {
-            None
+            Err(v)
         }
     }
 }
@@ -62,12 +68,14 @@ impl From<bool> for UnionStringLongDoubleBoolean {
     }
 }
 
-impl From<UnionStringLongDoubleBoolean> for Option<bool> {
-    fn from(v: UnionStringLongDoubleBoolean) -> Self {
+impl TryFrom<UnionStringLongDoubleBoolean> for bool {
+    type Error = UnionStringLongDoubleBoolean;
+
+    fn try_from(v: UnionStringLongDoubleBoolean) -> Result<Self, Self::Error> {
         if let UnionStringLongDoubleBoolean::Boolean(v) = v {
-            Some(v)
+            Ok(v)
         } else {
-            None
+            Err(v)
         }
     }
 }

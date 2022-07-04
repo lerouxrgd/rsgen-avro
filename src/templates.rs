@@ -124,12 +124,14 @@ impl From<{{ v.rust_type }}> for {{ name }} {
     }
 }
 
-impl From<{{ name }}> for Option<{{ v.rust_type }}> {
-    fn from(v: {{ name }}) -> Self {
+impl TryFrom<{{ name }}> for {{ v.rust_type }} {
+    type Error = {{ name }};
+
+    fn try_from(v: {{ name }}) -> Result<Self, Self::Error> {
         if let {{ name }}::{{ v.variant }}(v) = v {
-            Some(v)
+            Ok(v)
         } else {
-            None
+            Err(v)
         }
     }
 }
