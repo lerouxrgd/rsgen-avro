@@ -6,6 +6,7 @@ pub struct Nested {
     pub b: i32,
 }
 
+#[inline(always)]
 fn default_nested_b() -> i32 { 20 }
 
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
@@ -14,6 +15,7 @@ pub struct User {
     pub nested: Nested,
 }
 
+#[inline(always)]
 fn default_user_nested() -> Nested { Nested { a: 10, b: default_nested_b(), } }
 
 impl Default for User {

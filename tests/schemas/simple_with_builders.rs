@@ -7,4 +7,5 @@ pub struct Test {
     pub b: String,
 }
 
+#[inline(always)]
 fn default_test_a() -> i64 { 42 }

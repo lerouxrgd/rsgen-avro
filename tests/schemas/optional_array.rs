@@ -6,8 +6,10 @@ pub struct Variable {
     pub val: Option<String>,
 }
 
+#[inline(always)]
 fn default_variable_oid() -> Option<Vec<i64>> { None }
 
+#[inline(always)]
 fn default_variable_val() -> Option<String> { None }
 
 impl Default for Variable {
@@ -25,6 +27,7 @@ pub struct TrapV1 {
     pub var: Option<Vec<Variable>>,
 }
 
+#[inline(always)]
 fn default_trapv1_var() -> Option<Vec<Variable>> { None }
 
 impl Default for TrapV1 {
@@ -41,6 +44,7 @@ pub struct V1 {
     pub pdu: Option<TrapV1>,
 }
 
+#[inline(always)]
 fn default_v1_pdu() -> Option<TrapV1> { None }
 
 impl Default for V1 {
@@ -57,6 +61,7 @@ pub struct Snmp {
     pub v1: Option<V1>,
 }
 
+#[inline(always)]
 fn default_snmp_v1() -> Option<V1> { None }
 
 impl Default for Snmp {

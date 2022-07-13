@@ -11,14 +11,19 @@ pub struct User {
     pub aa_i32: Vec<Vec<i32>>,
 }
 
+#[inline(always)]
 fn default_user_name() -> String { "".to_owned() }
 
+#[inline(always)]
 fn default_user_favorite_number() -> i32 { 7 }
 
+#[inline(always)]
 fn default_user_likes_pizza() -> bool { false }
 
+#[inline(always)]
 fn default_user_oye() -> f32 { 1.100 }
 
+#[inline(always)]
 fn default_user_aa_i32() -> Vec<Vec<i32>> { vec![vec![0], vec![12, -1]] }
 
 impl Default for User {

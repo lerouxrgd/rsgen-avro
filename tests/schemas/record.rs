@@ -19,12 +19,17 @@ pub struct User {
     pub m_f64: ::std::collections::HashMap<String, f64>,
 }
 
+#[inline(always)]
 fn default_user_favorite_number() -> i32 { 7 }
 
+#[inline(always)]
 fn default_user_likes_pizza() -> bool { false }
 
+#[inline(always)]
 fn default_user_b() -> Vec<u8> { vec![195, 191] }
 
+#[inline(always)]
 fn default_user_a_bool() -> Vec<bool> { vec![true, false] }
 
+#[inline(always)]
 fn default_user_a_i32() -> Vec<i32> { vec![12, -1] }

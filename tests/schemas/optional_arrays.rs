@@ -10,10 +10,13 @@ pub struct KsqlDataSourceSchema {
     pub group_names: Option<Vec<Option<String>>>,
 }
 
+#[inline(always)]
 fn default_ksqldatasourceschema_id() -> Option<String> { None }
 
+#[inline(always)]
 fn default_ksqldatasourceschema_group_ids() -> Option<Vec<Option<String>>> { None }
 
+#[inline(always)]
 fn default_ksqldatasourceschema_group_names() -> Option<Vec<Option<String>>> { None }
 
 impl Default for KsqlDataSourceSchema {

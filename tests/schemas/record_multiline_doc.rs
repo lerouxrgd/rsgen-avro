@@ -7,6 +7,7 @@ pub struct User {
     pub likes_pizza: bool,
 }
 
+#[inline(always)]
 fn default_user_likes_pizza() -> bool { false }
 
 impl Default for User {

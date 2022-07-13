@@ -6,6 +6,7 @@ pub struct User {
     pub m_f64: ::std::collections::HashMap<String, f64>,
 }
 
+#[inline(always)]
 fn default_user_m_f64() -> ::std::collections::HashMap<String, f64> { { let mut m = ::std::collections::HashMap::new(); m.insert("a".to_owned(), 12.0); m.insert("b".to_owned(), 42.100); m } }
 
 impl Default for User {

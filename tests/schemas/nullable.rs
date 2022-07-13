@@ -9,6 +9,7 @@ pub struct Test {
     pub c: Option<i32>,
 }
 
+#[inline(always)]
 fn nullable_test_a<'de, D>(deserializer: D) -> Result<i64, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -18,6 +19,7 @@ where
     Ok(opt.unwrap_or_else(|| 42))
 }
 
+#[inline(always)]
 fn nullable_test_b_b<'de, D>(deserializer: D) -> Result<String, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -27,10 +29,13 @@ where
     Ok(opt.unwrap_or_else(|| "na".to_owned()))
 }
 
+#[inline(always)]
 fn default_test_a() -> i64 { 42 }
 
+#[inline(always)]
 fn default_test_b_b() -> String { "na".to_owned() }
 
+#[inline(always)]
 fn default_test_c() -> Option<i32> { None }
 
 impl Default for Test {

@@ -11,6 +11,7 @@ pub struct User {
     pub m_f64: Inner,
 }
 
+#[inline(always)]
 fn default_user_m_f64() -> Inner { Inner { a: true, } }
 
 impl Default for User {

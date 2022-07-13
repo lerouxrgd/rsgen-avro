@@ -10,6 +10,7 @@ pub struct User {
     pub info: Info,
 }
 
+#[inline(always)]
 fn default_user_info() -> Info { Info { name: "bob".to_owned(), } }
 
 impl Default for User {

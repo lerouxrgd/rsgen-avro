@@ -50,6 +50,7 @@ pub struct {{ name }} {
 {%- set type = types[f] %}
 {%- if nullable and not type is starting_with("Option") %}
 {# #}
+#[inline(always)]
 fn nullable_{{ name|lower }}_{{ f }}<'de, D>(deserializer: D) -> Result<{{ type }}, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -64,6 +65,7 @@ where
 {%- for f in fields %}
 {%- if defaults is containing(f) %}
 {# #}
+#[inline(always)]
 fn default_{{ name | lower }}_{{ f | lower | trim_start_matches(pat="r#") }}() -> {{ types[f] }} { {{ defaults[f] }} }
 {%- endif %}
 {%- endfor %}
