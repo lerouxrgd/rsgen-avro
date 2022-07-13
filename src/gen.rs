@@ -37,10 +37,6 @@ impl Generator {
     /// Generates Rust code from an Avro schema `Source`.
     /// Writes all generated types to the ouput.
     pub fn gen(&self, source: &Source, output: &mut impl Write) -> Result<()> {
-        if self.templater.nullable {
-            output.write_all(DESER_NULLABLE.as_bytes())?;
-        }
-
         match source {
             Source::Schema(schema) => {
                 let mut deps = deps_stack(schema, vec![]);
@@ -323,49 +319,6 @@ mod tests {
     use avro_rs::schema::Name;
 
     use super::*;
-
-    #[test]
-    fn nullable_code() {
-        use serde::{Deserialize, Deserializer};
-
-        macro_rules! deser(
-            ($name:ident, $rtype:ty, $val:expr) => (
-                fn $name<'de, D>(deserializer: D) -> std::result::Result<$rtype, D::Error>
-                where
-                    D: Deserializer<'de>,
-                {
-                    let opt = Option::deserialize(deserializer)?;
-                    Ok(opt.unwrap_or_else(|| $val))
-                }
-            );
-        );
-
-        #[derive(Debug, PartialEq, serde::Deserialize, serde::Serialize)]
-        #[serde(default)]
-        pub struct Test {
-            #[serde(deserialize_with = "nullable_test_a")]
-            pub a: i64,
-            #[serde(rename = "b-b", deserialize_with = "nullable_test_b_b")]
-            pub b_b: String,
-            pub c: Option<i32>,
-        }
-        deser!(nullable_test_a, i64, 42);
-        deser!(nullable_test_b_b, String, "na".to_owned());
-
-        impl Default for Test {
-            fn default() -> Test {
-                Test {
-                    a: 42,
-                    b_b: "na".to_owned(),
-                    c: None,
-                }
-            }
-        }
-
-        let json = r#"{"a": null, "b-b": null, "c": null}"#;
-        let res: Test = serde_json::from_str(json).unwrap();
-        assert_eq!(Test::default(), res);
-    }
 
     #[test]
     fn deps() {

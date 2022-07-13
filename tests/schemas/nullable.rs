@@ -1,17 +1,4 @@
 
-macro_rules! deser(
-    ($name:ident, $rtype:ty, $val:expr) => (
-        fn $name<'de, D>(deserializer: D) -> Result<$rtype, D::Error>
-        where
-            D: serde::Deserializer<'de>,
-        {
-            use serde::Deserialize;
-            let opt = Option::deserialize(deserializer)?;
-            Ok(opt.unwrap_or_else(|| $val))
-        }
-    );
-);
-
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct Test {
@@ -21,8 +8,24 @@ pub struct Test {
     pub b_b: String,
     pub c: Option<i32>,
 }
-deser!(nullable_test_a, i64, 42);
-deser!(nullable_test_b_b, String, "na".to_owned());
+
+fn nullable_test_a<'de, D>(deserializer: D) -> Result<i64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::Deserialize;
+    let opt = Option::deserialize(deserializer)?;
+    Ok(opt.unwrap_or_else(|| 42))
+}
+
+fn nullable_test_b_b<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::Deserialize;
+    let opt = Option::deserialize(deserializer)?;
+    Ok(opt.unwrap_or_else(|| "na".to_owned()))
+}
 
 fn default_test_a() -> i64 { 42 }
 

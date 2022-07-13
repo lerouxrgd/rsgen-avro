@@ -14,21 +14,6 @@ use uuid::Uuid;
 
 use crate::error::{Error, Result};
 
-pub const DESER_NULLABLE: &str = r#"
-macro_rules! deser(
-    ($name:ident, $rtype:ty, $val:expr) => (
-        fn $name<'de, D>(deserializer: D) -> Result<$rtype, D::Error>
-        where
-            D: serde::Deserializer<'de>,
-        {
-            use serde::Deserialize;
-            let opt = Option::deserialize(deserializer)?;
-            Ok(opt.unwrap_or_else(|| $val))
-        }
-    );
-);
-"#;
-
 pub const RECORD_TERA: &str = "record.tera";
 pub const RECORD_TEMPLATE: &str = r#"
 {%- if doc %}
@@ -64,7 +49,15 @@ pub struct {{ name }} {
 {%- for f in fields %}
 {%- set type = types[f] %}
 {%- if nullable and not type is starting_with("Option") %}
-deser!(nullable_{{ name|lower }}_{{ f }}, {{ type }}, {{ defaults[f] }});
+{# #}
+fn nullable_{{ name|lower }}_{{ f }}<'de, D>(deserializer: D) -> Result<{{ type }}, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::Deserialize;
+    let opt = Option::deserialize(deserializer)?;
+    Ok(opt.unwrap_or_else(|| {{ defaults[f] }}))
+}
 {%- endif %}
 {%- endfor %}
 
