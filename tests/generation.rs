@@ -1,6 +1,7 @@
 #[rustfmt::skip]
 mod schemas;
 
+use pretty_assertions::assert_eq;
 use rsgen_avro::{Generator, Source};
 
 fn validate_generation(file_name: &str, g: Generator) {
