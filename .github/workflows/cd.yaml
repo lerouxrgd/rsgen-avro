@@ -1,0 +1,56 @@
+name: Cargo build & Release
+
+on:
+  push:
+    tags:
+      - "**"
+
+jobs:
+  build_and_release:
+    name: Build and release
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: linux
+            target: x86_64-unknown-linux-musl
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Build binaries
+        run: |
+          rustup update stable
+          rustup default stable
+          rustup target add ${{ matrix.target }}
+          cargo build --release --target ${{ matrix.target }}
+      - name: Determine tag
+        run: |
+          echo "RELEASE_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+      - name: Create tarball
+        run: |
+          TARBALL=rsgen-avro-${{ matrix.name }}-${{ env.RELEASE_TAG }}.tar.gz
+          tar -zcvf ${TARBALL} -C target/${{ matrix.target }}/release rsgen-avro
+          echo "TARBALL=${TARBALL}" >> $GITHUB_ENV
+      - name: Create the release
+        run: |
+           curl \
+             -X POST \
+             -H "Accept: application/vnd.github+json" \
+             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+             https://api.github.com/repos/${{ github.repository }}/releases \
+             --data '{
+               "tag_name": "${{ env.RELEASE_TAG }}",
+               "name": "Release ${{ env.RELEASE_TAG }}",
+               "generate_release_notes": true
+             }' \
+             -o release.json
+      - name: Upload tarball to the release
+        run: |
+          RELEASE_ID=$(jq -r '.id' release.json)
+          curl \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H 'Content-Type: application/octet-stream' \
+            --upload-file ${{ env.TARBALL }} \
+            https://uploads.github.com/repos/${{ github.repository }}/releases/${RELEASE_ID}/assets?name=${{ env.TARBALL }}
