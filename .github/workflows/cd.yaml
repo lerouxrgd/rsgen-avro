@@ -1,4 +1,4 @@
-name: Cargo build & Release
+name: Release & Publish
 
 on:
   push:
@@ -6,31 +6,19 @@ on:
       - "**"
 
 jobs:
-  build_and_release:
-    name: Build and release
+  release:
+    name: Create release
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - name: linux
-            target: x86_64-unknown-linux-musl
+    outputs:
+      tag: ${{ steps.release-tag.outputs.tag }}
+      id: ${{ steps.release-id.outputs.id }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-      - name: Build binaries
-        run: |
-          rustup update stable
-          rustup default stable
-          rustup target add ${{ matrix.target }}
-          cargo build --release --target ${{ matrix.target }}
       - name: Determine tag
+        id: release-tag
         run: |
-          echo "RELEASE_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-      - name: Create tarball
-        run: |
-          TARBALL=rsgen-avro-${{ matrix.name }}-${{ env.RELEASE_TAG }}.tar.gz
-          tar -zcvf ${TARBALL} -C target/${{ matrix.target }}/release rsgen-avro
-          echo "TARBALL=${TARBALL}" >> $GITHUB_ENV
+          RELEASE_TAG=${GITHUB_REF#refs/tags/}
+          echo "RELEASE_TAG=${RELEASE_TAG}" >> $GITHUB_ENV
+          echo "::set-output name=tag::${RELEASE_TAG}"
       - name: Create the release
         run: |
            curl \
@@ -44,13 +32,43 @@ jobs:
                "generate_release_notes": true
              }' \
              -o release.json
-      - name: Upload tarball to the release
+      - name: Determine release id
+        id: release-id
         run: |
           RELEASE_ID=$(jq -r '.id' release.json)
+          echo "::set-output name=id::${RELEASE_ID}"
+
+  build-and-publish:
+    name: Build and publish
+    runs-on: ${{ matrix.job.os }}
+    strategy:
+      matrix:
+        job:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - os: macos-latest
+            target: x86_64-apple-darwin
+    needs: release
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Build binary
+        run: |
+          rustup update stable
+          rustup default stable
+          rustup target add ${{ matrix.job.target }}
+          cargo build --release --target ${{ matrix.job.target }}
+      - name: Create tarball
+        run: |
+          TARBALL=rsgen-avro-${{ needs.release.outputs.tag }}-${{ matrix.job.target }}.tar.gz
+          tar -zcvf ${TARBALL} -C target/${{ matrix.job.target }}/release rsgen-avro
+          echo "TARBALL=${TARBALL}" >> $GITHUB_ENV
+      - name: Upload tarball to the release
+        run: |
           curl \
             -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -H 'Content-Type: application/octet-stream' \
             --upload-file ${{ env.TARBALL }} \
-            https://uploads.github.com/repos/${{ github.repository }}/releases/${RELEASE_ID}/assets?name=${{ env.TARBALL }}
+            https://uploads.github.com/repos/${{ github.repository }}/releases/${{ needs.release.outputs.id }}/assets?name=${{ env.TARBALL }}
