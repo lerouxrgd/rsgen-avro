@@ -10,7 +10,7 @@ license = "MIT"
 readme = "README.md"
 
 [dependencies]
-apache-avro = {path="/home/martin/git/apache/avro/lang/rust/avro"}
+apache-avro = "0.14.0"
 docopt = "1"
 glob = "0.3"
 heck = "0.4"
