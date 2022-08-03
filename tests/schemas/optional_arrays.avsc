@@ -1,0 +1,24 @@
+{
+  "type": "record",
+  "name": "KsqlDataSourceSchema",
+  "namespace": "io.confluent.ksql.avro_schemas",
+  "fields": [ {
+    "name": "ID",
+    "type": ["null", "string"],
+    "default": null
+  }, {
+    "name": "GROUP_IDS",
+    "type": ["null", {
+      "type": "array",
+      "items": ["null", "string"]
+    } ],
+    "default": null
+  }, {
+    "name": "GROUP_NAMES",
+    "type": ["null", {
+      "type": "array",
+      "items": ["null", "string"]
+    } ],
+    "default": null
+  } ]
+}

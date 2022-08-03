@@ -1,0 +1,9 @@
+{
+  "type": "record",
+  "name": "test",
+  "fields": [
+    {"name": "a", "type": "long", "default": 42},
+    {"name": "b-b", "type": "string", "default": "na"},
+    {"name": "c", "type": ["null", "int"], "default": null}
+  ]
+}
