@@ -11,7 +11,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const USAGE: &str = "
 Usage:
-  rsgen-avro [options] <schema-file-pattern> <output-file>
+  rsgen-avro [options] <schema-files-glob-pattern> <output-file>
   rsgen-avro (-h | --help)
   rsgen-avro (-V | --version)
 
@@ -28,7 +28,7 @@ Options:
 
 #[derive(Debug, Deserialize)]
 struct CmdArgs {
-    arg_schema_file_pattern: String,
+    arg_schema_files_glob_pattern: String,
     arg_output_file: String,
     flag_fmt: bool,
     flag_nullable: bool,
@@ -59,7 +59,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         )
     };
 
-    let source = Source::GlobPattern(&args.arg_schema_file_pattern);
+    let source = Source::GlobPattern(&args.arg_schema_files_glob_pattern);
 
     let g = Generator::builder()
         .precision(args.flag_precision.unwrap())

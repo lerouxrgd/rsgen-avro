@@ -11,7 +11,7 @@ read and write Avro data with such types.
 
 ## Command line usage
 
-Install with:
+Download the latest [release](https://github.com/lerouxrgd/rsgen-avro/releases) or install with:
 
 ```sh
 cargo install rsgen-avro
@@ -21,7 +21,7 @@ Available options:
 
 ```
 Usage:
-  rsgen-avro [options] <schema-file-pattern> <output-file>
+  rsgen-avro [options] <schema-files-glob-pattern> <output-file>
   rsgen-avro (-h | --help)
   rsgen-avro (-V | --version)
 

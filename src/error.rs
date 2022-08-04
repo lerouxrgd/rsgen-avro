@@ -9,7 +9,7 @@ pub enum Error {
     Template(String),
     #[error("Unexpected io error: {}", .0)]
     Io(#[from] std::io::Error),
-    #[error("AvroRs error: {}", .0)]
+    #[error("Avro error: {}", .0)]
     Avro(#[from] apache_avro::Error),
     #[error("Invalid glob pattern: {}", .0)]
     GlobPattern(#[from] glob::PatternError),
