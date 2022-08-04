@@ -214,7 +214,7 @@ struct GenUnionVisitor {
 #[derive(Debug)]
 pub struct GenState {
     types_by_schema: HashMap<String, String>,
-    schemata_by_name: HashMap<Name, Schema>
+    schemata_by_name: HashMap<Name, Schema>,
 }
 
 impl GenState {
@@ -235,7 +235,7 @@ impl GenState {
 
         GenState {
             types_by_schema: HashMap::new(),
-            schemata_by_name
+            schemata_by_name,
         }
     }
 
@@ -371,9 +371,9 @@ impl Templater {
                 o.insert(name_std.clone(), name);
 
                 let schema = if let Schema::Ref { ref name } = schema {
-                        gen_state
-                            .get_schema(name)
-                            .expect(format!("Schema reference '{:?}' cannot be resolved", name).as_str())
+                    gen_state.get_schema(name).expect(
+                        format!("Schema reference '{:?}' cannot be resolved", name).as_str(),
+                    )
                 } else {
                     schema
                 };
