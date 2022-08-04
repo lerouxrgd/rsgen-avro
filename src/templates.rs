@@ -200,7 +200,7 @@ macro_rules! err (
     ($($arg:tt)*) => (Err(Error::Template(format!($($arg)*))))
 );
 
-/// A helper struct for avro-rs union deserialization visitors.
+/// A helper struct for apache-avro union deserialization visitors.
 #[derive(Debug, serde::Serialize)]
 struct GenUnionVisitor {
     variant: &'static str,

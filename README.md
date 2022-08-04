@@ -6,7 +6,7 @@
 [docs.rs]: https://docs.rs/rsgen-avro
 
 A command line tool and library for generating [serde][]-compatible Rust types from
-[Avro schemas][schemas]. The [avro-rs][] crate, which is re-exported, provides a way to
+[Avro schemas][schemas]. The [apache-avro][] crate, which is re-exported, provides a way to
 read and write Avro data with such types.
 
 ## Command line usage
@@ -29,7 +29,7 @@ Options:
   --fmt              Run rustfmt on the resulting <output-file>
   --nullable         Replace null fields with their default value when deserializing.
   --precision=P      Precision for f32/f64 default values that aren't round numbers [default: 3].
-  --union-deser      Custom deserialization for avro-rs multi-valued union types.
+  --union-deser      Custom deserialization for apache-avro multi-valued union types.
   --derive-builders  Derive builders for generated record structs.
   -V, --version      Show version.
   -h, --help         Show this screen.
@@ -85,9 +85,9 @@ Various `Schema` sources can be used with `Generator`'s `.gen(..)` method:
 
 ```rust
 pub enum Source<'a> {
-    Schema(&'a avro_rs::Schema), // from re-exported `avro-rs` crate
-    SchemaStr(&'a str),          // schema as a json string
-    GlobPattern(&'a str),        // pattern to schema files
+    Schema(&'a rsgen_avro::Schema), // Enum re-exported from `apache-avro`
+    SchemaStr(&'a str),             // Schema as a json string
+    GlobPattern(&'a str),           // Glob pattern to select schema files
 }
 ```
 
@@ -106,6 +106,6 @@ The builders will only be derived for those structs that are generated from Avro
   not conflict.
 
 [schemas]: https://avro.apache.org/docs/current/spec.html
-[avro-rs]: https://github.com/flavray/avro-rs
+[apache-avro]: https://github.com/apache/avro/tree/master/lang/rust
 [serde]: https://serde.rs
 [derive-builder]: https://github.com/colin-kiegel/rust-derive-builder

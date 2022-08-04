@@ -16,13 +16,14 @@
 //! }
 //! ```
 //!
-//! The **[avro-rs](https://github.com/flavray/avro-rs)** crate, which is re-exported,
-//! provides a way to read and write Avro data with both Avro-specialized and Rust
-//! serde-compatible types.
+//! The **[apache-avro][]** crate, which is re-exported, provides a way to read and
+//! write Avro data with both Avro-specialized and Rust serde-compatible types.
 //!
-//! **[rsgen-avro](https://github.com/lerouxrgd/rsgen-avro)** provides a way to generate
-//! Rust serde-compatible types based on Avro schemas. Both a command line tool and
-//! library crate are available.
+//! **[rsgen-avro][]** provides a way to generate Rust serde-compatible types based on
+//! Avro schemas. Both a command line tool and library crate are available.
+//!
+//! [apache-avro]: https://github.com/apache/avro/tree/master/lang/rust
+//! [rsgen-avro]: https://github.com/lerouxrgd/rsgen-avro
 //!
 //! # Using the library
 //!
@@ -74,9 +75,9 @@
 //!
 //! ```rust
 //! pub enum Source<'a> {
-//!     Schema(&'a apache_avro::Schema), // from re-exported `apache_avro` crate
-//!     SchemaStr(&'a str),          // schema as a json string
-//!     GlobPattern(&'a str),        // pattern to schema files
+//!     Schema(&'a rsgen_avro::Schema), // Enum re-exported from `apache-avro`
+//!     SchemaStr(&'a str),             // Schema as a json string
+//!     GlobPattern(&'a str),           // Glob pattern to select schema files
 //! }
 //! ```
 //!
@@ -95,3 +96,4 @@ pub use crate::error::{Error, Result};
 pub use crate::gen::{Generator, GeneratorBuilder, Source};
 
 pub use apache_avro;
+pub use apache_avro::Schema;

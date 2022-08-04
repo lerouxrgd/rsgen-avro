@@ -9,11 +9,11 @@ use crate::templates::*;
 
 /// Represents a schema input source.
 pub enum Source<'a> {
-    /// An Avro schema enum from `avro-rs` crate.
+    /// An Avro schema enum from `apache-avro` crate.
     Schema(&'a Schema),
     /// An Avro schema string in json format.
     SchemaStr(&'a str),
-    /// Pattern for files containing Avro schemas in json format.
+    /// Pattern for selecting files containing Avro schemas in json format.
     GlobPattern(&'a str),
 }
 
@@ -288,7 +288,7 @@ impl GeneratorBuilder {
         self
     }
 
-    /// Adds support for deserializing union types from the `avro-rs` crate.
+    /// Adds support for deserializing union types from the `apache-avro` crate.
     /// Only necessary for unions of 3 or more types or 2-type unions without "null".
     /// Note that only int, long, float, double, and boolean values are currently supported.
     pub fn use_avro_rs_unions(mut self, use_avro_rs_unions: bool) -> GeneratorBuilder {
