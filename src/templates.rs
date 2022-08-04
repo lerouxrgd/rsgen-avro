@@ -4,8 +4,8 @@
 
 use std::collections::{HashMap, HashSet};
 
-use avro_rs::schema::{Name, RecordField, UnionSchema};
-use avro_rs::Schema;
+use apache_avro::schema::{Name, RecordField, UnionSchema};
+use apache_avro::Schema;
 use heck::{ToSnakeCase, ToUpperCamelCase};
 use lazy_static::lazy_static;
 use serde_json::Value;
@@ -210,25 +210,49 @@ struct GenUnionVisitor {
 
 /// A helper struct for nested schema generation.
 ///
-/// Used to store inner schema String type so that outter schema String type can be created.
+/// Used to store inner schema String type so that outer schema String type can be created.
 #[derive(Debug)]
-pub struct GenState(HashMap<String, String>);
+pub struct GenState {
+    types_by_schema: HashMap<String, String>,
+    schemata_by_name: HashMap<Name, Schema>,
+}
 
 impl GenState {
     pub fn new() -> GenState {
-        GenState(HashMap::new())
+        GenState::with_deps(&[])
+    }
+
+    pub fn with_deps(deps: &[Schema]) -> GenState {
+        let schemata_by_name: HashMap<Name, Schema> = deps
+            .iter()
+            .filter_map(|s| match s {
+                Schema::Record { name, .. }
+                | Schema::Fixed { name, .. }
+                | Schema::Enum { name, .. } => Some((name.clone(), s.clone())),
+                _ => None,
+            })
+            .collect::<HashMap<_, _>>();
+
+        GenState {
+            types_by_schema: HashMap::new(),
+            schemata_by_name,
+        }
+    }
+
+    pub(crate) fn get_schema(&self, name: &Name) -> Option<&Schema> {
+        self.schemata_by_name.get(name)
     }
 
     /// Stores the String type of a given schema.
     pub fn put_type(&mut self, schema: &Schema, t: String) {
         let k = serde_json::to_string(schema).expect("Unexpected invalid schema");
-        self.0.insert(k, t);
+        self.types_by_schema.insert(k, t);
     }
 
     /// Retrieves the String type of a given schema.
     pub fn get_type(&self, schema: &Schema) -> Option<&String> {
         let k = serde_json::to_string(schema).expect("Unexpected invalid schema");
-        self.0.get(&k)
+        self.types_by_schema.get(&k)
     }
 }
 
@@ -268,6 +292,7 @@ impl Templater {
         if let Schema::Fixed {
             name: Name { name, .. },
             size,
+            ..
         } = schema
         {
             let mut ctx = Context::new();
@@ -289,7 +314,7 @@ impl Templater {
         } = schema
         {
             if symbols.is_empty() {
-                err!("No symbol for emum: {:?}", name)?
+                err!("No symbol for enum: {:?}", name)?
             }
             let mut ctx = Context::new();
             ctx.insert("name", &sanitize(name.to_upper_camel_case()));
@@ -345,7 +370,18 @@ impl Templater {
                 let name_std = sanitize(name.to_snake_case());
                 o.insert(name_std.clone(), name);
 
+                let schema = if let Schema::Ref { ref name } = schema {
+                    gen_state.get_schema(name).expect(
+                        format!("Schema reference '{:?}' cannot be resolved", name).as_str(),
+                    )
+                } else {
+                    schema
+                };
+
                 match schema {
+                    Schema::Ref { .. } => {
+                        // already resolved above
+                    }
                     Schema::Boolean => {
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), "bool".to_string());
@@ -423,7 +459,7 @@ impl Templater {
 
                     Schema::Duration => {
                         f.push(name_std.clone());
-                        t.insert(name_std.clone(), "avro_rs::Duration".to_string());
+                        t.insert(name_std.clone(), "apache_avro::Duration".to_string());
                         if let Some(default) = default {
                             let default = self.parse_default(schema, gen_state, default)?;
                             d.insert(name_std.clone(), default);
@@ -432,7 +468,7 @@ impl Templater {
 
                     Schema::Decimal { .. } => {
                         f.push(name_std.clone());
-                        t.insert(name_std.clone(), "avro_rs::Decimal".to_string());
+                        t.insert(name_std.clone(), "apache_avro::Decimal".to_string());
                         if let Some(default) = default {
                             let default = self.parse_default(schema, gen_state, default)?;
                             d.insert(name_std.clone(), default);
@@ -556,6 +592,10 @@ impl Templater {
             let mut visitors = vec![];
             for sc in schemas {
                 let symbol_str = match sc {
+                    Schema::Ref { ref name } => match gen_state.get_schema(name) {
+                        Some(s) => self.str_union_enum(s, gen_state)?,
+                        None => err!("Schema reference '{:?}' cannot be resolved", name)?,
+                    },
                     Schema::Boolean => "Boolean(bool)".into(),
                     Schema::Int => "Int(i32)".into(),
                     Schema::Long => "Long(i64)".into(),
@@ -596,14 +636,14 @@ impl Templater {
                     } => {
                         format!("{f}({f})", f = sanitize(name.to_upper_camel_case()))
                     }
-                    Schema::Decimal { .. } => "Decimal(avro_rs::Decimal)".into(),
+                    Schema::Decimal { .. } => "Decimal(apache_avro::Decimal)".into(),
                     Schema::Uuid => "Uuid(uuid::Uuid)".into(),
                     Schema::Date => "Date(i32)".into(),
                     Schema::TimeMillis => "TimeMillis(i32)".into(),
                     Schema::TimeMicros => "TimeMicros(i64)".into(),
                     Schema::TimestampMillis => "TimestampMillis(i64)".into(),
                     Schema::TimestampMicros => "TimestampMicros(i64)".into(),
-                    Schema::Duration => "Duration(avro_rs::Duration)".into(),
+                    Schema::Duration => "Duration(apache_avro::Duration)".into(),
                     Schema::Null => err!(
                         "Invalid Schema::Null not in first position on an UnionSchema variants"
                     )?,
@@ -664,6 +704,11 @@ impl Templater {
         default: &serde_json::Value,
     ) -> Result<String> {
         let default_str = match schema {
+            Schema::Ref { name } => match gen_state.get_schema(name) {
+                Some(s) => self.parse_default(s, gen_state, default)?,
+                None => err!("Schema reference '{:?}' cannot be resolved", name)?,
+            },
+
             Schema::Boolean => match default {
                 Value::Bool(b) => b.to_string(),
                 _ => err!("Invalid default: {:?}", default)?,
@@ -930,6 +975,10 @@ impl Templater {
 /// Generates the Rust type of the inner schema of an Avro array.
 pub(crate) fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
     let type_str = match inner {
+        Schema::Ref { name } => match gen_state.get_schema(name) {
+            Some(s) => array_type(s, gen_state)?,
+            None => err!("Schema reference '{:?}' cannot be resolved", name)?,
+        },
         Schema::Boolean => "Vec<bool>".into(),
         Schema::Int => "Vec<i32>".into(),
         Schema::Long => "Vec<i64>".into(),
@@ -945,8 +994,8 @@ pub(crate) fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String>
         Schema::TimestampMicros => "Vec<i64>".into(),
 
         Schema::Uuid => "Vec<uuid::Uuid>".into(),
-        Schema::Decimal { .. } => "Vec<avro_rs::Decimal>".into(),
-        Schema::Duration { .. } => "Vec<avro_rs::Duration>".into(),
+        Schema::Decimal { .. } => "Vec<apache_avro::Decimal>".into(),
+        Schema::Duration { .. } => "Vec<apache_avro::Duration>".into(),
 
         Schema::Fixed {
             name: Name { name: f_name, .. },
@@ -987,6 +1036,10 @@ pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
     }
 
     let type_str = match inner {
+        Schema::Ref { name } => match gen_state.get_schema(name) {
+            Some(s) => map_type(s, gen_state)?,
+            None => err!("Schema reference '{:?}' cannot be resolved", name)?,
+        },
         Schema::Boolean => map_of("bool"),
         Schema::Int => map_of("i32"),
         Schema::Long => map_of("i64"),
@@ -1002,8 +1055,8 @@ pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
         Schema::TimestampMicros => map_of("i64"),
 
         Schema::Uuid => map_of("uuid::Uuid"),
-        Schema::Decimal { .. } => map_of("avro_rs::Decimal"),
-        Schema::Duration { .. } => map_of("avro_rs::Duration"),
+        Schema::Decimal { .. } => map_of("apache_avro::Decimal"),
+        Schema::Duration { .. } => map_of("apache_avro::Duration"),
 
         Schema::Fixed {
             name: Name { name: f_name, .. },
@@ -1039,6 +1092,10 @@ pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
 
 fn union_enum_variant(schema: &Schema, gen_state: &GenState) -> Result<String> {
     let variant_str = match schema {
+        Schema::Ref { name } => match gen_state.get_schema(name) {
+            Some(s) => union_enum_variant(s, gen_state)?,
+            None => err!("Schema reference '{:?}' cannot be resolved", name)?,
+        },
         Schema::Boolean => "Boolean".into(),
         Schema::Int => "Int".into(),
         Schema::Long => "Long".into(),
@@ -1116,6 +1173,10 @@ pub(crate) fn union_type(
 /// Generates the Rust type of the inner schema of an Avro optional union.
 pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
     let type_str = match inner {
+        Schema::Ref { name } => match gen_state.get_schema(name) {
+            Some(s) => option_type(s, gen_state)?,
+            None => err!("Schema reference '{:?}' cannot be resolved", name)?,
+        },
         Schema::Boolean => "Option<bool>".into(),
         Schema::Int => "Option<i32>".into(),
         Schema::Long => "Option<i64>".into(),
@@ -1131,8 +1192,8 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
         Schema::TimestampMicros => "Option<i64>".into(),
 
         Schema::Uuid => "Option<uuid::Uuid>".into(),
-        Schema::Decimal { .. } => "Option<avro_rs::Decimal>".into(),
-        Schema::Duration { .. } => "Option<avro_rs::Duration>".into(),
+        Schema::Decimal { .. } => "Option<apache_avro::Decimal>".into(),
+        Schema::Duration { .. } => "Option<apache_avro::Duration>".into(),
 
         Schema::Fixed {
             name: Name { name: f_name, .. },

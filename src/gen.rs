@@ -2,7 +2,7 @@ use std::collections::{HashMap, VecDeque};
 use std::fs;
 use std::io::prelude::*;
 
-use avro_rs::{schema::RecordField, Schema};
+use apache_avro::{schema::RecordField, Schema};
 
 use crate::error::{Error, Result};
 use crate::templates::*;
@@ -77,7 +77,7 @@ impl Generator {
     /// * Keeps tracks of nested schema->name with `GenState` mapping
     /// * Appends generated Rust types to the output
     fn gen_in_order(&self, deps: &mut Vec<Schema>, output: &mut impl Write) -> Result<()> {
-        let mut gs = GenState::new();
+        let mut gs = GenState::with_deps(deps);
 
         while let Some(s) = deps.pop() {
             match s {
@@ -316,7 +316,7 @@ impl GeneratorBuilder {
 
 #[cfg(test)]
 mod tests {
-    use avro_rs::schema::Name;
+    use apache_avro::schema::Name;
 
     use super::*;
 
