@@ -211,17 +211,13 @@ struct GenUnionVisitor {
 /// A helper struct for nested schema generation.
 ///
 /// Used to store inner schema String type so that outer schema String type can be created.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct GenState {
     types_by_schema: HashMap<String, String>,
     schemata_by_name: HashMap<Name, Schema>,
 }
 
 impl GenState {
-    pub fn new() -> GenState {
-        GenState::with_deps(&[])
-    }
-
     pub fn with_deps(deps: &[Schema]) -> GenState {
         let schemata_by_name: HashMap<Name, Schema> = deps
             .iter()
@@ -371,9 +367,9 @@ impl Templater {
                 o.insert(name_std.clone(), name);
 
                 let schema = if let Schema::Ref { ref name } = schema {
-                    gen_state.get_schema(name).expect(
-                        format!("Schema reference '{:?}' cannot be resolved", name).as_str(),
-                    )
+                    gen_state.get_schema(name).unwrap_or_else(|| {
+                        panic!("Schema reference '{:?}' cannot be resolved", name)
+                    })
                 } else {
                     schema
                 };
@@ -890,8 +886,8 @@ impl Templater {
                     .iter()
                     .map(|(k, v)| {
                         Ok(format!(
-                            "m.insert({}, {});",
-                            format!("\"{}\".to_owned()", k),
+                            r#"m.insert("{}".to_owned(), {});"#,
+                            k,
                             self.parse_default(inner, gen_state, v)?
                         ))
                     })
