@@ -34,6 +34,14 @@ fn gen_simple_with_builder() {
 }
 
 #[test]
+fn gen_simple_with_schema() {
+    validate_generation(
+        "simple_with_schemas",
+        Generator::builder().derive_schemas(true).build().unwrap(),
+    );
+}
+
+#[test]
 fn gen_complex() {
     validate_generation("complex", Generator::new().unwrap());
 }

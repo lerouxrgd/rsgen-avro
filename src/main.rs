@@ -21,6 +21,7 @@ Options:
   --precision=P      Precision for f32/f64 default values that aren't round numbers [default: 3].
   --union-deser      Custom deserialization for apache-avro multi-valued union types.
   --derive-builders  Derive builders for generated record structs.
+  --derive-schemas   Derive AvroSchema for generated record structs.
   -V, --version      Show version.
   -h, --help         Show this screen.
 ";
@@ -34,6 +35,7 @@ struct CmdArgs {
     flag_precision: Option<usize>,
     flag_union_deser: bool,
     flag_derive_builders: bool,
+    flag_derive_schemas: bool,
     flag_version: bool,
 }
 
@@ -64,6 +66,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         .nullable(args.flag_nullable)
         .use_avro_rs_unions(args.flag_union_deser)
         .derive_builders(args.flag_derive_builders)
+        .derive_schemas(args.flag_derive_schemas)
         .build()?;
 
     g.gen(&source, &mut out)?;

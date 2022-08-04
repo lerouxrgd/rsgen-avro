@@ -2,12 +2,13 @@ use std::collections::{HashMap, VecDeque};
 use std::fs;
 use std::io::prelude::*;
 
-use apache_avro::{schema::RecordField, Schema};
+use apache_avro::schema::RecordField;
 
 use crate::error::{Error, Result};
 use crate::templates::*;
+use crate::Schema;
 
-/// Represents a schema input source.
+/// An input source for generating Rust types.
 pub enum Source<'a> {
     /// An Avro schema enum from `apache-avro` crate.
     Schema(&'a Schema),
@@ -17,24 +18,26 @@ pub enum Source<'a> {
     GlobPattern(&'a str),
 }
 
-/// The main component of this library.
+/// The main component for generating Rust types from a [`Source`](Source).
+///
 /// It is stateless and can be reused many times.
+#[derive(Debug)]
 pub struct Generator {
     templater: Templater,
 }
 
 impl Generator {
-    /// Create a new `Generator` through a builder with default config.
+    /// Creates a new [`Generator`](Generator) with default configuration.
     pub fn new() -> Result<Generator> {
         GeneratorBuilder::new().build()
     }
 
-    /// Returns a fluid builder for custom `Generator` instantiation.
+    /// Returns a fluid builder for custom [`Generator`](Generator) instantiation.
     pub fn builder() -> GeneratorBuilder {
         GeneratorBuilder::new()
     }
 
-    /// Generates Rust code from an Avro schema `Source`.
+    /// Generates Rust code from an Avro schema [`Source`](Source).
     /// Writes all generated types to the ouput.
     pub fn gen(&self, source: &Source, output: &mut impl Write) -> Result<()> {
         match source {
@@ -130,9 +133,9 @@ impl Generator {
 }
 
 /// Utility function to find the ordered, nested dependencies of an Avro `schema`.
-/// Explores nested `schema`s in a breadth-first fashion, pushing them on a stack
-/// at the same time in order to have them ordered.
-/// It is similar to traversing the `schema` tree in a post-order fashion.
+/// Explores nested `schema`s in a breadth-first fashion, pushing them on a stack at the
+/// same time in order to have them ordered.  It is similar to traversing the `schema`
+/// tree in a post-order fashion.
 fn deps_stack(schema: &Schema, mut deps: Vec<Schema>) -> Vec<Schema> {
     fn push_unique(deps: &mut Vec<Schema>, s: Schema) {
         if !deps.contains(&s) {
@@ -256,6 +259,7 @@ pub struct GeneratorBuilder {
     nullable: bool,
     use_avro_rs_unions: bool,
     derive_builders: bool,
+    derive_schemas: bool,
 }
 
 impl Default for GeneratorBuilder {
@@ -265,12 +269,13 @@ impl Default for GeneratorBuilder {
             nullable: false,
             use_avro_rs_unions: false,
             derive_builders: false,
+            derive_schemas: false,
         }
     }
 }
 
 impl GeneratorBuilder {
-    /// Creates a new `GeneratorBuilder`.
+    /// Creates a new [`GeneratorBuilder`](GeneratorBuilder).
     pub fn new() -> GeneratorBuilder {
         GeneratorBuilder::default()
     }
@@ -282,6 +287,7 @@ impl GeneratorBuilder {
     }
 
     /// Puts default value when deserializing `null` field.
+    ///
     /// Doesn't apply to union fields ["null", "Foo"], which are `Option<Foo>`.
     pub fn nullable(mut self, nullable: bool) -> GeneratorBuilder {
         self.nullable = nullable;
@@ -289,6 +295,7 @@ impl GeneratorBuilder {
     }
 
     /// Adds support for deserializing union types from the `apache-avro` crate.
+    ///
     /// Only necessary for unions of 3 or more types or 2-type unions without "null".
     /// Note that only int, long, float, double, and boolean values are currently supported.
     pub fn use_avro_rs_unions(mut self, use_avro_rs_unions: bool) -> GeneratorBuilder {
@@ -297,19 +304,29 @@ impl GeneratorBuilder {
     }
 
     /// Adds support to derive builders using the `rust-derive-builder` crate.
-    /// Will derive builders for record structs.
+    ///
+    /// Applies to record structs.
     pub fn derive_builders(mut self, derive_builders: bool) -> GeneratorBuilder {
         self.derive_builders = derive_builders;
         self
     }
 
-    /// Create a `Generator` with the builder parameters.
+    /// Adds support to derive [`avro_schema::AvroSchema`](avro_schema::AvroSchema).
+    ///
+    /// Applies to record structs.
+    pub fn derive_schemas(mut self, derive_schemas: bool) -> GeneratorBuilder {
+        self.derive_schemas = derive_schemas;
+        self
+    }
+
+    /// Create a [`Generator`](Generator) with the builder parameters.
     pub fn build(self) -> Result<Generator> {
         let mut templater = Templater::new()?;
         templater.precision = self.precision;
         templater.nullable = self.nullable;
         templater.use_avro_rs_unions = self.use_avro_rs_unions;
         templater.derive_builders = self.derive_builders;
+        templater.derive_schemas = self.derive_schemas;
         Ok(Generator { templater })
     }
 }

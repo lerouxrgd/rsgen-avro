@@ -1,5 +1,3 @@
-extern crate derive_builder;
-
 pub mod complex;
 pub mod enums;
 pub mod enums_multiline_doc;
@@ -20,3 +18,4 @@ pub mod record_default;
 pub mod record_multiline_doc;
 pub mod simple;
 pub mod simple_with_builders;
+pub mod simple_with_schemas;

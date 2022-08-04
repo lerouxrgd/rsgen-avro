@@ -22,7 +22,7 @@ pub const RECORD_TEMPLATE: &str = r#"
 /// {{ doc_line }}
 {%- endfor %}
 {%- endif %}
-#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize{%- if derive_builders %}, derive_builder::Builder {%- endif %})]
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize{%- if derive_builders %}, derive_builder::Builder {%- endif %}{%- if derive_schemas %}, apache_avro::AvroSchema {%- endif %})]
 {%- if derive_builders %}
 #[builder(setter(into))]
 {%- endif %}
@@ -252,16 +252,18 @@ impl GenState {
     }
 }
 
-/// The main, stateless, component for templating.
+/// The main, stateless, component for templating Rust types.
 ///
-/// Current implementation uses Tera.  Its responsability is to generate String
+/// Current implementation uses Tera. Its responsability is to generate String
 /// representing Rust code/types for a given Avro schema.
+#[derive(Debug)]
 pub struct Templater {
     tera: Tera,
     pub precision: usize,
     pub nullable: bool,
     pub use_avro_rs_unions: bool,
     pub derive_builders: bool,
+    pub derive_schemas: bool,
 }
 
 impl Templater {
@@ -280,10 +282,11 @@ impl Templater {
             nullable: false,
             use_avro_rs_unions: false,
             derive_builders: false,
+            derive_schemas: false,
         })
     }
 
-    /// Generates a Rust type based on a Schema::Fixed schema.
+    /// Generates a Rust type based on a `Schema::Fixed` schema.
     pub fn str_fixed(&self, schema: &Schema) -> Result<String> {
         if let Schema::Fixed {
             name: Name { name, .. },
@@ -300,7 +303,7 @@ impl Templater {
         }
     }
 
-    /// Generates a Rust enum based on a Schema::Enum schema
+    /// Generates a Rust enum based on a `Schema::Enum` schema
     pub fn str_enum(&self, schema: &Schema) -> Result<String> {
         if let Schema::Enum {
             name: Name { name, .. },
@@ -332,8 +335,9 @@ impl Templater {
         }
     }
 
-    /// Generates a Rust struct based on a Schema::Record schema.
-    /// Makes use of a `GenState` for nested schemas (i.e. Array/Map/Union).
+    /// Generates a Rust struct based on a `Schema::Record` schema.
+    ///
+    /// Makes use of a [`GenState`](GenState) for nested schemas (i.e. Array/Map/Union).
     pub fn str_record(&self, schema: &Schema, gen_state: &GenState) -> Result<String> {
         if let Schema::Record {
             name: Name { name, .. },
@@ -347,6 +351,7 @@ impl Templater {
             let doc = if let Some(d) = doc { d } else { "" };
             ctx.insert("doc", doc);
             ctx.insert("derive_builders", &self.derive_builders);
+            ctx.insert("derive_schemas", &self.derive_schemas);
 
             let mut f = Vec::new(); // field names;
             let mut t = HashMap::new(); // field name -> field type
@@ -375,9 +380,7 @@ impl Templater {
                 };
 
                 match schema {
-                    Schema::Ref { .. } => {
-                        // already resolved above
-                    }
+                    Schema::Ref { .. } => {} // already resolved above
                     Schema::Boolean => {
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), "bool".to_string());

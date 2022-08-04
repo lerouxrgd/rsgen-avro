@@ -32,6 +32,7 @@ version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8cf4144857f9e4d7dd6cc4ba4c78efd2a46bad682b029bd0d91e76a021af1b2a"
 dependencies = [
+ "apache-avro-derive",
  "byteorder",
  "digest",
  "lazy_static",
@@ -49,6 +50,19 @@ dependencies = [
  "typed-builder",
  "uuid",
  "zerocopy",
+]
+
+[[package]]
+name = "apache-avro-derive"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b51802ff40292be24b7b5007d4f96210be3a0423225a3ae5dacebece66d83db9"
+dependencies = [
+ "darling",
+ "proc-macro2",
+ "quote",
+ "serde_json",
+ "syn",
 ]
 
 [[package]]
