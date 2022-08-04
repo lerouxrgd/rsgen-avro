@@ -64,21 +64,15 @@ g.gen(&source, &mut out).unwrap();
 This will generate the following output:
 
 ```text
-#[serde(default)]
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Test {
+    #[serde(default = "default_test_a")]
     pub a: i64,
     pub b: String,
 }
 
-impl Default for Test {
-    fn default() -> Test {
-        Test {
-            a: 42,
-            b: String::default(),
-        }
-    }
-}
+#[inline(always)]
+fn default_test_a() -> i64 { 42 }
 ```
 
 Various `Schema` sources can be used with `Generator`'s `.gen(..)` method:
