@@ -59,6 +59,11 @@ fn gen_multi_valued_union_map() {
 }
 
 #[test]
+fn gen_multi_valued_union_records() {
+    validate_generation("multi_valued_union_records", Generator::new().unwrap());
+}
+
+#[test]
 fn gen_multi_valued_union_with_avro_rs_unions() {
     validate_generation(
         "multi_valued_union_with_avro_rs_unions",

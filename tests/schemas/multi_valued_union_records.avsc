@@ -1,0 +1,20 @@
+{
+  "type": "record",
+  "name": "Foo",
+  "fields": [ {
+    "name": "a",
+    "type": "int"
+  }, {
+    "name": "b",
+    "type": [
+    {
+      "type": "record",
+      "name": "Bar",
+      "fields": [ {"name": "c", "type": "long"} ]
+    }, {
+      "type": "record",
+      "name": "Baz",
+      "fields": [ {"name": "d", "type": "int"} ]
+    } ]
+  } ]
+}
