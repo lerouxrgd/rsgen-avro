@@ -24,4 +24,5 @@ jobs:
           rustup default ${{ matrix.toolchain }}
       - run: cargo build
       - run: cargo fmt --check --all
+      - run: cargo clippy
       - run: cargo test --verbose
