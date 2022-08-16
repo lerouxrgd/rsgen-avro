@@ -1,5 +1,5 @@
 
-#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, PartialEq, Eq, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct Test {
     #[serde(deserialize_with = "nullable_test_a")]

@@ -1,10 +1,10 @@
 
-#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, PartialEq, Eq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Inner {
     pub a: bool,
 }
 
-#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, PartialEq, Eq, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct User {
     #[serde(rename = "m-f64")]

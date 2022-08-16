@@ -19,3 +19,4 @@ pub mod record_multiline_doc;
 pub mod simple;
 pub mod simple_with_builders;
 pub mod simple_with_schemas;
+pub mod nested_with_float;

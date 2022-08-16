@@ -1,5 +1,5 @@
 
-#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, PartialEq, Eq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Test {
     #[serde(default = "default_test_a")]
     pub a: i64,

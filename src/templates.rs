@@ -22,7 +22,7 @@ pub const RECORD_TEMPLATE: &str = r#"
 /// {{ doc_line }}
 {%- endfor %}
 {%- endif %}
-#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize{%- if derive_builders %}, derive_builder::Builder {%- endif %}{%- if derive_schemas %}, apache_avro::AvroSchema {%- endif %})]
+#[derive(Debug, PartialEq{%- if is_eq_derivable %}, Eq{%- endif %}, Clone, serde::Deserialize, serde::Serialize{%- if derive_builders %}, derive_builder::Builder {%- endif %}{%- if derive_schemas %}, apache_avro::AvroSchema {%- endif %})]
 {%- if derive_builders %}
 #[builder(setter(into))]
 {%- endif %}
@@ -105,7 +105,7 @@ pub enum {{ name }} {
 pub const UNION_TERA: &str = "union.tera";
 pub const UNION_TEMPLATE: &str = r#"
 /// Auto-generated type for unnamed Avro union variants.
-#[derive(Debug, PartialEq, Clone{%- if not use_avro_rs_unions %}, serde::Deserialize {%- endif %}, serde::Serialize)]
+#[derive(Debug, PartialEq{%- if is_eq_derivable %}, Eq{%- endif %}, Clone{%- if not use_avro_rs_unions %}, serde::Deserialize {%- endif %}, serde::Serialize)]
 pub enum {{ name }} {
     {%- for s in symbols %}
     {{ s }},
@@ -215,6 +215,7 @@ struct GenUnionVisitor {
 pub struct GenState {
     types_by_schema: HashMap<String, String>,
     schemata_by_name: HashMap<Name, Schema>,
+    not_eq: HashSet<String>,
 }
 
 impl GenState {
@@ -228,10 +229,11 @@ impl GenState {
                 _ => None,
             })
             .collect::<HashMap<_, _>>();
-
+        let not_eq = Self::get_not_eq_schemas(deps, &schemata_by_name);
         GenState {
             types_by_schema: HashMap::new(),
             schemata_by_name,
+            not_eq,
         }
     }
 
@@ -249,6 +251,56 @@ impl GenState {
     pub fn get_type(&self, schema: &Schema) -> Option<&String> {
         let k = serde_json::to_string(schema).expect("Unexpected invalid schema");
         self.types_by_schema.get(&k)
+    }
+
+    /// Checks that schema does not contains nested type which does not implement Eq trait.
+    pub fn is_eq_derivable(&self, schema: &Schema) -> bool {
+        match schema {
+            Schema::Union(_) | Schema::Record { .. } => !self
+                .not_eq
+                .contains(&serde_json::to_string(schema).expect("Unexpected invalid schema")),
+            _ => true,
+        }
+    }
+
+    /// Utility function to find nested type that does not implement Eq in record and it's dependencies.
+    fn deep_search_not_eq(schema: &Schema, schemata_by_name: &HashMap<Name, Schema>) -> bool {
+        match schema {
+            Schema::Array(inner) | Schema::Map(inner) => {
+                Self::deep_search_not_eq(inner, schemata_by_name)
+            }
+            Schema::Record { fields, .. } => fields
+                .iter()
+                .any(|f| Self::deep_search_not_eq(&f.schema, schemata_by_name)),
+            Schema::Union(union) => union
+                .variants()
+                .iter()
+                .any(|s| Self::deep_search_not_eq(s, schemata_by_name)),
+            Schema::Ref { name } => schemata_by_name
+                .get(name)
+                .map(|s| Self::deep_search_not_eq(s, schemata_by_name))
+                .expect(&format!(
+                    "Ref `{:?}` is not resolved. Schema: {:?}",
+                    name, schema
+                )),
+            Schema::Float | Schema::Double => true,
+            _ => false,
+        }
+    }
+
+    /// Fill HashSet with schemas that contains type which does not implement Eq
+    fn get_not_eq_schemas(
+        deps: &[Schema],
+        schemata_by_name: &HashMap<Name, Schema>,
+    ) -> HashSet<String> {
+        let mut float_schemas = HashSet::new();
+        for dep in deps {
+            if Self::deep_search_not_eq(dep, schemata_by_name) {
+                let str_schema = serde_json::to_string(dep).expect("Unexpected invalid schema");
+                float_schemas.insert(str_schema);
+            }
+        }
+        float_schemas
     }
 }
 
@@ -557,6 +609,7 @@ impl Templater {
             ctx.insert("types", &t);
             ctx.insert("originals", &o);
             ctx.insert("defaults", &d);
+            ctx.insert("is_eq_derivable", &gen_state.is_eq_derivable(schema));
             if self.nullable {
                 ctx.insert("nullable", &true);
             }
@@ -689,6 +742,7 @@ impl Templater {
             ctx.insert("symbols", &symbols);
             ctx.insert("visitors", &visitors);
             ctx.insert("use_avro_rs_unions", &self.use_avro_rs_unions);
+            ctx.insert("is_eq_derivable", &gen_state.is_eq_derivable(schema));
 
             Ok(self.tera.render(UNION_TERA, &ctx)?)
         } else {

@@ -1,0 +1,29 @@
+{
+  "type": "record",
+  "name": "Foo",
+  "fields": [ {
+      "name": "Bar",
+      "type": "record",
+      "fields": [ {
+          "name": "Baz",
+          "type": "record",
+          "fields": [ {
+              "name": "FooFoo",
+              "type": "record",
+              "fields": [ {"name": "test_map", "type": "map", "values": "float"} ]
+            }, {
+              "name": "FooBar",
+              "type": "record",
+              "fields": [
+                {"name": "test_vec", "type": "array", "items": "float"},
+                {"name": "float_union", "type": ["float", "int"]},
+                {"name": "int_union", "type": ["int", "long"]}
+              ]
+          } ]
+        } ]
+    }, {
+      "name": "FooBaz",
+      "type": "record",
+      "fields": [ {"name": "BarFoo",  "type": "record", "fields": [ {"name": "nested_int", "type": "int"} ]} ]
+    }
+] }
