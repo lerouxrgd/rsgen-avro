@@ -1,5 +1,5 @@
 
-#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, PartialEq, Eq, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct KsqlDataSourceSchema {
     #[serde(rename = "ID")]

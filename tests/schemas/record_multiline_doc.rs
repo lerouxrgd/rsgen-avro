@@ -1,7 +1,7 @@
 
 /// Some user representation
 /// Users love pizzas!
-#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, PartialEq, Eq, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct User {
     pub likes_pizza: bool,

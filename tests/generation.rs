@@ -129,3 +129,8 @@ fn gen_enums_multiline_doc() {
 fn gen_fixed() {
     validate_generation("fixed", Generator::new().unwrap());
 }
+
+#[test]
+fn nested_with_float() {
+    validate_generation("nested_with_float", Generator::new().unwrap());
+}
