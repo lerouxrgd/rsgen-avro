@@ -69,9 +69,10 @@
 //!
 //! ```rust
 //! pub enum Source<'a> {
-//!     Schema(&'a rsgen_avro::Schema), // Enum re-exported from `apache-avro`
-//!     SchemaStr(&'a str),             // Schema as a json string
-//!     GlobPattern(&'a str),           // Glob pattern to select schema files
+//!     Schema(&'a rsgen_avro::Schema),    // Avro schema enum re-exported from `apache-avro`
+//!     Schemas(&'a [rsgen_avro::Schema]), // A slice of Avro schema enums
+//!     SchemaStr(&'a str),                // Schema as a json string
+//!     GlobPattern(&'a str),              // Glob pattern to select schema files
 //! }
 //! ```
 //!
