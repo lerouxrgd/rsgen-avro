@@ -10,8 +10,10 @@ use crate::Schema;
 
 /// An input source for generating Rust types.
 pub enum Source<'a> {
-    /// An Avro schema enum from `apache-avro` crate.
+    /// An Avro schema enum from the `apache-avro` crate.
     Schema(&'a Schema),
+    /// A slice of Avro schema enums from the `apache-avro` crate.
+    Schemas(&'a [Schema]),
     /// An Avro schema string in json format.
     SchemaStr(&'a str),
     /// Pattern for selecting files containing Avro schemas in json format.
@@ -46,6 +48,14 @@ impl Generator {
                 self.gen_in_order(&mut deps, output)?;
             }
 
+            Source::Schemas(schemas) => {
+                let mut deps = schemas
+                    .iter()
+                    .fold(vec![], |deps, schema| deps_stack(schema, deps));
+
+                self.gen_in_order(&mut deps, output)?;
+            }
+
             Source::SchemaStr(raw_schema) => {
                 let schema = Schema::parse_str(raw_schema)?;
                 let mut deps = deps_stack(&schema, vec![]);
@@ -63,11 +73,7 @@ impl Generator {
 
                 let schemas = &raw_schemas.iter().map(|s| s.as_str()).collect::<Vec<_>>();
                 let schemas = Schema::parse_list(schemas)?;
-                let mut deps = schemas
-                    .iter()
-                    .fold(vec![], |deps, schema| deps_stack(schema, deps));
-
-                self.gen_in_order(&mut deps, output)?;
+                self.gen(&Source::Schemas(&schemas), output)?;
             }
         }
 
