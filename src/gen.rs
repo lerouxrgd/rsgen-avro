@@ -40,7 +40,7 @@ impl Generator {
     }
 
     /// Generates Rust code from an Avro schema [`Source`](Source).
-    /// Writes all generated types to the ouput.
+    /// Writes all generated types to the output.
     pub fn gen(&self, source: &Source, output: &mut impl Write) -> Result<()> {
         match source {
             Source::Schema(schema) => {

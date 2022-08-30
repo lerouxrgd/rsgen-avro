@@ -8,7 +8,11 @@ pub struct User {
     #[serde(default = "default_user_likes_pizza")]
     pub likes_pizza: bool,
     #[serde(default = "default_user_b")]
+    #[serde(with = "serde_bytes")]
     pub b: Vec<u8>,
+    #[serde(default = "default_user_union_b")]
+    #[serde(with = "serde_bytes")]
+    pub union_b: Option<Vec<u8>>,
     #[serde(rename = "a-bool")]
     #[serde(default = "default_user_a_bool")]
     pub a_bool: Vec<bool>,
@@ -27,6 +31,9 @@ fn default_user_likes_pizza() -> bool { false }
 
 #[inline(always)]
 fn default_user_b() -> Vec<u8> { vec![195, 191] }
+
+#[inline(always)]
+fn default_user_union_b() -> Option<Vec<u8>> { None }
 
 #[inline(always)]
 fn default_user_a_bool() -> Vec<bool> { vec![true, false] }
