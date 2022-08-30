@@ -16,7 +16,7 @@ fn bad_default_for_array() {
 "#;
 
     let g = Generator::new().unwrap();
-    let src = Source::SchemaStr(&raw_schema);
+    let src = Source::SchemaStr(raw_schema);
     let mut buf = vec![];
     g.gen(&src, &mut buf).unwrap()
 }
@@ -37,7 +37,7 @@ fn bad_default_for_map() {
 "#;
 
     let g = Generator::new().unwrap();
-    let src = Source::SchemaStr(&raw_schema);
+    let src = Source::SchemaStr(raw_schema);
     let mut buf = vec![];
     g.gen(&src, &mut buf).unwrap()
 }
@@ -65,7 +65,7 @@ fn bad_default_for_record() {
 "#;
 
     let g = Generator::new().unwrap();
-    let src = Source::SchemaStr(&raw_schema);
+    let src = Source::SchemaStr(raw_schema);
     let mut buf = vec![];
     g.gen(&src, &mut buf).unwrap()
 }

@@ -282,10 +282,9 @@ impl GenState {
             Schema::Ref { name } => schemata_by_name
                 .get(name)
                 .map(|s| Self::deep_search_not_eq(s, schemata_by_name))
-                .expect(&format!(
-                    "Ref `{:?}` is not resolved. Schema: {:?}",
-                    name, schema
-                )),
+                .unwrap_or_else(|| {
+                    panic!("Ref `{:?}` is not resolved. Schema: {:?}", name, schema)
+                }),
             Schema::Float | Schema::Double => true,
             _ => false,
         }
