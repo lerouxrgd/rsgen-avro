@@ -42,6 +42,9 @@ pub struct {{ name }} {
     {%- if defaults is containing(f) and not fields | length == defaults | length %}
     #[serde(default = "default_{{ name | lower }}_{{ f | lower | trim_start_matches(pat="r#") }}")]
     {%- endif %}
+    {%- if bytes is containing(f) %}
+    #[serde(with = "serde_bytes")]
+    {%- endif %}
     pub {{ f }}: {{ type }},
     {%- endfor %}
 }
@@ -409,6 +412,7 @@ impl Templater {
             let mut t = HashMap::new(); // field name -> field type
             let mut o = HashMap::new(); // field name -> original name
             let mut d = HashMap::new(); // field name -> default value
+            let mut b = HashSet::new(); // bytes fields;
 
             let mut fields_by_pos = fields.iter().clone().collect::<Vec<_>>();
             fields_by_pos.sort_by_key(|f| f.position);
@@ -482,6 +486,7 @@ impl Templater {
                     }
 
                     Schema::Bytes => {
+                        b.insert(name_std.clone());
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), "Vec<u8>".to_string());
                         if let Some(default) = default {
@@ -599,6 +604,13 @@ impl Templater {
                             let default = self.parse_default(schema, gen_state, default)?;
                             d.insert(name_std.clone(), default);
                         }
+                        union.variants().iter().any(|variant| {
+                            if let Schema::Bytes = variant {
+                                b.insert(name_std.clone());
+                                return true;
+                            }
+                            false
+                        });
                     }
 
                     Schema::Null => err!("Invalid use of Schema::Null")?,
@@ -609,6 +621,7 @@ impl Templater {
             ctx.insert("types", &t);
             ctx.insert("originals", &o);
             ctx.insert("defaults", &d);
+            ctx.insert("bytes", &b);
             ctx.insert("is_eq_derivable", &gen_state.is_eq_derivable(schema));
             if self.nullable {
                 ctx.insert("nullable", &true);
