@@ -6,7 +6,7 @@ use apache_avro::schema::RecordField;
 
 use crate::error::{Error, Result};
 use crate::templates::*;
-use crate::Schema;
+use crate::{is_union_schema_nullable, Schema};
 
 /// An input source for generating Rust types.
 pub enum Source<'a> {
@@ -118,8 +118,8 @@ impl Generator {
 
                 Schema::Union(ref union) => {
                     // Generate custom enum with potentially nested types
-                    if (union.is_nullable() && union.variants().len() > 2)
-                        || (!union.is_nullable() && union.variants().len() > 1)
+                    if (is_union_schema_nullable(union) && union.variants().len() > 2)
+                        || (!is_union_schema_nullable(union) && union.variants().len() > 1)
                     {
                         let code = &self.templater.str_union_enum(&s, &gs)?;
                         output.write_all(code.as_bytes())?
@@ -192,8 +192,8 @@ fn deps_stack(schema: &Schema, mut deps: Vec<Schema>) -> Vec<Schema> {
                             _ => (),
                         },
                         Schema::Union(union) => {
-                            if (union.is_nullable() && union.variants().len() > 2)
-                                || (!union.is_nullable() && union.variants().len() > 1)
+                            if (is_union_schema_nullable(union) && union.variants().len() > 2)
+                                || (!is_union_schema_nullable(union) && union.variants().len() > 1)
                             {
                                 push_unique(&mut deps, sr.clone());
                             }
@@ -232,8 +232,8 @@ fn deps_stack(schema: &Schema, mut deps: Vec<Schema>) -> Vec<Schema> {
             },
 
             Schema::Union(union) => {
-                if (union.is_nullable() && union.variants().len() > 2)
-                    || (!union.is_nullable() && union.variants().len() > 1)
+                if (is_union_schema_nullable(union) && union.variants().len() > 2)
+                    || (!is_union_schema_nullable(union) && union.variants().len() > 1)
                 {
                     push_unique(&mut deps, s.clone());
                 }

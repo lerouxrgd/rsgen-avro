@@ -4,6 +4,8 @@
   "fields": [
     {"name": "a", "type": "long", "default": 42},
     {"name": "b-b", "type": "string", "default": "na"},
-    {"name": "c", "type": ["null", "int"], "default": null}
+    {"name": "c", "type": ["null", "int"], "default": null},
+    {"name": "d", "type": ["int", "null"], "default": 123},
+    {"name": "e", "type": ["long", "null", "int"]}
   ]
 }

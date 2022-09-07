@@ -91,4 +91,13 @@ pub use crate::error::{Error, Result};
 pub use crate::gen::{Generator, GeneratorBuilder, Source};
 
 pub use apache_avro;
+use apache_avro::schema::UnionSchema;
 pub use apache_avro::Schema;
+
+// A temporary helper which is used as a workaround for
+// https://issues.apache.org/jira/browse/AVRO-3625
+// This method should be replaced with `union.is_nullable()`
+// once apache-avro is updated to a version which includes the fix.
+pub(crate) fn is_union_schema_nullable(union: &UnionSchema) -> bool {
+    union.variants().iter().any(|s| s == &Schema::Null)
+}

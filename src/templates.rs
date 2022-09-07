@@ -13,6 +13,7 @@ use tera::{Context, Tera};
 use uuid::Uuid;
 
 use crate::error::{Error, Result};
+use crate::is_union_schema_nullable;
 
 pub const RECORD_TERA: &str = "record.tera";
 pub const RECORD_TEMPLATE: &str = r#"
@@ -640,21 +641,15 @@ impl Templater {
                 err!("Invalid empty Schema::Union")?
             } else if variants.len() == 1 {
                 err!("Invalid Schema::Union of a single element")?
-            } else if union.is_nullable() && variants.len() == 2 {
+            } else if is_union_schema_nullable(union) && variants.len() == 2 {
                 err!("Attempt to generate a union enum for an optional")?
             }
-
-            let schemas = if variants[0] == Schema::Null {
-                &variants[1..]
-            } else {
-                variants
-            };
 
             let e_name = union_type(union, gen_state, false)?;
 
             let mut symbols = vec![];
             let mut visitors = vec![];
-            for sc in schemas {
+            for sc in variants {
                 let symbol_str = match sc {
                     Schema::Ref { ref name } => match gen_state.get_schema(name) {
                         Some(s) => self.str_union_enum(s, gen_state)?,
@@ -708,9 +703,7 @@ impl Templater {
                     Schema::TimestampMillis => "TimestampMillis(i64)".into(),
                     Schema::TimestampMicros => "TimestampMicros(i64)".into(),
                     Schema::Duration => "Duration(apache_avro::Duration)".into(),
-                    Schema::Null => err!(
-                        "Invalid Schema::Null not in first position on an UnionSchema variants"
-                    )?,
+                    Schema::Null => continue,
                 };
                 symbols.push(symbol_str);
 
@@ -1022,17 +1015,15 @@ impl Templater {
         gen_state: &GenState,
         default: &Value,
     ) -> Result<String> {
-        if union.is_nullable() {
+        if union.variants()[0] == Schema::Null {
             let default_str = match default {
                 Value::Null => "None".into(),
                 _ => err!("Invalid optional union default: {:?}", default)?,
             };
             Ok(default_str)
         } else {
-            let e_name = union_type(union, gen_state, false)?;
-            let e_variant = union_enum_variant(&union.variants()[0], gen_state)?;
-            let default_str = self.parse_default(&union.variants()[0], gen_state, default)?;
-            Ok(format!("{}::{}({})", e_name, e_variant, default_str))
+            let default_val = self.parse_default(&union.variants()[0], gen_state, default)?;
+            Ok(format!("Some({})", default_val))
         }
     }
 }
@@ -1213,22 +1204,22 @@ pub(crate) fn union_type(
         err!("Invalid Schema::Union of only Schema::Null")?
     }
 
-    if union.is_nullable() && variants.len() == 2 {
-        return option_type(&variants[1], gen_state);
+    if is_union_schema_nullable(union) && variants.len() == 2 {
+        return match variants[0] {
+            Schema::Null => option_type(&variants[1], gen_state),
+            _ => option_type(&variants[0], gen_state),
+        };
     }
-
-    let schemas = if variants[0] == Schema::Null {
-        &variants[1..]
-    } else {
-        variants
-    };
 
     let mut type_str = String::from("Union");
-    for sc in schemas {
-        type_str.push_str(&union_enum_variant(sc, gen_state)?);
+    for sc in variants {
+        match sc {
+            Schema::Null => continue,
+            _ => type_str.push_str(&union_enum_variant(sc, gen_state)?),
+        }
     }
 
-    if variants[0] == Schema::Null && wrap_if_optional {
+    if is_union_schema_nullable(union) && wrap_if_optional {
         Ok(format!("Option<{}>", type_str))
     } else {
         Ok(type_str)
