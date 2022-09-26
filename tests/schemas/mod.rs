@@ -6,6 +6,7 @@ pub mod fixed;
 pub mod map_default;
 pub mod multi_valued_union;
 pub mod multi_valued_union_map;
+pub mod multi_valued_union_nested;
 pub mod multi_valued_union_records;
 pub mod multi_valued_union_with_avro_rs_unions;
 pub mod nested_record_default;

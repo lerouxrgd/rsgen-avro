@@ -1,0 +1,5 @@
+{
+  "type": "enum",
+  "name": "C",
+  "symbols":["U","S","D"]
+}

@@ -12,7 +12,10 @@ fn validate_generation(file_name: &str, g: Generator) {
 
     let generated = String::from_utf8(buf).unwrap();
     let expected = std::fs::read_to_string(format!("tests/schemas/{file_name}.rs")).unwrap();
+    validate(expected, generated)
+}
 
+fn validate(expected: String, generated: String) {
     assert_eq!(
         expected, generated,
         "\n\n>>>>>>>>>>>>>>>>> Expected: \n{}\n>>>>>>>>>>>>>>>>> But generated: \n{}",
@@ -64,6 +67,18 @@ fn gen_multi_valued_union() {
 #[test]
 fn gen_multi_valued_union_map() {
     validate_generation("multi_valued_union_map", Generator::new().unwrap());
+}
+
+#[test]
+fn gen_multi_valued_union_nested() {
+    let schemas = format!("tests/schemas/multi_valued_union_nested_*.avsc");
+    let src = Source::GlobPattern(&schemas);
+    let mut buf = vec![];
+    Generator::new().unwrap().gen(&src, &mut buf).unwrap();
+    let generated = String::from_utf8(buf).unwrap();
+    let expected =
+        std::fs::read_to_string(format!("tests/schemas/multi_valued_union_nested.rs")).unwrap();
+    validate(expected, generated)
 }
 
 #[test]

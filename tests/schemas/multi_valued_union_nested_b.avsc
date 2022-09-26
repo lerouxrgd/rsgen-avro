@@ -1,0 +1,9 @@
+{
+  "type": "record",
+  "name": "B",
+  "fields": [
+	{ "name": "pass", "type": "long" },
+	{ "name": "direction", "type": "C" },
+	{ "name": "depth", "type": "double" }
+  ]
+}

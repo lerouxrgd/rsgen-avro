@@ -654,12 +654,16 @@ impl Templater {
 
             let mut symbols = vec![];
             let mut visitors = vec![];
-            for sc in schemas {
-                let symbol_str = match sc {
-                    Schema::Ref { ref name } => match gen_state.get_schema(name) {
-                        Some(s) => self.str_union_enum(s, gen_state)?,
+            for mut sc in schemas {
+                // Resolve potentially nested schema ref
+                while let Schema::Ref { ref name } = sc {
+                    match gen_state.get_schema(name) {
+                        Some(s) => sc = s,
                         None => err!("Schema reference '{:?}' cannot be resolved", name)?,
-                    },
+                    }
+                }
+                let symbol_str = match sc {
+                    Schema::Ref { .. } => unreachable!(),
                     Schema::Boolean => "Boolean(bool)".into(),
                     Schema::Int => "Int(i32)".into(),
                     Schema::Long => "Long(i64)".into(),
