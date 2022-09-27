@@ -152,6 +152,7 @@ impl<'de> serde::Deserialize<'de> for {{ name }} {
                 formatter.write_str("a {{ name}}")
             }
             {%- for v in visitors %}
+            {%- if v.serde_visitor %}
 
             fn visit_{{ v.serde_visitor | trim_start_matches(pat="&") }}<E>(self, value: {{ v.serde_visitor }}) -> Result<Self::Value, E>
             where
@@ -159,6 +160,7 @@ impl<'de> serde::Deserialize<'de> for {{ name }} {
             {
                 Ok({{ name }}::{{ v.variant }}(value.into()))
             }
+            {%- endif %}
             {%- endfor %}
         }
 
@@ -206,9 +208,9 @@ macro_rules! err (
 /// A helper struct for apache-avro union deserialization visitors.
 #[derive(Debug, serde::Serialize)]
 struct GenUnionVisitor {
-    variant: &'static str,
-    rust_type: &'static str,
-    serde_visitor: &'static str,
+    variant: String,
+    rust_type: String,
+    serde_visitor: Option<String>,
 }
 
 /// A helper struct for nested schema generation.
@@ -719,35 +721,43 @@ impl Templater {
                 symbols.push(symbol_str);
 
                 match sc {
+                    Schema::Record {
+                        name: Name { name, .. },
+                        ..
+                    } => visitors.push(GenUnionVisitor {
+                        variant: name.to_upper_camel_case(),
+                        rust_type: name.to_upper_camel_case(),
+                        serde_visitor: name.to_upper_camel_case().into(),
+                    }),
                     Schema::Boolean => visitors.push(GenUnionVisitor {
-                        variant: "Boolean",
-                        rust_type: "bool",
-                        serde_visitor: "bool",
+                        variant: String::from("Boolean"),
+                        rust_type: String::from("bool"),
+                        serde_visitor: String::from("bool").into(),
                     }),
                     Schema::Int => visitors.push(GenUnionVisitor {
-                        variant: "Int",
-                        rust_type: "i32",
-                        serde_visitor: "i32",
+                        variant: String::from("Int"),
+                        rust_type: String::from("i32"),
+                        serde_visitor: String::from("i32").into(),
                     }),
                     Schema::Long => visitors.push(GenUnionVisitor {
-                        variant: "Long",
-                        rust_type: "i64",
-                        serde_visitor: "i64",
+                        variant: String::from("Long"),
+                        rust_type: String::from("i64"),
+                        serde_visitor: String::from("i64").into(),
                     }),
                     Schema::Float => visitors.push(GenUnionVisitor {
-                        variant: "Float",
-                        rust_type: "f32",
-                        serde_visitor: "f32",
+                        variant: String::from("Float"),
+                        rust_type: String::from("f32"),
+                        serde_visitor: String::from("f32").into(),
                     }),
                     Schema::Double => visitors.push(GenUnionVisitor {
-                        variant: "Double",
-                        rust_type: "f64",
-                        serde_visitor: "f64",
+                        variant: String::from("Double"),
+                        rust_type: String::from("f64"),
+                        serde_visitor: String::from("f64").into(),
                     }),
                     Schema::String => visitors.push(GenUnionVisitor {
-                        variant: "String",
-                        rust_type: "String",
-                        serde_visitor: "&str",
+                        variant: String::from("String"),
+                        rust_type: String::from("String"),
+                        serde_visitor: String::from("&str").into(),
                     }),
                     _ => (),
                 };

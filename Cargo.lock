@@ -602,7 +602,7 @@ checksum = "3582f63211428f83597b51b2ddb88e2a91a9d52d12831f9d08f5e624e8977422"
 
 [[package]]
 name = "rsgen-avro"
-version = "0.11.4"
+version = "0.11.5"
 dependencies = [
  "apache-avro",
  "derive_builder",

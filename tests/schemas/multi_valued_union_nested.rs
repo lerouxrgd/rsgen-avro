@@ -57,6 +57,24 @@ impl TryFrom<UnionLongDoubleB> for f64 {
     }
 }
 
+impl From<B> for UnionLongDoubleB {
+    fn from(v: B) -> Self {
+        Self::B(v)
+    }
+}
+
+impl TryFrom<UnionLongDoubleB> for B {
+    type Error = UnionLongDoubleB;
+
+    fn try_from(v: UnionLongDoubleB) -> Result<Self, Self::Error> {
+        if let UnionLongDoubleB::B(v) = v {
+            Ok(v)
+        } else {
+            Err(v)
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct A {
     pub item: Option<UnionLongDoubleB>,
