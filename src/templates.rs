@@ -727,7 +727,7 @@ impl Templater {
                     } => visitors.push(GenUnionVisitor {
                         variant: name.to_upper_camel_case(),
                         rust_type: name.to_upper_camel_case(),
-                        serde_visitor: name.to_upper_camel_case().into(),
+                        serde_visitor: None,
                     }),
                     Schema::Boolean => visitors.push(GenUnionVisitor {
                         variant: String::from("Boolean"),
