@@ -1,0 +1,13 @@
+{
+	"type": "enum",
+	"namespace": "Energistics.Etp.v12.Datatypes.Object",
+	"name": "ContextScopeKind",
+	"symbols":
+	[
+		"self",
+		"sources",
+		"targets",
+		"sourcesOrSelf",
+		"targetsOrSelf"
+	]
+}

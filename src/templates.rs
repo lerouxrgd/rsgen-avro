@@ -190,10 +190,20 @@ lazy_static! {
         .collect();
         s
     };
+    static ref UNESCAPABLE: HashSet<String> = {
+        let s: HashSet<_> = vec!["Self", "self", "super", "extern", "crate"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        s
+    };
 }
 
 fn sanitize(mut s: String) -> String {
     if RESERVED.contains(&s) {
+        if UNESCAPABLE.contains(&s) {
+            s.push('_');
+        }
         s.insert_str(0, "r#");
         s
     } else {
