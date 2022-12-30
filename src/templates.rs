@@ -194,7 +194,7 @@ lazy_static! {
 
 fn sanitize(mut s: String) -> String {
     if RESERVED.contains(&s) {
-        s.insert_str(0, "r#");
+        s.insert_str(0, "r");
         s
     } else {
         s
