@@ -15,14 +15,14 @@ use uuid::Uuid;
 use crate::error::{Error, Result};
 
 pub const RECORD_TERA: &str = "record.tera";
-pub const RECORD_TEMPLATE: &str = r#"
+pub const RECORD_TEMPLATE: &str = r##"
 {%- if doc %}
 {%- set doc_lines = doc | split(pat="\n") %}
 {%- for doc_line in doc_lines %}
 /// {{ doc_line }}
 {%- endfor %}
 {%- endif %}
-#[derive(Debug, PartialEq{%- if is_eq_derivable %}, Eq{%- endif %}, Clone, serde::Deserialize, serde::Serialize{%- if derive_builders %}, derive_builder::Builder {%- endif %}{%- if derive_schemas %}, apache_avro::AvroSchema {%- endif %})]
+#[derive(Debug, PartialEq{%- if is_eq_derivable %}, Eq{%- endif %}, Clone, serde::Deserialize, serde::Serialize{%- if derive_builders %}, derive_builder::Builder {%- endif %})]
 {%- if derive_builders %}
 #[builder(setter(into))]
 {%- endif %}
@@ -48,6 +48,15 @@ pub struct {{ name }} {
     pub {{ f }}: {{ type }},
     {%- endfor %}
 }
+
+{%- if derive_schemas %}
+{# #}
+impl apache_avro::schema::derive::AvroSchemaComponent for {{ name }} {
+    fn get_schema_in_ctxt(_: &mut apache_avro::schema::Names, _: &apache_avro::schema::Namespace) -> apache_avro::Schema {
+        apache_avro::Schema::parse_str(r#"{{ schema_str }}"#).unwrap()
+    }
+}
+{%- endif %}
 
 {%- for f in fields %}
 {%- set type = types[f] %}
@@ -84,7 +93,7 @@ impl Default for {{ name }} {
     }
 }
 {%- endif %}
-"#;
+"##;
 
 pub const ENUM_TERA: &str = "enum.tera";
 pub const ENUM_TEMPLATE: &str = r#"
@@ -418,6 +427,8 @@ impl Templater {
             ctx.insert("doc", doc);
             ctx.insert("derive_builders", &self.derive_builders);
             ctx.insert("derive_schemas", &self.derive_schemas);
+            let schema_str = serde_json::to_string(&schema).unwrap();
+            ctx.insert("schema_str", &schema_str);
 
             let mut f = Vec::new(); // field names;
             let mut t = HashMap::new(); // field name -> field type
