@@ -131,6 +131,11 @@ fn gen_map_default() {
 }
 
 #[test]
+fn gen_map_multiple_def() {
+    validate_generation("map_multiple_def", Generator::new().unwrap());
+}
+
+#[test]
 fn gen_enums() {
     validate_generation("enums", Generator::new().unwrap());
 }

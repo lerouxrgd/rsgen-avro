@@ -278,7 +278,7 @@ impl GenState {
         }
     }
 
-    /// Utility function to find nested type that does not implement Eq in record and it's dependencies.
+    /// Utility function to find nested type that does not implement Eq in record and its dependencies.
     fn deep_search_not_eq(schema: &Schema, schemata_by_name: &HashMap<Name, Schema>) -> bool {
         match schema {
             Schema::Array(inner) | Schema::Map(inner) => {
