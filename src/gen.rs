@@ -86,7 +86,7 @@ impl Generator {
     /// * Keeps tracks of nested schema->name with `GenState` mapping
     /// * Appends generated Rust types to the output
     fn gen_in_order(&self, deps: &mut Vec<Schema>, output: &mut impl Write) -> Result<()> {
-        let mut gs = GenState::with_deps(deps);
+        let mut gs = GenState::with_deps(deps)?;
 
         while let Some(s) = deps.pop() {
             match s {

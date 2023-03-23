@@ -234,7 +234,7 @@ pub struct GenState {
 }
 
 impl GenState {
-    pub fn with_deps(deps: &[Schema]) -> GenState {
+    pub fn with_deps(deps: &[Schema]) -> Result<Self> {
         let schemata_by_name: HashMap<Name, Schema> = deps
             .iter()
             .filter_map(|s| match s {
@@ -244,12 +244,12 @@ impl GenState {
                 _ => None,
             })
             .collect::<HashMap<_, _>>();
-        let not_eq = Self::get_not_eq_schemas(deps, &schemata_by_name);
-        GenState {
+        let not_eq = Self::get_not_eq_schemas(deps, &schemata_by_name)?;
+        Ok(GenState {
             types_by_schema: HashMap::new(),
             schemata_by_name,
             not_eq,
-        }
+        })
     }
 
     pub(crate) fn get_schema(&self, name: &Name) -> Option<&Schema> {
@@ -279,26 +279,40 @@ impl GenState {
     }
 
     /// Utility function to find nested type that does not implement Eq in record and its dependencies.
-    fn deep_search_not_eq(schema: &Schema, schemata_by_name: &HashMap<Name, Schema>) -> bool {
+    fn deep_search_not_eq(
+        schema: &Schema,
+        schemata_by_name: &HashMap<Name, Schema>,
+    ) -> Result<bool> {
         match schema {
             Schema::Array(inner) | Schema::Map(inner) => {
                 Self::deep_search_not_eq(inner, schemata_by_name)
             }
-            Schema::Record { fields, .. } => fields
-                .iter()
-                .any(|f| Self::deep_search_not_eq(&f.schema, schemata_by_name)),
-            Schema::Union(union) => union
-                .variants()
-                .iter()
-                .any(|s| Self::deep_search_not_eq(s, schemata_by_name)),
+            Schema::Record { fields, .. } => {
+                for f in fields {
+                    if Self::deep_search_not_eq(&f.schema, schemata_by_name)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            Schema::Union(union) => {
+                for s in union.variants() {
+                    if Self::deep_search_not_eq(s, schemata_by_name)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
             Schema::Ref { name } => schemata_by_name
                 .get(name)
-                .map(|s| Self::deep_search_not_eq(s, schemata_by_name))
-                .unwrap_or_else(|| {
-                    panic!("Ref `{:?}` is not resolved. Schema: {:?}", name, schema)
-                }),
-            Schema::Float | Schema::Double => true,
-            _ => false,
+                .ok_or_else(|| {
+                    Error::Template(format!(
+                        "Ref `{name:?}` is not resolved. Schema: {schema:?}",
+                    ))
+                })
+                .and_then(|s| Self::deep_search_not_eq(s, schemata_by_name)),
+            Schema::Float | Schema::Double => Ok(true),
+            _ => Ok(false),
         }
     }
 
@@ -306,15 +320,15 @@ impl GenState {
     fn get_not_eq_schemas(
         deps: &[Schema],
         schemata_by_name: &HashMap<Name, Schema>,
-    ) -> HashSet<String> {
+    ) -> Result<HashSet<String>> {
         let mut float_schemas = HashSet::new();
         for dep in deps {
-            if Self::deep_search_not_eq(dep, schemata_by_name) {
+            if Self::deep_search_not_eq(dep, schemata_by_name)? {
                 let str_schema = serde_json::to_string(dep).expect("Unexpected invalid schema");
                 float_schemas.insert(str_schema);
             }
         }
-        float_schemas
+        Ok(float_schemas)
     }
 }
 
@@ -440,9 +454,9 @@ impl Templater {
                 o.insert(name_std.clone(), name);
 
                 let schema = if let Schema::Ref { ref name } = schema {
-                    gen_state.get_schema(name).unwrap_or_else(|| {
-                        panic!("Schema reference '{:?}' cannot be resolved", name)
-                    })
+                    gen_state.get_schema(name).ok_or_else(|| {
+                        Error::Template(format!("Schema reference '{name:?}' cannot be resolved"))
+                    })?
                 } else {
                     schema
                 };
