@@ -335,7 +335,8 @@ pub struct Templater {
 impl Templater {
     /// Creates a new `Templater.`
     pub fn new() -> Result<Templater> {
-        let mut tera = Tera::new("/dev/null/*")?;
+        let dir = tempfile::tempdir()?;
+        let mut tera = Tera::new(&format!("{}", dir.path().join("*").display()))?;
 
         tera.add_raw_template(RECORD_TERA, RECORD_TEMPLATE)?;
         tera.add_raw_template(ENUM_TERA, ENUM_TEMPLATE)?;
