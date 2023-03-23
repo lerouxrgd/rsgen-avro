@@ -71,7 +71,7 @@ fn run() -> Result<(), Box<dyn Error>> {
 
 fn main() {
     run().unwrap_or_else(|e| {
-        eprintln!("{}", e);
+        eprintln!("{e}");
         process::exit(1);
     });
 }

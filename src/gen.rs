@@ -144,9 +144,10 @@ impl Generator {
 /// tree in a post-order fashion.
 fn deps_stack(schema: &Schema, mut deps: Vec<Schema>) -> Vec<Schema> {
     fn push_unique(deps: &mut Vec<Schema>, s: Schema) {
-        if !deps.contains(&s) {
-            deps.push(s);
+        if let Some(i) = deps.iter().position(|d| d == &s) {
+            deps.remove(i);
         }
+        deps.push(s);
     }
 
     let mut q = VecDeque::new();
@@ -182,13 +183,13 @@ fn deps_stack(schema: &Schema, mut deps: Vec<Schema>) -> Vec<Schema> {
                         Schema::Record { .. } => q.push_back(sr),
 
                         // Push to the exploration queue, depending on the inner schema format
-                        Schema::Map(sc) | Schema::Array(sc) => match &**sc {
+                        Schema::Map(sc) | Schema::Array(sc) => match sc.as_ref() {
                             Schema::Fixed { .. }
                             | Schema::Enum { .. }
                             | Schema::Record { .. }
                             | Schema::Map(..)
                             | Schema::Array(..)
-                            | Schema::Union(..) => q.push_back(&**sc),
+                            | Schema::Union(..) => q.push_back(sc),
                             _ => (),
                         },
                         Schema::Union(union) => {

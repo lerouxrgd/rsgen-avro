@@ -1,0 +1,27 @@
+{
+  "type" : "record",
+  "name" : "Payload",
+  "fields" : [ {
+    "name" : "field1",
+    "type" : [ "null", {
+      "type" : "map",
+      "values" : "string"
+    } ],
+    "default" : null
+  }, {
+    "name" : "field2",
+    "type" : [ "null", {
+      "type" : "record",
+      "name" : "Optional",
+      "fields" : [ {
+        "name" : "field3",
+        "type" : [ "null", {
+          "type" : "map",
+          "values" : "string"
+        } ],
+        "default" : null
+      } ]
+    } ],
+    "default" : null
+  } ]
+}

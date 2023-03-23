@@ -278,7 +278,7 @@ impl GenState {
         }
     }
 
-    /// Utility function to find nested type that does not implement Eq in record and it's dependencies.
+    /// Utility function to find nested type that does not implement Eq in record and its dependencies.
     fn deep_search_not_eq(schema: &Schema, schemata_by_name: &HashMap<Name, Schema>) -> bool {
         match schema {
             Schema::Array(inner) | Schema::Map(inner) => {
@@ -335,7 +335,8 @@ pub struct Templater {
 impl Templater {
     /// Creates a new `Templater.`
     pub fn new() -> Result<Templater> {
-        let mut tera = Tera::new("/dev/null/*")?;
+        let dir = tempfile::tempdir()?;
+        let mut tera = Tera::new(&format!("{}", dir.path().join("*").display()))?;
 
         tera.add_raw_template(RECORD_TERA, RECORD_TEMPLATE)?;
         tera.add_raw_template(ENUM_TERA, ENUM_TEMPLATE)?;
