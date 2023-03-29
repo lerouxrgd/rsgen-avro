@@ -4,7 +4,8 @@
 pub struct Test {
     #[serde(deserialize_with = "nullable_test_a")]
     pub a: i64,
-    #[serde(rename = "b-b", deserialize_with = "nullable_test_b_b")]
+    #[serde(rename = "b-b")]
+    #[serde(deserialize_with = "nullable_test_b_b")]
     pub b_b: String,
     pub c: Option<i32>,
 }
@@ -16,7 +17,7 @@ where
 {
     use serde::Deserialize;
     let opt = Option::deserialize(deserializer)?;
-    Ok(opt.unwrap_or_else(|| 42))
+    Ok(opt.unwrap_or_else(|| default_test_a() ))
 }
 
 #[inline(always)]
@@ -26,7 +27,7 @@ where
 {
     use serde::Deserialize;
     let opt = Option::deserialize(deserializer)?;
-    Ok(opt.unwrap_or_else(|| "na".to_owned()))
+    Ok(opt.unwrap_or_else(|| default_test_b_b() ))
 }
 
 #[inline(always)]

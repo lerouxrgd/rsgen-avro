@@ -100,6 +100,8 @@ The builders will only be derived for those structs that are generated from Avro
 
 * Avro schema `namespace` fields are ignored, therefore names from a single schema must
   not conflict.
+* Rust `Option<T>` are supported through Avro unions having `"null"` in their first
+  position only (See [#39](https://github.com/lerouxrgd/rsgen-avro/issues/39))
 
 [schemas]: https://avro.apache.org/docs/current/spec.html
 [apache-avro]: https://github.com/apache/avro/tree/master/lang/rust

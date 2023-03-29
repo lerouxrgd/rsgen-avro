@@ -1,0 +1,8 @@
+{
+  "type": "record",
+  "name": "BytesData",
+  "fields": [
+    {"name": "b", "type": "bytes", "default": "\u00FF"},
+    {"name": "nb", "type": ["null", "bytes"], "default": null}
+  ]
+}
