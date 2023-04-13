@@ -1207,8 +1207,10 @@ fn union_enum_variant(schema: &Schema, gen_state: &GenState) -> Result<String> {
         Schema::Double => "Double".into(),
         Schema::Bytes => "Bytes".into(),
         Schema::String => "String".into(),
-        Schema::Array(inner) => format!("Array{:?}", union_enum_variant(inner.as_ref(), gen_state)),
-        Schema::Map(inner) => format!("Map{:?}", union_enum_variant(inner.as_ref(), gen_state)),
+        Schema::Array(inner) => {
+            format!("Array{}", union_enum_variant(inner.as_ref(), gen_state)?)
+        }
+        Schema::Map(inner) => format!("Map{}", union_enum_variant(inner.as_ref(), gen_state)?),
         Schema::Union(union) => union_type(union, gen_state, false)?,
         Schema::Record {
             name: Name { name, .. },
