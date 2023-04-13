@@ -630,13 +630,12 @@ impl Templater {
                             let default = self.parse_default(schema, gen_state, default)?;
                             d.insert(name_std.clone(), default);
                         }
-                        union.variants().iter().any(|variant| {
-                            if let Schema::Bytes = variant {
-                                b.insert(name_std.clone());
-                                return true;
-                            }
-                            false
-                        });
+                        if union.is_nullable()
+                            && union.variants().len() == 2
+                            && matches!(union.variants()[1], Schema::Bytes)
+                        {
+                            b.insert(name_std.clone());
+                        }
                     }
 
                     Schema::Null => err!("Invalid use of Schema::Null")?,
@@ -696,7 +695,7 @@ impl Templater {
                     Schema::Long => "Long(i64)".into(),
                     Schema::Float => "Float(f32)".into(),
                     Schema::Double => "Double(f64)".into(),
-                    Schema::Bytes => "Bytes(Vec<u8>)".into(),
+                    Schema::Bytes => r#"Bytes(#[serde(with = "serde_bytes")] Vec<u8>)"#.into(),
                     Schema::String => "String(String)".into(),
                     Schema::Array(inner) => {
                         format!(
