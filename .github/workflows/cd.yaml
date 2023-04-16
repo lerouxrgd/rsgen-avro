@@ -18,7 +18,7 @@ jobs:
         run: |
           RELEASE_TAG=${GITHUB_REF#refs/tags/}
           echo "RELEASE_TAG=${RELEASE_TAG}" >> $GITHUB_ENV
-          echo "::set-output name=tag::${RELEASE_TAG}"
+          echo "tag=${RELEASE_TAG}" >> $GITHUB_OUTPUT
       - name: Create the release
         run: |
            curl \
@@ -36,7 +36,7 @@ jobs:
         id: release-id
         run: |
           RELEASE_ID=$(jq -r '.id' release.json)
-          echo "::set-output name=id::${RELEASE_ID}"
+          echo "id=${RELEASE_ID}" >> $GITHUB_OUTPUT
 
   build-and-publish:
     name: Build and publish
