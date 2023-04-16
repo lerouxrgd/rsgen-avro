@@ -86,7 +86,7 @@ impl Generator {
     /// * Keeps tracks of nested schema->name with `GenState` mapping
     /// * Appends generated Rust types to the output
     fn gen_in_order(&self, deps: &mut Vec<Schema>, output: &mut impl Write) -> Result<()> {
-        let mut gs = GenState::with_deps(deps)?;
+        let mut gs = GenState::new(deps)?.with_chrono_dates(self.templater.use_chrono_dates);
 
         while let Some(s) = deps.pop() {
             match s {
@@ -265,6 +265,7 @@ pub struct GeneratorBuilder {
     precision: usize,
     nullable: bool,
     use_avro_rs_unions: bool,
+    use_chrono_dates: bool,
     derive_builders: bool,
     derive_schemas: bool,
 }
@@ -275,6 +276,7 @@ impl Default for GeneratorBuilder {
             precision: 3,
             nullable: false,
             use_avro_rs_unions: false,
+            use_chrono_dates: false,
             derive_builders: false,
             derive_schemas: false,
         }
@@ -310,6 +312,12 @@ impl GeneratorBuilder {
         self
     }
 
+    /// Use chrono::NaiveDateTime for date/timestamps logical types
+    pub fn use_chrono_dates(mut self, use_chrono_dates: bool) -> GeneratorBuilder {
+        self.use_chrono_dates = use_chrono_dates;
+        self
+    }
+
     /// Adds support to derive builders using the `rust-derive-builder` crate.
     ///
     /// Applies to record structs.
@@ -332,6 +340,7 @@ impl GeneratorBuilder {
         templater.precision = self.precision;
         templater.nullable = self.nullable;
         templater.use_avro_rs_unions = self.use_avro_rs_unions;
+        templater.use_chrono_dates = self.use_chrono_dates;
         templater.derive_builders = self.derive_builders;
         templater.derive_schemas = self.derive_schemas;
         Ok(Generator { templater })

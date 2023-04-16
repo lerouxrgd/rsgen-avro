@@ -7,11 +7,11 @@ pub struct User {
     pub favorite_number: i32,
     #[serde(default = "default_user_likes_pizza")]
     pub likes_pizza: bool,
+    #[serde(with = "serde_bytes")]
     #[serde(default = "default_user_b")]
-    #[serde(with = "serde_bytes")]
     pub b: Vec<u8>,
-    #[serde(default = "default_user_union_b")]
     #[serde(with = "serde_bytes")]
+    #[serde(default = "default_user_union_b")]
     pub union_b: Option<Vec<u8>>,
     #[serde(rename = "a-bool")]
     #[serde(default = "default_user_a_bool")]
