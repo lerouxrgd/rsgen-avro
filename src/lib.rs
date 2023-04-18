@@ -86,6 +86,7 @@
 mod error;
 mod gen;
 mod templates;
+mod protocol;
 
 pub use crate::error::{Error, Result};
 pub use crate::gen::{Generator, GeneratorBuilder, Source};

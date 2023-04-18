@@ -5,6 +5,7 @@ use std::io::prelude::*;
 use apache_avro::schema::RecordField;
 
 use crate::error::{Error, Result};
+use crate::protocol::Protocol;
 use crate::templates::*;
 use crate::Schema;
 
@@ -71,8 +72,17 @@ impl Generator {
                     }
                 }
 
-                let schemas = &raw_schemas.iter().map(|s| s.as_str()).collect::<Vec<_>>();
-                let schemas = Schema::parse_list(schemas)?;
+                let schemas = raw_schemas
+                    .iter()
+                    .flat_map(|s| {
+                        match Protocol::get_schemas(s) {
+                            Ok(schemas) => schemas,
+                            Err(_) => [s.to_string()].to_vec(),
+                        }
+                    })
+                    .collect::<Vec<_>>();
+
+                let schemas = Schema::parse_list(&schemas.iter().map(String::as_str).collect::<Vec<_>>())?;
                 self.gen(&Source::Schemas(&schemas), output)?;
             }
         }

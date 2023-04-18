@@ -1,0 +1,42 @@
+{
+  "protocol" : "TestService",
+  "namespace" : "org.test",
+  "types" : [ {
+    "type" : "record",
+    "name" : "TestA",
+    "fields" : [ {
+      "name" : "a",
+      "type" : "long"
+    }, {
+      "name" : "b",
+      "type" : "string"
+    }, {
+      "name" : "c",
+      "type" : [ "null", "string" ],
+      "default" : null
+    } ]
+  }, {
+    "type" : "record",
+    "name" : "TestB",
+    "fields" : [ ]
+  }, {
+    "type" : "record",
+    "name" : "TestC",
+    "fields" : [ {
+      "name" : "testC_probB",
+      "type" : "TestB"
+    } ]
+  } ],
+  "messages" : {
+    "fooMethod" : {
+      "request" : [ {
+        "name" : "name",
+        "type" : "string"
+      }, {
+        "name" : "description",
+        "type" : [ "null", "string" ]
+      } ],
+      "response" : "TestA"
+    }
+  }
+}

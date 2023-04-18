@@ -1,0 +1,14 @@
+@namespace("org.test")
+protocol TestService {
+
+	record TestA {
+		long a;
+		string b;
+		union {null, string} c = null;
+	}
+
+	record TestB {
+	}
+
+	TestA fooMethod(string name, union {null, string} description);
+}
