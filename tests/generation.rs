@@ -106,6 +106,34 @@ fn gen_nullable() {
 }
 
 #[test]
+fn gen_nullable_bytes() {
+    validate_generation(
+        "nullable_bytes",
+        Generator::builder().nullable(true).build().unwrap(),
+    );
+}
+
+#[test]
+fn gen_nullable_logical_dates() {
+    validate_generation(
+        "nullable_logical_dates",
+        Generator::builder()
+            .nullable(true)
+            .use_chrono_dates(true)
+            .build()
+            .unwrap(),
+    );
+}
+
+#[test]
+fn logical_dates() {
+    validate_generation(
+        "logical_dates",
+        Generator::builder().use_chrono_dates(true).build().unwrap(),
+    );
+}
+
+#[test]
 fn gen_record() {
     validate_generation("record", Generator::new().unwrap());
 }

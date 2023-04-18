@@ -32,18 +32,20 @@ pub const RECORD_TEMPLATE: &str = r#"
 pub struct {{ name }} {
     {%- for f in fields %}
     {%- set type = types[f] %}
-    {%- if f != originals[f] and not nullable and not f is starting_with("r#") %}
+    {%- if f != originals[f] and not f is starting_with("r#") %}
     #[serde(rename = "{{ originals[f] }}")]
-    {%- elif f != originals[f] and nullable and not type is starting_with("Option") %}
-    #[serde(rename = "{{ originals[f] }}", deserialize_with = "nullable_{{ name|lower }}_{{ f }}")]
-    {%- elif nullable and not type is starting_with("Option") %}
+    {%- endif %}
+    {%- if nullable and not type is starting_with("Option") %}
     #[serde(deserialize_with = "nullable_{{ name|lower }}_{{ f }}")]
+    {%- endif %}
+    {%- if nullable and not type is starting_with("Option") and serde_with is containing(f) %}
+    #[serde(serialize_with = "{{ serde_with[f] }}::serialize")]
+    {%- endif %}
+    {%- if not nullable and serde_with is containing(f) %}
+    #[serde(with = "{{ serde_with[f] }}")]
     {%- endif %}
     {%- if defaults is containing(f) and not fields | length == defaults | length %}
     #[serde(default = "default_{{ name | lower }}_{{ f | lower | trim_start_matches(pat="r#") }}")]
-    {%- endif %}
-    {%- if bytes is containing(f) %}
-    #[serde(with = "serde_bytes")]
     {%- endif %}
     pub {{ f }}: {{ type }},
     {%- endfor %}
@@ -59,8 +61,14 @@ where
     D: serde::Deserializer<'de>,
 {
     use serde::Deserialize;
+    {%- if serde_with is containing(f) %}
+    #[derive(serde::Deserialize)]
+    struct Wrapper(#[serde(with = "{{ serde_with[f] }}")] {{ type }});
+    let opt = Option::<Wrapper>::deserialize(deserializer)?.map(|w| w.0);
+    {%- else %}
     let opt = Option::deserialize(deserializer)?;
-    Ok(opt.unwrap_or_else(|| {{ defaults[f] }}))
+    {%- endif %}
+    Ok(opt.unwrap_or_else(|| default_{{ name | lower }}_{{ f | lower | trim_start_matches(pat="r#") }}() ))
 }
 {%- endif %}
 {%- endfor %}
@@ -231,10 +239,11 @@ pub struct GenState {
     types_by_schema: HashMap<String, String>,
     schemata_by_name: HashMap<Name, Schema>,
     not_eq: HashSet<String>,
+    use_chrono_dates: bool,
 }
 
 impl GenState {
-    pub fn with_deps(deps: &[Schema]) -> Result<Self> {
+    pub fn new(deps: &[Schema]) -> Result<Self> {
         let schemata_by_name: HashMap<Name, Schema> = deps
             .iter()
             .filter_map(|s| match s {
@@ -249,7 +258,13 @@ impl GenState {
             types_by_schema: HashMap::new(),
             schemata_by_name,
             not_eq,
+            use_chrono_dates: false,
         })
+    }
+
+    pub fn with_chrono_dates(mut self, use_chrono_dates: bool) -> Self {
+        self.use_chrono_dates = use_chrono_dates;
+        self
     }
 
     pub(crate) fn get_schema(&self, name: &Name) -> Option<&Schema> {
@@ -342,6 +357,7 @@ pub struct Templater {
     pub precision: usize,
     pub nullable: bool,
     pub use_avro_rs_unions: bool,
+    pub use_chrono_dates: bool,
     pub derive_builders: bool,
     pub derive_schemas: bool,
 }
@@ -362,6 +378,7 @@ impl Templater {
             precision: 3,
             nullable: false,
             use_avro_rs_unions: false,
+            use_chrono_dates: false,
             derive_builders: false,
             derive_schemas: false,
         })
@@ -438,7 +455,7 @@ impl Templater {
             let mut t = HashMap::new(); // field name -> field type
             let mut o = HashMap::new(); // field name -> original name
             let mut d = HashMap::new(); // field name -> default value
-            let mut b = HashSet::new(); // bytes fields;
+            let mut w = HashMap::new(); // field name -> serde with
 
             let mut fields_by_pos = fields.iter().clone().collect::<Vec<_>>();
             fields_by_pos.sort_by_key(|f| f.position);
@@ -466,6 +483,36 @@ impl Templater {
                     Schema::Boolean => {
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), "bool".to_string());
+                        if let Some(default) = default {
+                            let default = self.parse_default(schema, gen_state, default)?;
+                            d.insert(name_std.clone(), default);
+                        }
+                    }
+
+                    Schema::Date if self.use_chrono_dates => {
+                        f.push(name_std.clone());
+                        t.insert(name_std.clone(), "chrono::NaiveDateTime".to_string());
+                        w.insert(name_std.clone(), "chrono::naive::serde::ts_seconds");
+                        if let Some(default) = default {
+                            let default = self.parse_default(schema, gen_state, default)?;
+                            d.insert(name_std.clone(), default);
+                        }
+                    }
+
+                    Schema::TimeMillis | Schema::TimestampMillis if self.use_chrono_dates => {
+                        f.push(name_std.clone());
+                        t.insert(name_std.clone(), "chrono::NaiveDateTime".to_string());
+                        w.insert(name_std.clone(), "chrono::naive::serde::ts_milliseconds");
+                        if let Some(default) = default {
+                            let default = self.parse_default(schema, gen_state, default)?;
+                            d.insert(name_std.clone(), default);
+                        }
+                    }
+
+                    Schema::TimeMicros | Schema::TimestampMicros if self.use_chrono_dates => {
+                        f.push(name_std.clone());
+                        t.insert(name_std.clone(), "chrono::NaiveDateTime".to_string());
+                        w.insert(name_std.clone(), "chrono::naive::serde::ts_microseconds");
                         if let Some(default) = default {
                             let default = self.parse_default(schema, gen_state, default)?;
                             d.insert(name_std.clone(), default);
@@ -512,9 +559,9 @@ impl Templater {
                     }
 
                     Schema::Bytes => {
-                        b.insert(name_std.clone());
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), "Vec<u8>".to_string());
+                        w.insert(name_std.clone(), "serde_bytes");
                         if let Some(default) = default {
                             let default = self.parse_default(schema, gen_state, default)?;
                             d.insert(name_std.clone(), default);
@@ -630,13 +677,12 @@ impl Templater {
                             let default = self.parse_default(schema, gen_state, default)?;
                             d.insert(name_std.clone(), default);
                         }
-                        union.variants().iter().any(|variant| {
-                            if let Schema::Bytes = variant {
-                                b.insert(name_std.clone());
-                                return true;
-                            }
-                            false
-                        });
+                        if union.is_nullable()
+                            && union.variants().len() == 2
+                            && matches!(union.variants()[1], Schema::Bytes)
+                        {
+                            w.insert(name_std.clone(), "serde_bytes");
+                        }
                     }
 
                     Schema::Null => err!("Invalid use of Schema::Null")?,
@@ -647,7 +693,7 @@ impl Templater {
             ctx.insert("types", &t);
             ctx.insert("originals", &o);
             ctx.insert("defaults", &d);
-            ctx.insert("bytes", &b);
+            ctx.insert("serde_with", &w);
             ctx.insert("is_eq_derivable", &gen_state.is_eq_derivable(schema));
             if self.nullable {
                 ctx.insert("nullable", &true);
@@ -696,7 +742,7 @@ impl Templater {
                     Schema::Long => "Long(i64)".into(),
                     Schema::Float => "Float(f32)".into(),
                     Schema::Double => "Double(f64)".into(),
-                    Schema::Bytes => "Bytes(Vec<u8>)".into(),
+                    Schema::Bytes => r#"Bytes(#[serde(with = "serde_bytes")] Vec<u8>)"#.into(),
                     Schema::String => "String(String)".into(),
                     Schema::Array(inner) => {
                         format!(
@@ -733,6 +779,15 @@ impl Templater {
                     }
                     Schema::Decimal { .. } => "Decimal(apache_avro::Decimal)".into(),
                     Schema::Uuid => "Uuid(uuid::Uuid)".into(),
+                    Schema::Date
+                    | Schema::TimeMillis
+                    | Schema::TimeMicros
+                    | Schema::TimestampMillis
+                    | Schema::TimestampMicros
+                        if self.use_chrono_dates =>
+                    {
+                        "NaiveDateTime(chrono::NaiveDateTime)".into()
+                    }
                     Schema::Date => "Date(i32)".into(),
                     Schema::TimeMillis => "TimeMillis(i32)".into(),
                     Schema::TimeMicros => "TimeMicros(i64)".into(),
@@ -817,6 +872,34 @@ impl Templater {
                 Value::Bool(b) => b.to_string(),
                 _ => err!("Invalid default: {:?}", default)?,
             },
+
+            Schema::Date if self.use_chrono_dates => match default {
+                Value::Number(n) if n.is_i64() => format!(
+                    "chrono::NaiveDateTime::from_timestamp_opt({}, 0).unwrap()",
+                    n.as_i64().unwrap()
+                ),
+                _ => err!("Invalid default: {:?}", default)?,
+            },
+
+            Schema::TimeMillis | Schema::TimestampMillis if self.use_chrono_dates => {
+                match default {
+                    Value::Number(n) if n.is_i64() => format!(
+                        "chrono::NaiveDateTime::from_timestamp_millis({}).unwrap()",
+                        n.as_i64().unwrap()
+                    ),
+                    _ => err!("Invalid default: {:?}", default)?,
+                }
+            }
+
+            Schema::TimeMicros | Schema::TimestampMicros if self.use_chrono_dates => {
+                match default {
+                    Value::Number(n) if n.is_i64() => format!(
+                        "chrono::NaiveDateTime::from_timestamp_micros({}).unwrap()",
+                        n.as_i64().unwrap()
+                    ),
+                    _ => err!("Invalid default: {:?}", default)?,
+                }
+            }
 
             Schema::Int | Schema::Date | Schema::TimeMillis => match default {
                 Value::Number(n) if n.is_i64() => (n.as_i64().unwrap() as i32).to_string(),
@@ -1091,6 +1174,16 @@ pub(crate) fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String>
         Schema::Bytes => "Vec<Vec<u8>>".into(),
         Schema::String => "Vec<String>".into(),
 
+        Schema::Date
+        | Schema::TimeMillis
+        | Schema::TimeMicros
+        | Schema::TimestampMillis
+        | Schema::TimestampMicros
+            if gen_state.use_chrono_dates =>
+        {
+            "Vec<chrono::NaiveDateTime>".into()
+        }
+
         Schema::Date => "Vec<i32>".into(),
         Schema::TimeMillis => "Vec<i32>".into(),
         Schema::TimeMicros => "Vec<i64>".into(),
@@ -1152,6 +1245,16 @@ pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
         Schema::Bytes => map_of("Vec<u8>"),
         Schema::String => map_of("String"),
 
+        Schema::Date
+        | Schema::TimeMillis
+        | Schema::TimeMicros
+        | Schema::TimestampMillis
+        | Schema::TimestampMicros
+            if gen_state.use_chrono_dates =>
+        {
+            map_of("chrono::NaiveDateTime")
+        }
+
         Schema::Date => map_of("i32"),
         Schema::TimeMillis => map_of("i32"),
         Schema::TimeMicros => map_of("i64"),
@@ -1207,8 +1310,10 @@ fn union_enum_variant(schema: &Schema, gen_state: &GenState) -> Result<String> {
         Schema::Double => "Double".into(),
         Schema::Bytes => "Bytes".into(),
         Schema::String => "String".into(),
-        Schema::Array(inner) => format!("Array{:?}", union_enum_variant(inner.as_ref(), gen_state)),
-        Schema::Map(inner) => format!("Map{:?}", union_enum_variant(inner.as_ref(), gen_state)),
+        Schema::Array(inner) => {
+            format!("Array{}", union_enum_variant(inner.as_ref(), gen_state)?)
+        }
+        Schema::Map(inner) => format!("Map{}", union_enum_variant(inner.as_ref(), gen_state)?),
         Schema::Union(union) => union_type(union, gen_state, false)?,
         Schema::Record {
             name: Name { name, .. },
@@ -1289,6 +1394,15 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
         Schema::Bytes => "Option<Vec<u8>>".into(),
         Schema::String => "Option<String>".into(),
 
+        Schema::Date
+        | Schema::TimeMillis
+        | Schema::TimeMicros
+        | Schema::TimestampMillis
+        | Schema::TimestampMicros
+            if gen_state.use_chrono_dates =>
+        {
+            "Option<chrono::NaiveDateTime>".into()
+        }
         Schema::Date => "Option<i32>".into(),
         Schema::TimeMillis => "Option<i32>".into(),
         Schema::TimeMicros => "Option<i64>".into(),

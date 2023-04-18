@@ -13,23 +13,34 @@ use rsgen_avro::{Generator, Source};
 struct Args {
     /// Glob pattern to select Avro schema files
     pub glob_pattern: String,
+
     /// The file where Rust types will be written, '-' for stdout
     pub output_file: PathBuf,
+
     /// Run rustfmt on the resulting <output-file>
     #[clap(long)]
     pub fmt: bool,
+
     /// Replace null fields with their default value when deserializing
     #[clap(long)]
     pub nullable: bool,
+
     /// Precision for f32/f64 default values that aren't round numbers
     #[clap(long, value_name = "P", default_value_t = 3)]
     pub precision: usize,
+
     /// Custom deserialization for apache-avro multi-valued union types
     #[clap(long)]
     pub union_deser: bool,
+
+    /// Use chrono::NaiveDateTime for date/timestamps logical types
+    #[clap(long)]
+    pub chrono_dates: bool,
+
     /// Derive builders for generated record structs
     #[clap(long)]
     pub derive_builders: bool,
+
     /// Derive AvroSchema for generated record structs
     #[clap(long)]
     pub derive_schemas: bool,
@@ -56,6 +67,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         .precision(args.precision)
         .nullable(args.nullable)
         .use_avro_rs_unions(args.union_deser)
+        .use_chrono_dates(args.chrono_dates)
         .derive_builders(args.derive_builders)
         .derive_schemas(args.derive_schemas)
         .build()?;

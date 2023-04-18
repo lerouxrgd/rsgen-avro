@@ -11,29 +11,29 @@ read and write Avro data with such types.
 
 ## Command line usage
 
-Download the latest [release](https://github.com/lerouxrgd/rsgen-avro/releases) or install with:
+Download the latest [release](https://github.com/lerouxrgd/rsgen-avro/releases).
 
-```sh
-cargo install rsgen-avro
-```
+Available options `rsgen-avro --help`:
 
-Available options:
+```text
+Generate Rust types from Avro schemas
 
-```
-Usage:
-  rsgen-avro [options] <schema-files-glob-pattern> <output-file>
-  rsgen-avro (-h | --help)
-  rsgen-avro (-V | --version)
+Usage: rsgen-avro [OPTIONS] <GLOB_PATTERN> <OUTPUT_FILE>
+
+Arguments:
+  <GLOB_PATTERN>  Glob pattern to select Avro schema files
+  <OUTPUT_FILE>   The file where Rust types will be written, '-' for stdout
 
 Options:
-  --fmt              Run rustfmt on the resulting <output-file>
-  --nullable         Replace null fields with their default value when deserializing.
-  --precision=P      Precision for f32/f64 default values that aren't round numbers [default: 3].
-  --union-deser      Custom deserialization for apache-avro multi-valued union types.
-  --derive-builders  Derive builders for generated record structs.
-  --derive-schemas   Derive AvroSchema for generated record structs.
-  -V, --version      Show version.
-  -h, --help         Show this screen.
+      --fmt              Run rustfmt on the resulting <output-file>
+      --nullable         Replace null fields with their default value when deserializing
+      --precision <P>    Precision for f32/f64 default values that aren't round numbers [default: 3]
+      --union-deser      Custom deserialization for apache-avro multi-valued union types
+      --chrono-dates     Use chrono::NaiveDateTime for date/timestamps logical types
+      --derive-builders  Derive builders for generated record structs
+      --derive-schemas   Derive AvroSchema for generated record structs
+  -h, --help             Print help
+  -V, --version          Print version
 ```
 
 ## Library usage
@@ -55,7 +55,6 @@ let raw_schema = r#"
 "#;
 
 let source = Source::SchemaStr(&raw_schema);
-
 let mut out = std::io::stdout();
 
 let g = Generator::new().unwrap();
@@ -76,7 +75,7 @@ pub struct Test {
 fn default_test_a() -> i64 { 42 }
 ```
 
-Various `Schema` sources can be used with `Generator`'s `.gen(..)` method:
+Various `Schema` sources can be used with `Generator::gen(source, output)` method:
 
 ```rust
 pub enum Source<'a> {
@@ -90,16 +89,22 @@ pub enum Source<'a> {
 Note also that the `Generator` can be customized with a builder:
 
 ```rust
-let g = Generator::builder().precision(2).build().unwrap();
+let gen = rsgen_avro::Generator::builder()
+    .precision(2)
+    .build()
+    .unwrap();
 ```
 
-The `derive_builders` option will use the [derive-builder][] crate to derive builders for the generated structs.
-The builders will only be derived for those structs that are generated from Avro records.
+See [GeneratorBuilder][gen-builder-doc] documentation for all available options.
+
+[gen-builder-doc]: https://docs.rs/rsgen-avro/latest/rsgen_avro/struct.GeneratorBuilder.html
 
 ## Limitations
 
-* Avro schema `namespace` fields are ignored, therefore names from a single schema must
-  not conflict.
+* Avro schema `namespace` fields are ignored, therefore record names within a schema
+  (and across schemas) must not conflict (i.e. must be unique).
+* Rust `Option<T>` are supported through Avro unions having `"null"` in their first
+  position only (See [#39](https://github.com/lerouxrgd/rsgen-avro/issues/39))
 
 [schemas]: https://avro.apache.org/docs/current/spec.html
 [apache-avro]: https://github.com/apache/avro/tree/master/lang/rust
