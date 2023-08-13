@@ -4,7 +4,9 @@
 
 use std::collections::{HashMap, HashSet};
 
-use apache_avro::schema::{Name, RecordField, UnionSchema};
+use apache_avro::schema::{
+    DecimalSchema, EnumSchema, FixedSchema, Name, RecordField, RecordSchema, UnionSchema,
+};
 use apache_avro::Schema;
 use heck::{ToSnakeCase, ToUpperCamelCase};
 use lazy_static::lazy_static;
@@ -247,9 +249,9 @@ impl GenState {
         let schemata_by_name: HashMap<Name, Schema> = deps
             .iter()
             .filter_map(|s| match s {
-                Schema::Record { name, .. }
-                | Schema::Fixed { name, .. }
-                | Schema::Enum { name, .. } => Some((name.clone(), s.clone())),
+                Schema::Record(RecordSchema { name, .. })
+                | Schema::Fixed(FixedSchema { name, .. })
+                | Schema::Enum(EnumSchema { name, .. }) => Some((name.clone(), s.clone())),
                 _ => None,
             })
             .collect::<HashMap<_, _>>();
@@ -302,7 +304,7 @@ impl GenState {
             Schema::Array(inner) | Schema::Map(inner) => {
                 Self::deep_search_not_eq(inner, schemata_by_name)
             }
-            Schema::Record { fields, .. } => {
+            Schema::Record(RecordSchema { fields, .. }) => {
                 for f in fields {
                     if Self::deep_search_not_eq(&f.schema, schemata_by_name)? {
                         return Ok(true);
@@ -386,11 +388,11 @@ impl Templater {
 
     /// Generates a Rust type based on a `Schema::Fixed` schema.
     pub fn str_fixed(&self, schema: &Schema) -> Result<String> {
-        if let Schema::Fixed {
+        if let Schema::Fixed(FixedSchema {
             name: Name { name, .. },
             size,
             ..
-        } = schema
+        }) = schema
         {
             let mut ctx = Context::new();
             ctx.insert("name", &sanitize(name.to_upper_camel_case()));
@@ -403,12 +405,12 @@ impl Templater {
 
     /// Generates a Rust enum based on a `Schema::Enum` schema
     pub fn str_enum(&self, schema: &Schema) -> Result<String> {
-        if let Schema::Enum {
+        if let Schema::Enum(EnumSchema {
             name: Name { name, .. },
             symbols,
             doc,
             ..
-        } = schema
+        }) = schema
         {
             if symbols.is_empty() {
                 err!("No symbol for enum: {:?}", name)?
@@ -437,12 +439,12 @@ impl Templater {
     ///
     /// Makes use of a [`GenState`](GenState) for nested schemas (i.e. Array/Map/Union).
     pub fn str_record(&self, schema: &Schema, gen_state: &GenState) -> Result<String> {
-        if let Schema::Record {
+        if let Schema::Record(RecordSchema {
             name: Name { name, .. },
             fields,
             doc,
             ..
-        } = schema
+        }) = schema
         {
             let mut ctx = Context::new();
             ctx.insert("name", &name.to_upper_camel_case());
@@ -604,10 +606,10 @@ impl Templater {
                         }
                     }
 
-                    Schema::Fixed {
+                    Schema::Fixed(FixedSchema {
                         name: Name { name: f_name, .. },
                         ..
-                    } => {
+                    }) => {
                         let f_name = sanitize(f_name.to_upper_camel_case());
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), f_name.clone());
@@ -643,10 +645,10 @@ impl Templater {
                         }
                     },
 
-                    Schema::Record {
+                    Schema::Record(RecordSchema {
                         name: Name { name: r_name, .. },
                         ..
-                    } => {
+                    }) => {
                         let r_name = sanitize(r_name.to_upper_camel_case());
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), r_name.clone());
@@ -656,10 +658,10 @@ impl Templater {
                         }
                     }
 
-                    Schema::Enum {
+                    Schema::Enum(EnumSchema {
                         name: Name { name: e_name, .. },
                         ..
-                    } => {
+                    }) => {
                         let e_name = sanitize(e_name.to_upper_camel_case());
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), e_name);
@@ -759,22 +761,22 @@ impl Templater {
                     Schema::Union(union) => {
                         format!("{u}({u})", u = union_type(union, gen_state, false)?)
                     }
-                    Schema::Record {
+                    Schema::Record(RecordSchema {
                         name: Name { name, .. },
                         ..
-                    } => {
+                    }) => {
                         format!("{rec}({rec})", rec = name.to_upper_camel_case())
                     }
-                    Schema::Enum {
+                    Schema::Enum(EnumSchema {
                         name: Name { name, .. },
                         ..
-                    } => {
+                    }) => {
                         format!("{e}({e})", e = sanitize(name.to_upper_camel_case()))
                     }
-                    Schema::Fixed {
+                    Schema::Fixed(FixedSchema {
                         name: Name { name, .. },
                         ..
-                    } => {
+                    }) => {
                         format!("{f}({f})", f = sanitize(name.to_upper_camel_case()))
                     }
                     Schema::Decimal { .. } => "Decimal(apache_avro::Decimal)".into(),
@@ -801,10 +803,10 @@ impl Templater {
                 symbols.push(symbol_str);
 
                 match sc {
-                    Schema::Record {
+                    Schema::Record(RecordSchema {
                         name: Name { name, .. },
                         ..
-                    } => visitors.push(GenUnionVisitor {
+                    }) => visitors.push(GenUnionVisitor {
                         variant: name.to_upper_camel_case(),
                         rust_type: name.to_upper_camel_case(),
                         serde_visitor: None,
@@ -972,7 +974,7 @@ impl Templater {
                 _ => err!("Invalid default: {:?}", default)?,
             },
 
-            Schema::Decimal { inner, .. } => match inner.as_ref() {
+            Schema::Decimal(DecimalSchema { inner, .. }) => match inner.as_ref() {
                 Schema::Bytes => match default {
                     Value::String(s) => {
                         let bytes = s.clone().into_bytes();
@@ -980,7 +982,7 @@ impl Templater {
                     }
                     _ => err!("Invalid default: {:?}", default)?,
                 },
-                Schema::Fixed { size, .. } => match default {
+                Schema::Fixed(FixedSchema { size, .. }) => match default {
                     Value::String(s) => {
                         let bytes = s.clone().into_bytes();
                         if bytes.len() != *size {
@@ -993,7 +995,7 @@ impl Templater {
                 _ => err!("Invalid Decimal inner Schema: {:?}", inner)?,
             },
 
-            Schema::Fixed { size, .. } => match default {
+            Schema::Fixed(FixedSchema { size, .. }) => match default {
                 Value::String(s) => {
                     let bytes = s.clone().into_bytes();
                     if bytes.len() != *size {
@@ -1016,11 +1018,11 @@ impl Templater {
 
             Schema::Record { .. } => self.record_default(schema, gen_state, default)?,
 
-            Schema::Enum {
+            Schema::Enum(EnumSchema {
                 name: Name { name: e_name, .. },
                 symbols,
                 ..
-            } => {
+            }) => {
                 let e_name = sanitize(e_name.to_upper_camel_case());
                 let valids: HashSet<_> = symbols
                     .iter()
@@ -1103,11 +1105,11 @@ impl Templater {
         default: &Value,
     ) -> Result<String> {
         match inner {
-            Schema::Record {
+            Schema::Record(RecordSchema {
                 name: Name { name, .. },
                 fields,
                 ..
-            } => {
+            }) => {
                 let default_str = if let Value::Object(o) = default {
                     if !o.is_empty() {
                         let vals = fields
@@ -1194,10 +1196,10 @@ pub(crate) fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String>
         Schema::Decimal { .. } => "Vec<apache_avro::Decimal>".into(),
         Schema::Duration { .. } => "Vec<apache_avro::Duration>".into(),
 
-        Schema::Fixed {
+        Schema::Fixed(FixedSchema {
             name: Name { name: f_name, .. },
             ..
-        } => {
+        }) => {
             let f_name = sanitize(f_name.to_upper_camel_case());
             format!("Vec<{}>", f_name)
         }
@@ -1212,14 +1214,14 @@ pub(crate) fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String>
             format!("Vec<{}>", nested_type)
         }
 
-        Schema::Record {
+        Schema::Record(RecordSchema {
             name: Name { name, .. },
             ..
-        }
-        | Schema::Enum {
+        })
+        | Schema::Enum(EnumSchema {
             name: Name { name, .. },
             ..
-        } => format!("Vec<{}>", &sanitize(name.to_upper_camel_case())),
+        }) => format!("Vec<{}>", &sanitize(name.to_upper_camel_case())),
 
         Schema::Null => err!("Invalid use of Schema::Null")?,
     };
@@ -1265,10 +1267,10 @@ pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
         Schema::Decimal { .. } => map_of("apache_avro::Decimal"),
         Schema::Duration { .. } => map_of("apache_avro::Duration"),
 
-        Schema::Fixed {
+        Schema::Fixed(FixedSchema {
             name: Name { name: f_name, .. },
             ..
-        } => {
+        }) => {
             let f_name = sanitize(f_name.to_upper_camel_case());
             map_of(&f_name)
         }
@@ -1283,14 +1285,14 @@ pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
             map_of(nested_type)
         }
 
-        Schema::Record {
+        Schema::Record(RecordSchema {
             name: Name { name, .. },
             ..
-        }
-        | Schema::Enum {
+        })
+        | Schema::Enum(EnumSchema {
             name: Name { name, .. },
             ..
-        } => map_of(&sanitize(name.to_upper_camel_case())),
+        }) => map_of(&sanitize(name.to_upper_camel_case())),
 
         Schema::Null => err!("Invalid use of Schema::Null")?,
     };
@@ -1315,18 +1317,18 @@ fn union_enum_variant(schema: &Schema, gen_state: &GenState) -> Result<String> {
         }
         Schema::Map(inner) => format!("Map{}", union_enum_variant(inner.as_ref(), gen_state)?),
         Schema::Union(union) => union_type(union, gen_state, false)?,
-        Schema::Record {
+        Schema::Record(RecordSchema {
             name: Name { name, .. },
             ..
-        } => name.to_upper_camel_case(),
-        Schema::Enum {
+        }) => name.to_upper_camel_case(),
+        Schema::Enum(EnumSchema {
             name: Name { name, .. },
             ..
-        } => sanitize(name.to_upper_camel_case()),
-        Schema::Fixed {
+        }) => sanitize(name.to_upper_camel_case()),
+        Schema::Fixed(FixedSchema {
             name: Name { name, .. },
             ..
-        } => sanitize(name.to_upper_camel_case()),
+        }) => sanitize(name.to_upper_camel_case()),
 
         Schema::Decimal { .. } => "Decimal".into(),
         Schema::Uuid => "Uuid".into(),
@@ -1413,10 +1415,10 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
         Schema::Decimal { .. } => "Option<apache_avro::Decimal>".into(),
         Schema::Duration { .. } => "Option<apache_avro::Duration>".into(),
 
-        Schema::Fixed {
+        Schema::Fixed(FixedSchema {
             name: Name { name: f_name, .. },
             ..
-        } => {
+        }) => {
             let f_name = sanitize(f_name.to_upper_camel_case());
             format!("Option<{}>", f_name)
         }
@@ -1431,14 +1433,14 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
             format!("Option<{}>", nested_type)
         }
 
-        Schema::Record {
+        Schema::Record(RecordSchema {
             name: Name { name, .. },
             ..
-        }
-        | Schema::Enum {
+        })
+        | Schema::Enum(EnumSchema {
             name: Name { name, .. },
             ..
-        } => format!("Option<{}>", &sanitize(name.to_upper_camel_case())),
+        }) => format!("Option<{}>", &sanitize(name.to_upper_camel_case())),
 
         Schema::Null => err!("Invalid use of Schema::Null")?,
     };

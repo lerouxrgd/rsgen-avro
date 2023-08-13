@@ -2,7 +2,7 @@ use std::collections::{HashMap, VecDeque};
 use std::fs;
 use std::io::prelude::*;
 
-use apache_avro::schema::RecordField;
+use apache_avro::schema::{DecimalSchema, RecordField, RecordSchema};
 
 use crate::error::{Error, Result};
 use crate::templates::*;
@@ -160,12 +160,14 @@ fn deps_stack(schema: &Schema, mut deps: Vec<Schema>) -> Vec<Schema> {
             // No nested schemas, add them to the result stack
             Schema::Enum { .. } => push_unique(&mut deps, s.clone()),
             Schema::Fixed { .. } => push_unique(&mut deps, s.clone()),
-            Schema::Decimal { inner, .. } if matches!(**inner, Schema::Fixed { .. }) => {
+            Schema::Decimal(DecimalSchema { inner, .. })
+                if matches!(**inner, Schema::Fixed { .. }) =>
+            {
                 push_unique(&mut deps, s.clone())
             }
 
             // Explore the record fields for potentially nested schemas
-            Schema::Record { fields, .. } => {
+            Schema::Record(RecordSchema { fields, .. }) => {
                 push_unique(&mut deps, s.clone());
 
                 let by_pos = fields
@@ -349,7 +351,7 @@ impl GeneratorBuilder {
 
 #[cfg(test)]
 mod tests {
-    use apache_avro::schema::Name;
+    use apache_avro::schema::{EnumSchema, Name};
 
     use super::*;
 
@@ -381,13 +383,19 @@ mod tests {
         let mut deps = deps_stack(&schema, vec![]);
 
         let s = deps.pop().unwrap();
-        assert!(matches!(s, Schema::Enum{ name: Name { ref name, ..}, ..} if name == "Country"));
+        assert!(
+            matches!(s, Schema::Enum(EnumSchema{ name: Name { ref name, ..}, ..}) if name == "Country")
+        );
 
         let s = deps.pop().unwrap();
-        assert!(matches!(s, Schema::Record{ name: Name { ref name, ..}, ..} if name == "Address"));
+        assert!(
+            matches!(s, Schema::Record(RecordSchema{ name: Name { ref name, ..}, ..}) if name == "Address")
+        );
 
         let s = deps.pop().unwrap();
-        assert!(matches!(s, Schema::Record{ name: Name { ref name, ..}, ..} if name == "User"));
+        assert!(
+            matches!(s, Schema::Record(RecordSchema{ name: Name { ref name, ..}, ..}) if name == "User")
+        );
 
         let s = deps.pop();
         assert!(matches!(s, None));
