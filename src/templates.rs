@@ -201,7 +201,7 @@ lazy_static! {
         s
     };
     static ref UNESCAPABLE: HashSet<String> = {
-        let s: HashSet<_> = vec!["Self", "self", "super", "extern", "crate"]
+        let s: HashSet<_> = ["Self", "self", "super", "extern", "crate"]
             .iter()
             .map(|s| s.to_string())
             .collect();
