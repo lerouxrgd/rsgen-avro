@@ -1032,7 +1032,7 @@ impl Templater {
                     Value::String(ref s) => {
                         let s = sanitize(s.to_upper_camel_case());
                         if valids.contains(&s) {
-                            format!("{}::{}", e_name, sanitize(s.to_upper_camel_case()))
+                            format!("{}::{}", e_name, s)
                         } else {
                             err!("Invalid default: {:?}", default)?
                         }
