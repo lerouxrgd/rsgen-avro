@@ -1,5 +1,6 @@
 pub mod complex;
 pub mod enums;
+pub mod enums_casing;
 pub mod enums_multiline_doc;
 pub mod enums_sanitize;
 #[allow(dead_code)]

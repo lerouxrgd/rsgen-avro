@@ -1,0 +1,25 @@
+{
+    "type": "record",
+    "name": "MyRecord",
+    "namespace": "com.example.data",
+    "doc": "Record doc",
+    "fields": [
+        {
+            "name": "id",
+            "type": "int",
+            "doc": "Identifier"
+        },
+        {
+            "name": "unit",
+            "type": {
+                "type": "enum",
+                "name": "MeasurementUnit",
+                "symbols": [
+                    "mJ"
+                ]
+            },
+            "doc": "Measurement unit",
+            "default": "mJ"
+        }
+    ]
+}

@@ -169,6 +169,11 @@ fn gen_enums() {
 }
 
 #[test]
+fn gen_enums_casing() {
+    validate_generation("enums_casing", Generator::new().unwrap());
+}
+
+#[test]
 fn gen_enums_multiline_doc() {
     validate_generation("enums_multiline_doc", Generator::new().unwrap());
 }
