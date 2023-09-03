@@ -1,6 +1,6 @@
 [package]
 name = "rsgen-avro"
-version = "0.12.2"
+version = "0.13.0"
 authors = ["Romain Leroux <romain@leroux.dev>"]
 edition = "2021"
 description = "Command line and library for generating Rust types from Avro schemas"
