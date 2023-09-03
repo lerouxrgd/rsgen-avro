@@ -11,7 +11,7 @@ readme = "README.md"
 
 [dependencies]
 apache-avro = { version = "0.15", features = ["derive"] }
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive"], optional = true }
 glob = "0.3"
 heck = "0.4"
 lazy_static = "1"
@@ -34,3 +34,11 @@ opt-level = "z"   # Optimize for size.
 lto = true
 codegen-units = 1
 strip = true
+
+[features]
+full = ["build-cli"]
+build-cli = ["dep:clap"]
+
+[[bin]]
+name = "rsgen-avro"
+required-features = ["build-cli"]
