@@ -57,7 +57,7 @@ jobs:
           rustup update stable
           rustup default stable
           rustup target add ${{ matrix.job.target }}
-          cargo build --release --target ${{ matrix.job.target }}
+          cargo build --features full --release --target ${{ matrix.job.target }}
       - name: Create tarball
         run: |
           TARBALL=rsgen-avro-${{ needs.release.outputs.tag }}-${{ matrix.job.target }}.tar.gz
