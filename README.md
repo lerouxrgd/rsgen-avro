@@ -38,7 +38,7 @@ Options:
 
 ## Library usage
 
-As a libray, the basic usage is:
+As a library, the basic usage is:
 
 ```rust
 use rsgen_avro::{Source, Generator};
