@@ -4,7 +4,6 @@
 pub struct Test {
     #[serde(deserialize_with = "nullable_test_a")]
     pub a: i64,
-    #[serde(rename = "b-b")]
     #[serde(deserialize_with = "nullable_test_b_b")]
     pub b_b: String,
     pub c: Option<i32>,

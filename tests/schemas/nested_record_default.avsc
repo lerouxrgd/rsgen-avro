@@ -2,7 +2,7 @@
   "type": "record",
   "name": "User",
   "fields": [ {
-    "name": "m-f64",
+    "name": "m_f64",
     "type": {
       "type": "record",
       "name": "Inner",

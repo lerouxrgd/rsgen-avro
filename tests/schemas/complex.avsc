@@ -7,7 +7,7 @@
     {"name": "favorite_number",  "type": "int", "default": 7},
     {"name": "likes_pizza", "type": "boolean", "default": false},
     {"name": "oye", "type": "float", "default": 1.1},
-    {"name": "aa-i32",
+    {"name": "aa_i32",
      "type": {"type": "array", "items": {"type": "array", "items": "int"}},
      "default": [[0], [12, -1]]}
   ]

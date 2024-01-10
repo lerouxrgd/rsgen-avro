@@ -501,7 +501,9 @@ impl Templater {
                         }
                     }
 
-                    Schema::TimeMillis | Schema::TimestampMillis if self.use_chrono_dates => {
+                    Schema::TimeMillis | Schema::TimestampMillis | Schema::LocalTimestampMillis
+                        if self.use_chrono_dates =>
+                    {
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), "chrono::NaiveDateTime".to_string());
                         w.insert(name_std.clone(), "chrono::naive::serde::ts_milliseconds");
@@ -511,7 +513,9 @@ impl Templater {
                         }
                     }
 
-                    Schema::TimeMicros | Schema::TimestampMicros if self.use_chrono_dates => {
+                    Schema::TimeMicros | Schema::TimestampMicros | Schema::LocalTimestampMicros
+                        if self.use_chrono_dates =>
+                    {
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), "chrono::NaiveDateTime".to_string());
                         w.insert(name_std.clone(), "chrono::naive::serde::ts_microseconds");
@@ -533,7 +537,9 @@ impl Templater {
                     Schema::Long
                     | Schema::TimeMicros
                     | Schema::TimestampMillis
-                    | Schema::TimestampMicros => {
+                    | Schema::LocalTimestampMillis
+                    | Schema::TimestampMicros
+                    | Schema::LocalTimestampMicros => {
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), "i64".to_string());
                         if let Some(default) = default {
@@ -786,6 +792,8 @@ impl Templater {
                     | Schema::TimeMicros
                     | Schema::TimestampMillis
                     | Schema::TimestampMicros
+                    | Schema::LocalTimestampMillis
+                    | Schema::LocalTimestampMicros
                         if self.use_chrono_dates =>
                     {
                         "NaiveDateTime(chrono::NaiveDateTime)".into()
@@ -795,6 +803,8 @@ impl Templater {
                     Schema::TimeMicros => "TimeMicros(i64)".into(),
                     Schema::TimestampMillis => "TimestampMillis(i64)".into(),
                     Schema::TimestampMicros => "TimestampMicros(i64)".into(),
+                    Schema::LocalTimestampMillis => "LocalTimestampMillis(i64)".into(),
+                    Schema::LocalTimestampMicros => "LocalTimestampMicros(i64)".into(),
                     Schema::Duration => "Duration(apache_avro::Duration)".into(),
                     Schema::Null => err!(
                         "Invalid Schema::Null not in first position on an UnionSchema variants"
@@ -883,7 +893,9 @@ impl Templater {
                 _ => err!("Invalid default: {:?}", default)?,
             },
 
-            Schema::TimeMillis | Schema::TimestampMillis if self.use_chrono_dates => {
+            Schema::TimeMillis | Schema::TimestampMillis | Schema::LocalTimestampMillis
+                if self.use_chrono_dates =>
+            {
                 match default {
                     Value::Number(n) if n.is_i64() => format!(
                         "chrono::NaiveDateTime::from_timestamp_millis({}).unwrap()",
@@ -893,7 +905,9 @@ impl Templater {
                 }
             }
 
-            Schema::TimeMicros | Schema::TimestampMicros if self.use_chrono_dates => {
+            Schema::TimeMicros | Schema::TimestampMicros | Schema::LocalTimestampMicros
+                if self.use_chrono_dates =>
+            {
                 match default {
                     Value::Number(n) if n.is_i64() => format!(
                         "chrono::NaiveDateTime::from_timestamp_micros({}).unwrap()",
@@ -911,7 +925,9 @@ impl Templater {
             Schema::Long
             | Schema::TimeMicros
             | Schema::TimestampMillis
-            | Schema::TimestampMicros => match default {
+            | Schema::TimestampMicros
+            | Schema::LocalTimestampMillis
+            | Schema::LocalTimestampMicros => match default {
                 Value::Number(n) if n.is_i64() => n.to_string(),
                 _ => err!("Invalid default: {:?}", default)?,
             },
@@ -1189,8 +1205,8 @@ pub(crate) fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String>
         Schema::Date => "Vec<i32>".into(),
         Schema::TimeMillis => "Vec<i32>".into(),
         Schema::TimeMicros => "Vec<i64>".into(),
-        Schema::TimestampMillis => "Vec<i64>".into(),
-        Schema::TimestampMicros => "Vec<i64>".into(),
+        Schema::TimestampMillis | Schema::LocalTimestampMillis => "Vec<i64>".into(),
+        Schema::TimestampMicros | Schema::LocalTimestampMicros => "Vec<i64>".into(),
 
         Schema::Uuid => "Vec<uuid::Uuid>".into(),
         Schema::Decimal { .. } => "Vec<apache_avro::Decimal>".into(),
@@ -1252,6 +1268,8 @@ pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
         | Schema::TimeMicros
         | Schema::TimestampMillis
         | Schema::TimestampMicros
+        | Schema::LocalTimestampMillis
+        | Schema::LocalTimestampMicros
             if gen_state.use_chrono_dates =>
         {
             map_of("chrono::NaiveDateTime")
@@ -1260,8 +1278,8 @@ pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
         Schema::Date => map_of("i32"),
         Schema::TimeMillis => map_of("i32"),
         Schema::TimeMicros => map_of("i64"),
-        Schema::TimestampMillis => map_of("i64"),
-        Schema::TimestampMicros => map_of("i64"),
+        Schema::TimestampMillis | Schema::LocalTimestampMillis => map_of("i64"),
+        Schema::TimestampMicros | Schema::LocalTimestampMicros => map_of("i64"),
 
         Schema::Uuid => map_of("uuid::Uuid"),
         Schema::Decimal { .. } => map_of("apache_avro::Decimal"),
@@ -1337,6 +1355,8 @@ fn union_enum_variant(schema: &Schema, gen_state: &GenState) -> Result<String> {
         Schema::TimeMicros => "TimeMicros".into(),
         Schema::TimestampMillis => "TimestampMillis".into(),
         Schema::TimestampMicros => "TimestampMicros".into(),
+        Schema::LocalTimestampMillis => "LocalTimestampMillis".into(),
+        Schema::LocalTimestampMicros => "LocalTimestampMicros".into(),
         Schema::Duration => "Duration".into(),
         Schema::Null => {
             err!("Invalid Schema::Null not in first position on an UnionSchema variants")?
@@ -1401,6 +1421,8 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
         | Schema::TimeMicros
         | Schema::TimestampMillis
         | Schema::TimestampMicros
+        | Schema::LocalTimestampMillis
+        | Schema::LocalTimestampMicros
             if gen_state.use_chrono_dates =>
         {
             "Option<chrono::NaiveDateTime>".into()
@@ -1408,8 +1430,8 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
         Schema::Date => "Option<i32>".into(),
         Schema::TimeMillis => "Option<i32>".into(),
         Schema::TimeMicros => "Option<i64>".into(),
-        Schema::TimestampMillis => "Option<i64>".into(),
-        Schema::TimestampMicros => "Option<i64>".into(),
+        Schema::TimestampMillis | Schema::LocalTimestampMillis => "Option<i64>".into(),
+        Schema::TimestampMicros | Schema::LocalTimestampMicros => "Option<i64>".into(),
 
         Schema::Uuid => "Option<uuid::Uuid>".into(),
         Schema::Decimal { .. } => "Option<apache_avro::Decimal>".into(),

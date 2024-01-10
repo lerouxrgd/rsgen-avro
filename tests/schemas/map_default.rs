@@ -2,7 +2,6 @@
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct User {
-    #[serde(rename = "m-f64")]
     pub m_f64: ::std::collections::HashMap<String, f64>,
 }
 

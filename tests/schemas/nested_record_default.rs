@@ -7,7 +7,6 @@ pub struct Inner {
 #[derive(Debug, PartialEq, Eq, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct User {
-    #[serde(rename = "m-f64")]
     pub m_f64: Inner,
 }
 

@@ -13,14 +13,13 @@ pub struct User {
     #[serde(with = "serde_bytes")]
     #[serde(default = "default_user_union_b")]
     pub union_b: Option<Vec<u8>>,
-    #[serde(rename = "a-bool")]
+    #[serde(rename = "A_Bool")]
     #[serde(default = "default_user_a_bool")]
     pub a_bool: Vec<bool>,
-    #[serde(rename = "a-i32")]
-    #[serde(default = "default_user_a_i32")]
-    pub a_i32: Vec<i32>,
-    #[serde(rename = "m-f64")]
-    pub m_f64: ::std::collections::HashMap<String, f64>,
+    #[serde(rename = "SomeInteger")]
+    #[serde(default = "default_user_some_integer")]
+    pub some_integer: Vec<i32>,
+    pub map_of_f64: ::std::collections::HashMap<String, f64>,
 }
 
 #[inline(always)]
@@ -39,4 +38,4 @@ fn default_user_union_b() -> Option<Vec<u8>> { None }
 fn default_user_a_bool() -> Vec<bool> { vec![true, false] }
 
 #[inline(always)]
-fn default_user_a_i32() -> Vec<i32> { vec![12, -1] }
+fn default_user_some_integer() -> Vec<i32> { vec![12, -1] }

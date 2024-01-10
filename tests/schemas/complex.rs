@@ -7,7 +7,6 @@ pub struct User {
     pub favorite_number: i32,
     pub likes_pizza: bool,
     pub oye: f32,
-    #[serde(rename = "aa-i32")]
     pub aa_i32: Vec<Vec<i32>>,
 }
 
