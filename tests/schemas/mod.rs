@@ -8,6 +8,7 @@ pub mod fixed;
 pub mod logical_dates;
 pub mod map_default;
 pub mod map_multiple_def;
+pub mod mono_valued_union;
 pub mod multi_valued_union;
 pub mod multi_valued_union_map;
 pub mod multi_valued_union_nested;

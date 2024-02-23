@@ -1,0 +1,11 @@
+{
+  "type": "record",
+  "name": "Mono",
+  "namespace": "some.ns",
+  "fields": [
+    {
+      "name": "myField",
+      "type": ["long"]
+    }
+  ]
+}

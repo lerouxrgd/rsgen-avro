@@ -131,7 +131,14 @@ impl From<{{ v.rust_type }}> for {{ name }} {
         Self::{{ v.variant }}(v)
     }
 }
-
+{% if visitors | length == 1 %}
+impl From<{{ name }}> for {{ v.rust_type }} {
+    fn from(v: {{ name }}) -> Self {
+        let {{ name }}::{{ v.variant }}(v) = v;
+        v
+    }
+}
+{%- else %}
 impl TryFrom<{{ name }}> for {{ v.rust_type }} {
     type Error = {{ name }};
 
@@ -143,6 +150,7 @@ impl TryFrom<{{ name }}> for {{ v.rust_type }} {
         }
     }
 }
+{%- endif %}
 {%- endfor %}
 
 {%- if use_avro_rs_unions %}
@@ -719,8 +727,6 @@ impl Templater {
 
             if variants.is_empty() {
                 err!("Invalid empty Schema::Union")?
-            } else if variants.len() == 1 {
-                err!("Invalid Schema::Union of a single element")?
             } else if union.is_nullable() && variants.len() == 2 {
                 err!("Attempt to generate a union enum for an optional")?
             }

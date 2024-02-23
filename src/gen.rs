@@ -119,7 +119,7 @@ impl Generator {
                 Schema::Union(ref union) => {
                     // Generate custom enum with potentially nested types
                     if (union.is_nullable() && union.variants().len() > 2)
-                        || (!union.is_nullable() && union.variants().len() > 1)
+                        || (!union.is_nullable() && !union.variants().is_empty())
                     {
                         let code = &self.templater.str_union_enum(&s, &gs)?;
                         output.write_all(code.as_bytes())?
@@ -196,7 +196,7 @@ fn deps_stack(schema: &Schema, mut deps: Vec<Schema>) -> Vec<Schema> {
                         },
                         Schema::Union(union) => {
                             if (union.is_nullable() && union.variants().len() > 2)
-                                || (!union.is_nullable() && union.variants().len() > 1)
+                                || (!union.is_nullable() && !union.variants().is_empty())
                             {
                                 push_unique(&mut deps, sr.clone());
                             }
