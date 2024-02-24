@@ -5,14 +5,14 @@
 use std::collections::{HashMap, HashSet};
 
 use apache_avro::schema::{
-    DecimalSchema, EnumSchema, FixedSchema, Name, RecordField, RecordSchema, UnionSchema,
+    ArraySchema, DecimalSchema, EnumSchema, FixedSchema, MapSchema, Name, RecordField,
+    RecordSchema, UnionSchema,
 };
 use apache_avro::Schema;
 use heck::{ToSnakeCase, ToUpperCamelCase};
 use lazy_static::lazy_static;
 use serde_json::Value;
 use tera::{Context, Tera};
-use uuid::Uuid;
 
 use crate::error::{Error, Result};
 
@@ -309,7 +309,8 @@ impl GenState {
         schemata_by_name: &HashMap<Name, Schema>,
     ) -> Result<bool> {
         match schema {
-            Schema::Array(inner) | Schema::Map(inner) => {
+            Schema::Array(ArraySchema { items: inner, .. })
+            | Schema::Map(MapSchema { types: inner, .. }) => {
                 Self::deep_search_not_eq(inner, schemata_by_name)
             }
             Schema::Record(RecordSchema { fields, .. }) => {
@@ -533,6 +534,18 @@ impl Templater {
                         }
                     }
 
+                    Schema::TimestampNanos | Schema::LocalTimestampNanos
+                        if self.use_chrono_dates =>
+                    {
+                        f.push(name_std.clone());
+                        t.insert(name_std.clone(), "chrono::NaiveDateTime".to_string());
+                        w.insert(name_std.clone(), "chrono::naive::serde::ts_nanoseconds");
+                        if let Some(default) = default {
+                            let default = self.parse_default(schema, gen_state, default)?;
+                            d.insert(name_std.clone(), default);
+                        }
+                    }
+
                     Schema::Int | Schema::Date | Schema::TimeMillis => {
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), "i32".to_string());
@@ -547,7 +560,9 @@ impl Templater {
                     | Schema::TimestampMillis
                     | Schema::LocalTimestampMillis
                     | Schema::TimestampMicros
-                    | Schema::LocalTimestampMicros => {
+                    | Schema::LocalTimestampMicros
+                    | Schema::TimestampNanos
+                    | Schema::LocalTimestampNanos => {
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), "i64".to_string());
                         if let Some(default) = default {
@@ -595,7 +610,7 @@ impl Templater {
 
                     Schema::Uuid => {
                         f.push(name_std.clone());
-                        t.insert(name_std.clone(), "uuid::Uuid".to_string());
+                        t.insert(name_std.clone(), "apache_avro::Uuid".to_string());
                         if let Some(default) = default {
                             let default = self.parse_default(schema, gen_state, default)?;
                             d.insert(name_std.clone(), default);
@@ -620,6 +635,15 @@ impl Templater {
                         }
                     }
 
+                    Schema::BigDecimal => {
+                        f.push(name_std.clone());
+                        t.insert(name_std.clone(), "apache_avro::BigDecimal".to_string());
+                        if let Some(default) = default {
+                            let default = self.parse_default(schema, gen_state, default)?;
+                            d.insert(name_std.clone(), default);
+                        }
+                    }
+
                     Schema::Fixed(FixedSchema {
                         name: Name { name: f_name, .. },
                         ..
@@ -633,7 +657,7 @@ impl Templater {
                         }
                     }
 
-                    Schema::Array(inner) => match inner.as_ref() {
+                    Schema::Array(ArraySchema { items: inner, .. }) => match inner.as_ref() {
                         Schema::Null => err!("Invalid use of Schema::Null")?,
                         _ => {
                             let type_str = array_type(inner, gen_state)?;
@@ -646,7 +670,7 @@ impl Templater {
                         }
                     },
 
-                    Schema::Map(inner) => match inner.as_ref() {
+                    Schema::Map(MapSchema { types: inner, .. }) => match inner.as_ref() {
                         Schema::Null => err!("Invalid use of Schema::Null")?,
                         _ => {
                             let type_str = map_type(inner, gen_state)?;
@@ -758,14 +782,14 @@ impl Templater {
                     Schema::Double => "Double(f64)".into(),
                     Schema::Bytes => r#"Bytes(#[serde(with = "serde_bytes")] Vec<u8>)"#.into(),
                     Schema::String => "String(String)".into(),
-                    Schema::Array(inner) => {
+                    Schema::Array(ArraySchema { items: inner, .. }) => {
                         format!(
                             "Array{}({})",
                             union_enum_variant(inner.as_ref(), gen_state)?,
                             array_type(inner.as_ref(), gen_state)?
                         )
                     }
-                    Schema::Map(inner) => format!(
+                    Schema::Map(MapSchema { types: inner, .. }) => format!(
                         "Map{}({})",
                         union_enum_variant(inner.as_ref(), gen_state)?,
                         map_type(sc, gen_state)?
@@ -792,14 +816,17 @@ impl Templater {
                         format!("{f}({f})", f = sanitize(name.to_upper_camel_case()))
                     }
                     Schema::Decimal { .. } => "Decimal(apache_avro::Decimal)".into(),
-                    Schema::Uuid => "Uuid(uuid::Uuid)".into(),
+                    Schema::BigDecimal => "BigDecimal(apache_avro::BigDecimal)".into(),
+                    Schema::Uuid => "Uuid(apache_avro::Uuid)".into(),
                     Schema::Date
                     | Schema::TimeMillis
                     | Schema::TimeMicros
                     | Schema::TimestampMillis
                     | Schema::TimestampMicros
+                    | Schema::TimestampNanos
                     | Schema::LocalTimestampMillis
                     | Schema::LocalTimestampMicros
+                    | Schema::LocalTimestampNanos
                         if self.use_chrono_dates =>
                     {
                         "NaiveDateTime(chrono::NaiveDateTime)".into()
@@ -809,8 +836,10 @@ impl Templater {
                     Schema::TimeMicros => "TimeMicros(i64)".into(),
                     Schema::TimestampMillis => "TimestampMillis(i64)".into(),
                     Schema::TimestampMicros => "TimestampMicros(i64)".into(),
+                    Schema::TimestampNanos => "TimestampNanos(i64)".into(),
                     Schema::LocalTimestampMillis => "LocalTimestampMillis(i64)".into(),
                     Schema::LocalTimestampMicros => "LocalTimestampMicros(i64)".into(),
+                    Schema::LocalTimestampNanos => "LocalTimestampNanos(i64)".into(),
                     Schema::Duration => "Duration(apache_avro::Duration)".into(),
                     Schema::Null => err!(
                         "Invalid Schema::Null not in first position on an UnionSchema variants"
@@ -923,6 +952,16 @@ impl Templater {
                 }
             }
 
+            Schema::TimestampNanos | Schema::LocalTimestampNanos if self.use_chrono_dates => {
+                match default {
+                    Value::Number(n) if n.is_i64() => format!(
+                        "chrono::NaiveDateTime::from_timestamp_nanos({}).unwrap()",
+                        n.as_i64().unwrap()
+                    ),
+                    _ => err!("Invalid default: {:?}", default)?,
+                }
+            }
+
             Schema::Int | Schema::Date | Schema::TimeMillis => match default {
                 Value::Number(n) if n.is_i64() => (n.as_i64().unwrap() as i32).to_string(),
                 _ => err!("Invalid default: {:?}", default)?,
@@ -932,8 +971,10 @@ impl Templater {
             | Schema::TimeMicros
             | Schema::TimestampMillis
             | Schema::TimestampMicros
+            | Schema::TimestampNanos
             | Schema::LocalTimestampMillis
-            | Schema::LocalTimestampMicros => match default {
+            | Schema::LocalTimestampMicros
+            | Schema::LocalTimestampNanos => match default {
                 Value::Number(n) if n.is_i64() => n.to_string(),
                 _ => err!("Invalid default: {:?}", default)?,
             },
@@ -978,8 +1019,9 @@ impl Templater {
             Schema::Uuid => match default {
                 Value::String(s) => {
                     format!(
-                        r#"uuid::Uuid::parse_str("{}").unwrap()"#,
-                        Uuid::parse_str(s)?
+                        r#"apache_avro::Uuid::parse_str("{}").unwrap()"#,
+                        apache_avro::Uuid::parse_str(s)
+                            .map_err(|e| Error::Template(e.to_string()))?
                     )
                 }
                 _ => err!("Invalid default: {:?}", default)?,
@@ -1017,6 +1059,13 @@ impl Templater {
                 _ => err!("Invalid Decimal inner Schema: {:?}", inner)?,
             },
 
+            Schema::BigDecimal => match default {
+                Value::String(s) => {
+                    format!(r#"apache_avro::BigDecimal::parse_str("{}").unwrap()"#, s)
+                }
+                _ => err!("Invalid default: {:?}", default)?,
+            },
+
             Schema::Fixed(FixedSchema { size, .. }) => match default {
                 Value::String(s) => {
                     let bytes = s.clone().into_bytes();
@@ -1028,12 +1077,12 @@ impl Templater {
                 _ => err!("Invalid default: {:?}", default)?,
             },
 
-            Schema::Array(inner) => match inner.as_ref() {
+            Schema::Array(ArraySchema { items: inner, .. }) => match inner.as_ref() {
                 Schema::Null => err!("Invalid use of Schema::Null")?,
                 _ => self.array_default(inner, gen_state, default)?,
             },
 
-            Schema::Map(inner) => match inner.as_ref() {
+            Schema::Map(MapSchema { types: inner, .. }) => match inner.as_ref() {
                 Schema::Null => err!("Invalid use of Schema::Null")?,
                 _ => self.map_default(inner, gen_state, default)?,
             },
@@ -1203,19 +1252,27 @@ pub(crate) fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String>
         | Schema::TimeMicros
         | Schema::TimestampMillis
         | Schema::TimestampMicros
+        | Schema::TimestampNanos
+        | Schema::LocalTimestampMillis
+        | Schema::LocalTimestampMicros
+        | Schema::LocalTimestampNanos
             if gen_state.use_chrono_dates =>
         {
             "Vec<chrono::NaiveDateTime>".into()
         }
 
-        Schema::Date => "Vec<i32>".into(),
-        Schema::TimeMillis => "Vec<i32>".into(),
-        Schema::TimeMicros => "Vec<i64>".into(),
-        Schema::TimestampMillis | Schema::LocalTimestampMillis => "Vec<i64>".into(),
-        Schema::TimestampMicros | Schema::LocalTimestampMicros => "Vec<i64>".into(),
+        Schema::Date | Schema::TimeMillis => "Vec<i32>".into(),
+        Schema::TimeMicros
+        | Schema::TimestampMillis
+        | Schema::TimestampMicros
+        | Schema::TimestampNanos
+        | Schema::LocalTimestampMillis
+        | Schema::LocalTimestampMicros
+        | Schema::LocalTimestampNanos => "Vec<i64>".into(),
 
-        Schema::Uuid => "Vec<uuid::Uuid>".into(),
+        Schema::Uuid => "Vec<apache_avro::Uuid>".into(),
         Schema::Decimal { .. } => "Vec<apache_avro::Decimal>".into(),
+        Schema::BigDecimal => "Vec<apache_avro::BigDecimal>".into(),
         Schema::Duration { .. } => "Vec<apache_avro::Duration>".into(),
 
         Schema::Fixed(FixedSchema {
@@ -1281,14 +1338,18 @@ pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
             map_of("chrono::NaiveDateTime")
         }
 
-        Schema::Date => map_of("i32"),
-        Schema::TimeMillis => map_of("i32"),
-        Schema::TimeMicros => map_of("i64"),
-        Schema::TimestampMillis | Schema::LocalTimestampMillis => map_of("i64"),
-        Schema::TimestampMicros | Schema::LocalTimestampMicros => map_of("i64"),
+        Schema::Date | Schema::TimeMillis => map_of("i32"),
+        Schema::TimeMicros
+        | Schema::TimestampMillis
+        | Schema::TimestampMicros
+        | Schema::TimestampNanos
+        | Schema::LocalTimestampMillis
+        | Schema::LocalTimestampMicros
+        | Schema::LocalTimestampNanos => map_of("i64"),
 
-        Schema::Uuid => map_of("uuid::Uuid"),
+        Schema::Uuid => map_of("apache_avro::Uuid"),
         Schema::Decimal { .. } => map_of("apache_avro::Decimal"),
+        Schema::BigDecimal => map_of("apache_avro::BigDecimal"),
         Schema::Duration { .. } => map_of("apache_avro::Duration"),
 
         Schema::Fixed(FixedSchema {
@@ -1336,10 +1397,12 @@ fn union_enum_variant(schema: &Schema, gen_state: &GenState) -> Result<String> {
         Schema::Double => "Double".into(),
         Schema::Bytes => "Bytes".into(),
         Schema::String => "String".into(),
-        Schema::Array(inner) => {
+        Schema::Array(ArraySchema { items: inner, .. }) => {
             format!("Array{}", union_enum_variant(inner.as_ref(), gen_state)?)
         }
-        Schema::Map(inner) => format!("Map{}", union_enum_variant(inner.as_ref(), gen_state)?),
+        Schema::Map(MapSchema { types: inner, .. }) => {
+            format!("Map{}", union_enum_variant(inner.as_ref(), gen_state)?)
+        }
         Schema::Union(union) => union_type(union, gen_state, false)?,
         Schema::Record(RecordSchema {
             name: Name { name, .. },
@@ -1355,14 +1418,17 @@ fn union_enum_variant(schema: &Schema, gen_state: &GenState) -> Result<String> {
         }) => sanitize(name.to_upper_camel_case()),
 
         Schema::Decimal { .. } => "Decimal".into(),
+        Schema::BigDecimal => "BigDecimal".into(),
         Schema::Uuid => "Uuid".into(),
         Schema::Date => "Date".into(),
         Schema::TimeMillis => "TimeMillis".into(),
         Schema::TimeMicros => "TimeMicros".into(),
         Schema::TimestampMillis => "TimestampMillis".into(),
         Schema::TimestampMicros => "TimestampMicros".into(),
+        Schema::TimestampNanos => "TimestampNanos".into(),
         Schema::LocalTimestampMillis => "LocalTimestampMillis".into(),
         Schema::LocalTimestampMicros => "LocalTimestampMicros".into(),
+        Schema::LocalTimestampNanos => "LocalTimestampNanos".into(),
         Schema::Duration => "Duration".into(),
         Schema::Null => {
             err!("Invalid Schema::Null not in first position on an UnionSchema variants")?
@@ -1427,20 +1493,26 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
         | Schema::TimeMicros
         | Schema::TimestampMillis
         | Schema::TimestampMicros
+        | Schema::TimestampNanos
         | Schema::LocalTimestampMillis
         | Schema::LocalTimestampMicros
+        | Schema::LocalTimestampNanos
             if gen_state.use_chrono_dates =>
         {
             "Option<chrono::NaiveDateTime>".into()
         }
-        Schema::Date => "Option<i32>".into(),
-        Schema::TimeMillis => "Option<i32>".into(),
-        Schema::TimeMicros => "Option<i64>".into(),
-        Schema::TimestampMillis | Schema::LocalTimestampMillis => "Option<i64>".into(),
-        Schema::TimestampMicros | Schema::LocalTimestampMicros => "Option<i64>".into(),
+        Schema::Date | Schema::TimeMillis => "Option<i32>".into(),
+        Schema::TimeMicros
+        | Schema::TimestampMillis
+        | Schema::TimestampMicros
+        | Schema::TimestampNanos
+        | Schema::LocalTimestampMillis
+        | Schema::LocalTimestampMicros
+        | Schema::LocalTimestampNanos => "Option<i64>".into(),
 
-        Schema::Uuid => "Option<uuid::Uuid>".into(),
+        Schema::Uuid => "Option<apache_avro::Uuid>".into(),
         Schema::Decimal { .. } => "Option<apache_avro::Decimal>".into(),
+        Schema::BigDecimal => "Option<apache_avro::BigDecimal>".into(),
         Schema::Duration { .. } => "Option<apache_avro::Duration>".into(),
 
         Schema::Fixed(FixedSchema {

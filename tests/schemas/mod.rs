@@ -1,4 +1,5 @@
 pub mod complex;
+pub mod decimals;
 pub mod enums;
 pub mod enums_casing;
 pub mod enums_multiline_doc;
