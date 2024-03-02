@@ -28,3 +28,5 @@ pub mod simple;
 pub mod simple_with_builders;
 pub mod simple_with_schemas;
 pub mod nested_with_float;
+pub mod protocol_simple;
+pub mod protocol_nested;

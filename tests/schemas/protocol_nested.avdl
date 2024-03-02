@@ -1,0 +1,9 @@
+@namespace("org.test")
+protocol TestService {
+
+	import idl "protocol_simple.avdl";
+
+	record TestC {
+		TestB testC_probB;
+	}
+}

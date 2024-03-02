@@ -192,3 +192,19 @@ fn gen_fixed() {
 fn nested_with_float() {
     validate_generation("nested_with_float", Generator::new().unwrap());
 }
+
+#[test]
+fn gen_protocol_simple() {
+    validate_generation(
+        "protocol_simple",
+        Generator::new().unwrap(),
+    );
+}
+
+#[test]
+fn gen_protocol_nested() {
+    validate_generation(
+        "protocol_nested",
+        Generator::new().unwrap(),
+    );
+}
