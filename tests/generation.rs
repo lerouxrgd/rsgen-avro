@@ -197,3 +197,13 @@ fn gen_fixed() {
 fn gen_nested_with_float() {
     validate_generation("nested_with_float", Generator::new().unwrap());
 }
+
+#[test]
+fn gen_recursive() {
+    validate_generation("recursive", Generator::new().unwrap());
+}
+
+#[test]
+fn gen_interop() {
+    validate_generation("interop", Generator::new().unwrap());
+}

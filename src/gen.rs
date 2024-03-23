@@ -358,6 +358,7 @@ impl GeneratorBuilder {
 #[cfg(test)]
 mod tests {
     use apache_avro::schema::{EnumSchema, Name};
+    use pretty_assertions::assert_eq;
 
     use super::*;
 
@@ -453,7 +454,6 @@ pub struct A {
         let mut buf = vec![];
         g.gen(&source, &mut buf)?;
         let res = String::from_utf8(buf)?;
-        println!("{}", res);
 
         assert_eq!(expected, res);
 

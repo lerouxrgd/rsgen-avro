@@ -24,6 +24,6 @@
     }, {
       "name": "FooBaz",
       "type": "record",
-      "fields": [ {"name": "BarFoo",  "type": "record", "fields": [ {"name": "nested_int", "type": "int"} ]} ]
+      "fields": [ {"name": "BarFoo", "type": "record", "fields": [ {"name": "nested_int", "type": "int"} ]} ]
     }
 ] }

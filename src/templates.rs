@@ -2,6 +2,7 @@
 
 #![allow(clippy::try_err)]
 
+use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 
 use apache_avro::schema::{
@@ -263,7 +264,7 @@ impl GenState {
                 _ => None,
             })
             .collect::<HashMap<_, _>>();
-        let not_eq = Self::get_not_eq_schemas(deps, &schemata_by_name)?;
+        let not_eq = Self::get_not_eq_schemata(deps, &schemata_by_name)?;
         Ok(GenState {
             types_by_schema: HashMap::new(),
             schemata_by_name,
@@ -303,19 +304,54 @@ impl GenState {
         }
     }
 
-    /// Utility function to find nested type that does not implement Eq in record and its dependencies.
+    /// Utility function to find nested type that does not implement Eq in record and
+    /// its dependencies.
     fn deep_search_not_eq(
         schema: &Schema,
         schemata_by_name: &HashMap<Name, Schema>,
+        inner_not_eq: &mut HashMap<Name, bool>,
+        outer_not_eq: &mut HashMap<Name, bool>,
     ) -> Result<bool> {
+        if let Some(name) = schema.name() {
+            match inner_not_eq.entry(name.clone()) {
+                Entry::Occupied(not_eq) => return Ok(*not_eq.get()),
+                Entry::Vacant(not_eq) => {
+                    not_eq.insert(false);
+                }
+            }
+        }
         match schema {
             Schema::Array(ArraySchema { items: inner, .. })
             | Schema::Map(MapSchema { types: inner, .. }) => {
-                Self::deep_search_not_eq(inner, schemata_by_name)
+                let not_eq =
+                    Self::deep_search_not_eq(inner, schemata_by_name, inner_not_eq, outer_not_eq)?;
+                match schema.name() {
+                    Some(schema_name) if not_eq => {
+                        inner_not_eq.insert(schema_name.clone(), true);
+                        outer_not_eq.insert(schema_name.clone(), true);
+                    }
+                    _ => {}
+                }
+                Ok(not_eq)
             }
             Schema::Record(RecordSchema { fields, .. }) => {
                 for f in fields {
-                    if Self::deep_search_not_eq(&f.schema, schemata_by_name)? {
+                    let not_eq = Self::deep_search_not_eq(
+                        &f.schema,
+                        schemata_by_name,
+                        inner_not_eq,
+                        outer_not_eq,
+                    )?;
+
+                    match schema.name() {
+                        Some(schema_name) if not_eq => {
+                            inner_not_eq.insert(schema_name.clone(), true);
+                            outer_not_eq.insert(schema_name.clone(), true);
+                        }
+                        _ => {}
+                    }
+
+                    if not_eq {
                         return Ok(true);
                     }
                 }
@@ -323,38 +359,63 @@ impl GenState {
             }
             Schema::Union(union) => {
                 for s in union.variants() {
-                    if Self::deep_search_not_eq(s, schemata_by_name)? {
+                    if Self::deep_search_not_eq(s, schemata_by_name, inner_not_eq, outer_not_eq)? {
                         return Ok(true);
                     }
                 }
                 Ok(false)
             }
-            Schema::Ref { name } => schemata_by_name
-                .get(name)
-                .ok_or_else(|| {
+            Schema::Ref { name } => {
+                let schema = schemata_by_name.get(name).ok_or_else(|| {
                     Error::Template(format!(
                         "Ref `{name:?}` is not resolved. Schema: {schema:?}",
                     ))
-                })
-                .and_then(|s| Self::deep_search_not_eq(s, schemata_by_name)),
+                })?;
+                inner_not_eq.remove(&name); // Force re-exploration of the ref schema
+                outer_not_eq.remove(&name); // Force re-exploration of the ref schema
+                let not_eq =
+                    Self::deep_search_not_eq(schema, schemata_by_name, inner_not_eq, outer_not_eq)?;
+                match schema.name() {
+                    Some(schema_name) if not_eq => {
+                        inner_not_eq.insert(schema_name.clone(), true);
+                        outer_not_eq.insert(schema_name.clone(), true);
+                    }
+                    _ => {}
+                }
+                Ok(not_eq)
+            }
             Schema::Float | Schema::Double => Ok(true),
             _ => Ok(false),
         }
     }
 
-    /// Fill HashSet with schemas that contains type which does not implement Eq
-    fn get_not_eq_schemas(
+    /// Fill HashSet with schemata that contains type which does not implement Eq
+    fn get_not_eq_schemata(
         deps: &[Schema],
         schemata_by_name: &HashMap<Name, Schema>,
     ) -> Result<HashSet<String>> {
-        let mut float_schemas = HashSet::new();
+        let mut schemata_not_eq = HashSet::new();
+        let mut outer_not_eq = HashMap::new();
         for dep in deps {
-            if Self::deep_search_not_eq(dep, schemata_by_name)? {
+            let mut inner_not_eq = HashMap::new();
+            let not_eq = Self::deep_search_not_eq(
+                dep,
+                schemata_by_name,
+                &mut inner_not_eq,
+                &mut outer_not_eq,
+            )?;
+            let not_eq = not_eq
+                || inner_not_eq.values().any(|&not_eq| not_eq)
+                || inner_not_eq
+                    .keys()
+                    .filter_map(|n| outer_not_eq.get(n))
+                    .any(|&not_eq| not_eq);
+            if not_eq {
                 let str_schema = serde_json::to_string(dep).expect("Unexpected invalid schema");
-                float_schemas.insert(str_schema);
+                schemata_not_eq.insert(str_schema);
             }
         }
-        Ok(float_schemas)
+        Ok(schemata_not_eq)
     }
 }
 
