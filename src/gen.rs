@@ -88,6 +88,9 @@ impl Generator {
     fn gen_in_order(&self, deps: &mut Vec<Schema>, output: &mut impl Write) -> Result<()> {
         let mut gs = GenState::new(deps)?.with_chrono_dates(self.templater.use_chrono_dates);
 
+        let code = &self.templater.str_header()?;
+        output.write_all(code.trim_start().as_bytes())?;
+
         while let Some(s) = deps.pop() {
             match s {
                 // Simply generate code
@@ -268,6 +271,9 @@ pub struct GeneratorBuilder {
     nullable: bool,
     use_avro_rs_unions: bool,
     use_chrono_dates: bool,
+    import_types: Vec<String>,
+    struct_derives: Vec<String>,
+    enum_derives: Vec<String>,
     derive_builders: bool,
     derive_schemas: bool,
 }
@@ -279,6 +285,9 @@ impl Default for GeneratorBuilder {
             nullable: false,
             use_avro_rs_unions: false,
             use_chrono_dates: false,
+            import_types: vec![],
+            struct_derives: vec![],
+            enum_derives: vec![],
             derive_builders: false,
             derive_schemas: false,
         }
@@ -320,6 +329,24 @@ impl GeneratorBuilder {
         self
     }
 
+    /// Custom import types.
+    pub fn import_types(mut self, import_types: Vec<String>) -> GeneratorBuilder {
+        self.import_types = import_types;
+        self
+    }
+
+    /// Custom derive macros for structs.
+    pub fn struct_derives(mut self, struct_derives: Vec<String>) -> GeneratorBuilder {
+        self.struct_derives = struct_derives;
+        self
+    }
+
+    /// Custom derive macros for enums.
+    pub fn enum_derives(mut self, enum_derives: Vec<String>) -> GeneratorBuilder {
+        self.enum_derives = enum_derives;
+        self
+    }
+
     /// Adds support to derive builders using the `rust-derive-builder` crate.
     ///
     /// Applies to record structs.
@@ -343,6 +370,9 @@ impl GeneratorBuilder {
         templater.nullable = self.nullable;
         templater.use_avro_rs_unions = self.use_avro_rs_unions;
         templater.use_chrono_dates = self.use_chrono_dates;
+        templater.import_types = self.import_types;
+        templater.struct_derives = self.struct_derives;
+        templater.enum_derives = self.enum_derives;
         templater.derive_builders = self.derive_builders;
         templater.derive_schemas = self.derive_schemas;
         Ok(Generator { templater })

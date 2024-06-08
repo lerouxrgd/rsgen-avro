@@ -37,6 +37,18 @@ struct Args {
     #[clap(long)]
     pub chrono_dates: bool,
 
+    /// Custom import types for e.g. --import-types "serde::Serialize,serde::Deserialize"
+    #[clap(short, long, value_delimiter = ',', num_args = 1..)]
+    pub import_types: Option<Vec<String>>,
+
+    /// Custom derive macros for structs for e.g. --struct-derives "Serialize,Deserialize"
+    #[clap(short, long, value_delimiter = ',', num_args = 1..)]
+    pub struct_derives: Option<Vec<String>>,
+
+    /// Custom derive macros for enums for e.g. --enum-derives "Serialize,Deserialize"
+    #[clap(short, long, value_delimiter = ',', num_args = 1..)]
+    pub enum_derives: Option<Vec<String>>,
+
     /// Derive builders for generated record structs
     #[clap(long)]
     pub derive_builders: bool,
@@ -68,6 +80,9 @@ fn run() -> Result<(), Box<dyn Error>> {
         .nullable(args.nullable)
         .use_avro_rs_unions(args.union_deser)
         .use_chrono_dates(args.chrono_dates)
+        .import_types(args.import_types.unwrap_or(vec![]))
+        .struct_derives(args.struct_derives.unwrap_or(vec![]))
+        .enum_derives(args.enum_derives.unwrap_or(vec![]))
         .derive_builders(args.derive_builders)
         .derive_schemas(args.derive_schemas)
         .build()?;

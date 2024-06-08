@@ -16,6 +16,12 @@ use uuid::Uuid;
 
 use crate::error::{Error, Result};
 
+pub const HEADER_TERA: &str = "header.tera";
+pub const HEADER_TEMPLATE: &str = r#"
+{% for type in import_types %}
+{{ "use " ~ type ~ ";" }}
+{% endfor %}"#;
+
 pub const RECORD_TERA: &str = "record.tera";
 pub const RECORD_TEMPLATE: &str = r#"
 {%- if doc %}
@@ -24,7 +30,7 @@ pub const RECORD_TEMPLATE: &str = r#"
 /// {{ doc_line }}
 {%- endfor %}
 {%- endif %}
-#[derive(Debug, PartialEq{%- if is_eq_derivable %}, Eq{%- endif %}, Clone, serde::Deserialize, serde::Serialize{%- if derive_builders %}, derive_builder::Builder {%- endif %}{%- if derive_schemas %}, apache_avro::AvroSchema {%- endif %})]
+#[derive(Debug, PartialEq{%- if is_eq_derivable %}, Eq{%- endif %}, Clone, serde::Deserialize, serde::Serialize{%- if derive_builders %}, derive_builder::Builder {%- endif %}{%- if derive_schemas %}, apache_avro::AvroSchema {%- endif %}{% for derive in struct_derives %}{{ ", " ~ derive }}{% endfor %})]
 {%- if derive_builders %}
 #[builder(setter(into))]
 {%- endif %}
@@ -104,7 +110,7 @@ pub const ENUM_TEMPLATE: &str = r#"
 /// {{ doc_line }}
 {%- endfor %}
 {%- endif %}
-#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, serde::Deserialize, serde::Serialize{% for derive in enum_derives %}{{ ", " ~ derive }}{% endfor %})]
 pub enum {{ name }} {
     {%- for s in symbols %}
     {%- if s != originals[s] %}
@@ -368,6 +374,9 @@ pub struct Templater {
     pub nullable: bool,
     pub use_avro_rs_unions: bool,
     pub use_chrono_dates: bool,
+    pub import_types: Vec<String>,
+    pub struct_derives: Vec<String>,
+    pub enum_derives: Vec<String>,
     pub derive_builders: bool,
     pub derive_schemas: bool,
 }
@@ -378,6 +387,7 @@ impl Templater {
         let dir = tempfile::tempdir()?;
         let mut tera = Tera::new(&format!("{}", dir.path().join("*").display()))?;
 
+        tera.add_raw_template(HEADER_TERA, HEADER_TEMPLATE)?;
         tera.add_raw_template(RECORD_TERA, RECORD_TEMPLATE)?;
         tera.add_raw_template(ENUM_TERA, ENUM_TEMPLATE)?;
         tera.add_raw_template(FIXED_TERA, FIXED_TEMPLATE)?;
@@ -389,9 +399,19 @@ impl Templater {
             nullable: false,
             use_avro_rs_unions: false,
             use_chrono_dates: false,
+            import_types: vec![],
+            struct_derives: vec![],
+            enum_derives: vec![],
             derive_builders: false,
             derive_schemas: false,
         })
+    }
+
+    /// Generates a header.
+    pub fn str_header(&self) -> Result<String> {
+        let mut ctx = Context::new();
+        ctx.insert("import_types", &self.import_types);
+        Ok(self.tera.render(HEADER_TERA, &ctx)?)
     }
 
     /// Generates a Rust type based on a `Schema::Fixed` schema.
@@ -435,6 +455,7 @@ impl Templater {
                 .iter()
                 .map(|s| sanitize(s.to_upper_camel_case()))
                 .collect();
+            ctx.insert("enum_derives", &self.enum_derives);
             ctx.insert("originals", &o);
             ctx.insert("symbols", &s);
             Ok(self.tera.render(ENUM_TERA, &ctx)?)
@@ -458,6 +479,7 @@ impl Templater {
             ctx.insert("name", &name.to_upper_camel_case());
             let doc = if let Some(d) = doc { d } else { "" };
             ctx.insert("doc", doc);
+            ctx.insert("struct_derives", &self.struct_derives);
             ctx.insert("derive_builders", &self.derive_builders);
             ctx.insert("derive_schemas", &self.derive_schemas);
 
