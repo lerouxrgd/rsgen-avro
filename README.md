@@ -25,15 +25,30 @@ Arguments:
   <OUTPUT_FILE>   The file where Rust types will be written, '-' for stdout
 
 Options:
-      --fmt              Run rustfmt on the resulting <output-file>
-      --nullable         Replace null fields with their default value when deserializing
-      --precision <P>    Precision for f32/f64 default values that aren't round numbers [default: 3]
-      --union-deser      Custom deserialization for apache-avro multi-valued union types
-      --chrono-dates     Use chrono::NaiveDateTime for date/timestamps logical types
-      --derive-builders  Derive builders for generated record structs
-      --derive-schemas   Derive AvroSchema for generated record structs
-  -h, --help             Print help
-  -V, --version          Print version
+      --fmt
+          Run rustfmt on the resulting <output-file>
+      --nullable
+          Replace null fields with their default value when deserializing
+      --precision <P>
+          Precision for f32/f64 default values that aren't round numbers [default: 3]
+      --union-deser
+          Custom deserialization for apache-avro multi-valued union types
+      --chrono-dates
+          Use chrono::NaiveDateTime for date/timestamps logical types
+      --import-types <IMPORT_TYPES>...
+          Custom import types for e.g. --import-types "serde::Serialize,serde::Deserialize"
+      --struct-derives <STRUCT_DERIVES>...
+          Custom derive macros for structs for e.g. --struct-derives "Serialize,Deserialize"
+      --enum-derives <ENUM_DERIVES>...
+          Custom derive macros for enums for e.g. --enum-derives "Serialize,Deserialize"
+      --derive-builders
+          Derive builders for generated record structs
+      --derive-schemas
+          Derive AvroSchema for generated record structs
+  -h, --help
+          Print help
+  -V, --version
+          Print version
 ```
 
 ## Library usage

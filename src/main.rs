@@ -38,15 +38,15 @@ struct Args {
     pub chrono_dates: bool,
 
     /// Custom import types for e.g. --import-types "serde::Serialize,serde::Deserialize"
-    #[clap(short, long, value_delimiter = ',', num_args = 1..)]
+    #[clap(long, value_delimiter = ',', num_args = 1..)]
     pub import_types: Option<Vec<String>>,
 
     /// Custom derive macros for structs for e.g. --struct-derives "Serialize,Deserialize"
-    #[clap(short, long, value_delimiter = ',', num_args = 1..)]
+    #[clap(long, value_delimiter = ',', num_args = 1..)]
     pub struct_derives: Option<Vec<String>>,
 
     /// Custom derive macros for enums for e.g. --enum-derives "Serialize,Deserialize"
-    #[clap(short, long, value_delimiter = ',', num_args = 1..)]
+    #[clap(long, value_delimiter = ',', num_args = 1..)]
     pub enum_derives: Option<Vec<String>>,
 
     /// Derive builders for generated record structs
