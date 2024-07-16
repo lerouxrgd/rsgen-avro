@@ -60,6 +60,11 @@ fn gen_optional_arrays() {
 }
 
 #[test]
+fn gen_array_3d() {
+    validate_generation("array_3d", Generator::new().unwrap());
+}
+
+#[test]
 fn gen_mono_valued_union() {
     validate_generation("mono_valued_union", Generator::new().unwrap());
 }

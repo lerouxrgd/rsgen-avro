@@ -196,7 +196,10 @@ fn deps_stack(schema: &Schema, mut deps: Vec<Schema>) -> Vec<Schema> {
                             | Schema::Record { .. }
                             | Schema::Map(..)
                             | Schema::Array(..)
-                            | Schema::Union(..) => q.push_back(sc),
+                            | Schema::Union(..) => {
+                                q.push_back(sc);
+                                push_unique(&mut deps, s.clone());
+                            }
                             _ => (),
                         },
                         Schema::Union(union) => {
@@ -235,7 +238,10 @@ fn deps_stack(schema: &Schema, mut deps: Vec<Schema>) -> Vec<Schema> {
                 | Schema::Record { .. }
                 | Schema::Map(..)
                 | Schema::Array(..)
-                | Schema::Union(..) => q.push_back(sc.as_ref()),
+                | Schema::Union(..) => {
+                    q.push_back(sc.as_ref());
+                    push_unique(&mut deps, s.clone());
+                }
                 // ... Not nested, can be pushed to the result stack
                 _ => push_unique(&mut deps, s.clone()),
             },
@@ -254,7 +260,10 @@ fn deps_stack(schema: &Schema, mut deps: Vec<Schema>) -> Vec<Schema> {
                     | Schema::Record { .. }
                     | Schema::Map(..)
                     | Schema::Array(..)
-                    | Schema::Union(..) => q.push_back(sc),
+                    | Schema::Union(..) => {
+                        q.push_back(sc);
+                        push_unique(&mut deps, s.clone());
+                    }
                     // ... Not nested, can be pushed to the result stack
                     _ => push_unique(&mut deps, s.clone()),
                 });
