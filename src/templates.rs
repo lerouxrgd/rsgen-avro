@@ -563,8 +563,11 @@ impl Templater {
 
                     Schema::Date if self.use_chrono_dates => {
                         f.push(name_std.clone());
-                        t.insert(name_std.clone(), "chrono::NaiveDateTime".to_string());
-                        w.insert(name_std.clone(), "chrono::naive::serde::ts_seconds");
+                        t.insert(
+                            name_std.clone(),
+                            "chrono::DateTime<chrono::Utc>".to_string(),
+                        );
+                        w.insert(name_std.clone(), "chrono::serde::ts_seconds");
                         if let Some(default) = default {
                             let default = self.parse_default(schema, gen_state, default)?;
                             d.insert(name_std.clone(), default);
@@ -575,8 +578,11 @@ impl Templater {
                         if self.use_chrono_dates =>
                     {
                         f.push(name_std.clone());
-                        t.insert(name_std.clone(), "chrono::NaiveDateTime".to_string());
-                        w.insert(name_std.clone(), "chrono::naive::serde::ts_milliseconds");
+                        t.insert(
+                            name_std.clone(),
+                            "chrono::DateTime<chrono::Utc>".to_string(),
+                        );
+                        w.insert(name_std.clone(), "chrono::serde::ts_milliseconds");
                         if let Some(default) = default {
                             let default = self.parse_default(schema, gen_state, default)?;
                             d.insert(name_std.clone(), default);
@@ -587,8 +593,11 @@ impl Templater {
                         if self.use_chrono_dates =>
                     {
                         f.push(name_std.clone());
-                        t.insert(name_std.clone(), "chrono::NaiveDateTime".to_string());
-                        w.insert(name_std.clone(), "chrono::naive::serde::ts_microseconds");
+                        t.insert(
+                            name_std.clone(),
+                            "chrono::DateTime<chrono::Utc>".to_string(),
+                        );
+                        w.insert(name_std.clone(), "chrono::serde::ts_microseconds");
                         if let Some(default) = default {
                             let default = self.parse_default(schema, gen_state, default)?;
                             d.insert(name_std.clone(), default);
@@ -599,8 +608,11 @@ impl Templater {
                         if self.use_chrono_dates =>
                     {
                         f.push(name_std.clone());
-                        t.insert(name_std.clone(), "chrono::NaiveDateTime".to_string());
-                        w.insert(name_std.clone(), "chrono::naive::serde::ts_nanoseconds");
+                        t.insert(
+                            name_std.clone(),
+                            "chrono::DateTime<chrono::Utc>".to_string(),
+                        );
+                        w.insert(name_std.clone(), "chrono::serde::ts_nanoseconds");
                         if let Some(default) = default {
                             let default = self.parse_default(schema, gen_state, default)?;
                             d.insert(name_std.clone(), default);
@@ -890,7 +902,7 @@ impl Templater {
                     | Schema::LocalTimestampNanos
                         if self.use_chrono_dates =>
                     {
-                        "NaiveDateTime(chrono::NaiveDateTime)".into()
+                        "NaiveDateTime(chrono::DateTime<chrono::Utc>)".into()
                     }
                     Schema::Date => "Date(i32)".into(),
                     Schema::TimeMillis => "TimeMillis(i32)".into(),
@@ -983,7 +995,7 @@ impl Templater {
 
             Schema::Date if self.use_chrono_dates => match default {
                 Value::Number(n) if n.is_i64() => format!(
-                    "chrono::NaiveDateTime::from_timestamp_opt({}, 0).unwrap()",
+                    "chrono::DateTime::<chrono::Utc>::from_timestamp({}, 0).unwrap()",
                     n.as_i64().unwrap()
                 ),
                 _ => err!("Invalid default: {:?}", default)?,
@@ -994,7 +1006,7 @@ impl Templater {
             {
                 match default {
                     Value::Number(n) if n.is_i64() => format!(
-                        "chrono::NaiveDateTime::from_timestamp_millis({}).unwrap()",
+                        "chrono::DateTime::<chrono::Utc>::from_timestamp_millis({}).unwrap()",
                         n.as_i64().unwrap()
                     ),
                     _ => err!("Invalid default: {:?}", default)?,
@@ -1006,7 +1018,7 @@ impl Templater {
             {
                 match default {
                     Value::Number(n) if n.is_i64() => format!(
-                        "chrono::NaiveDateTime::from_timestamp_micros({}).unwrap()",
+                        "chrono::DateTime::<chrono::Utc>::from_timestamp_micros({}).unwrap()",
                         n.as_i64().unwrap()
                     ),
                     _ => err!("Invalid default: {:?}", default)?,
@@ -1016,7 +1028,7 @@ impl Templater {
             Schema::TimestampNanos | Schema::LocalTimestampNanos if self.use_chrono_dates => {
                 match default {
                     Value::Number(n) if n.is_i64() => format!(
-                        "chrono::NaiveDateTime::from_timestamp_nanos({}).unwrap()",
+                        "chrono::DateTime::<chrono::Utc>::from_timestamp_nanos({}).unwrap()",
                         n.as_i64().unwrap()
                     ),
                     _ => err!("Invalid default: {:?}", default)?,
@@ -1319,7 +1331,7 @@ pub(crate) fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String>
         | Schema::LocalTimestampNanos
             if gen_state.use_chrono_dates =>
         {
-            "Vec<chrono::NaiveDateTime>".into()
+            "Vec<chrono::DateTime<chrono::Utc>>".into()
         }
 
         Schema::Date | Schema::TimeMillis => "Vec<i32>".into(),
@@ -1396,7 +1408,7 @@ pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
         | Schema::LocalTimestampMicros
             if gen_state.use_chrono_dates =>
         {
-            map_of("chrono::NaiveDateTime")
+            map_of("chrono::DateTime<chrono::Utc>")
         }
 
         Schema::Date | Schema::TimeMillis => map_of("i32"),
@@ -1560,7 +1572,7 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
         | Schema::LocalTimestampNanos
             if gen_state.use_chrono_dates =>
         {
-            "Option<chrono::NaiveDateTime>".into()
+            "Option<chrono::DateTime<chrono::Utc>>".into()
         }
         Schema::Date | Schema::TimeMillis => "Option<i32>".into(),
         Schema::TimeMicros
