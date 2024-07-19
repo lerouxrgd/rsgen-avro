@@ -25,7 +25,6 @@ thiserror = "1"
 chrono = { version = "0.4", default-features = false, features = ["serde"] }
 derive_builder = "0.12"
 pretty_assertions = "1"
-serde_bytes = "0.11"
 tempfile = "3"
 
 [profile.release]

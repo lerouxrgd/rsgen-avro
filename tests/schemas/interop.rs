@@ -78,7 +78,7 @@ pub struct Interop {
     #[serde(rename = "doubleField")]
     pub double_field: f64,
     #[serde(rename = "bytesField")]
-    #[serde(with = "serde_bytes")]
+    #[serde(with = "apache_avro::serde_avro_bytes")]
     pub bytes_field: Vec<u8>,
     #[serde(rename = "arrayField")]
     pub array_field: Vec<f64>,
@@ -89,6 +89,7 @@ pub struct Interop {
     #[serde(rename = "enumField")]
     pub enum_field: Kind,
     #[serde(rename = "fixedField")]
+    #[serde(with = "apache_avro::serde_avro_fixed")]
     pub fixed_field: Md5,
     #[serde(rename = "recordField")]
     pub record_field: Node,

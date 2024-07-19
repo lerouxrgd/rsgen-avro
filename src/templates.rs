@@ -665,7 +665,7 @@ impl Templater {
                     Schema::Bytes => {
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), "Vec<u8>".to_string());
-                        w.insert(name_std.clone(), "serde_bytes");
+                        w.insert(name_std.clone(), "apache_avro::serde_avro_bytes");
                         if let Some(default) = default {
                             let default = self.parse_default(schema, gen_state, default)?;
                             d.insert(name_std.clone(), default);
@@ -723,6 +723,7 @@ impl Templater {
                     }) => {
                         let f_name = sanitize(f_name.to_upper_camel_case());
                         f.push(name_std.clone());
+                        w.insert(name_std.clone(), "apache_avro::serde_avro_fixed");
                         t.insert(name_std.clone(), f_name.clone());
                         if let Some(default) = default {
                             let default = self.parse_default(schema, gen_state, default)?;
@@ -794,7 +795,12 @@ impl Templater {
                             && union.variants().len() == 2
                             && matches!(union.variants()[1], Schema::Bytes)
                         {
-                            w.insert(name_std.clone(), "serde_bytes");
+                            w.insert(name_std.clone(), "apache_avro::serde_avro_bytes_opt");
+                        } else if union.is_nullable()
+                            && union.variants().len() == 2
+                            && matches!(union.variants()[1], Schema::Fixed(_))
+                        {
+                            w.insert(name_std.clone(), "apache_avro::serde_avro_fixed_opt");
                         }
                     }
 
@@ -853,7 +859,9 @@ impl Templater {
                     Schema::Long => "Long(i64)".into(),
                     Schema::Float => "Float(f32)".into(),
                     Schema::Double => "Double(f64)".into(),
-                    Schema::Bytes => r#"Bytes(#[serde(with = "serde_bytes")] Vec<u8>)"#.into(),
+                    Schema::Bytes => {
+                        r#"Bytes(#[serde(with = "apache_avro::serde_avro_bytes")] Vec<u8>)"#.into()
+                    }
                     Schema::String => "String(String)".into(),
                     Schema::Array(ArraySchema { items: inner, .. }) => {
                         format!(

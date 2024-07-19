@@ -87,7 +87,7 @@ dependencies = [
 [[package]]
 name = "apache-avro"
 version = "0.17.0"
-source = "git+https://github.com/apache/avro.git#17e7994bf0bd63938e7d3cb0f25ffbd2d51424b0"
+source = "git+https://github.com/apache/avro.git#5f0776b358fd10fa6062d042e513219d158b525e"
 dependencies = [
  "apache-avro-derive",
  "bigdecimal",
@@ -111,7 +111,7 @@ dependencies = [
 [[package]]
 name = "apache-avro-derive"
 version = "0.17.0"
-source = "git+https://github.com/apache/avro.git#17e7994bf0bd63938e7d3cb0f25ffbd2d51424b0"
+source = "git+https://github.com/apache/avro.git#5f0776b358fd10fa6062d042e513219d158b525e"
 dependencies = [
  "darling 0.20.10",
  "proc-macro2",
@@ -804,7 +804,6 @@ dependencies = [
  "lazy_static",
  "pretty_assertions",
  "serde",
- "serde_bytes",
  "serde_json",
  "tempfile",
  "tera",
