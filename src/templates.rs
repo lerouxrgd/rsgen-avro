@@ -371,8 +371,8 @@ impl GenState {
                         "Ref `{name:?}` is not resolved. Schema: {schema:?}",
                     ))
                 })?;
-                inner_not_eq.remove(&name); // Force re-exploration of the ref schema
-                outer_not_eq.remove(&name); // Force re-exploration of the ref schema
+                inner_not_eq.remove(name); // Force re-exploration of the ref schema
+                outer_not_eq.remove(name); // Force re-exploration of the ref schema
                 let not_eq =
                     Self::deep_search_not_eq(schema, schemata_by_name, inner_not_eq, outer_not_eq)?;
                 match schema.name() {
