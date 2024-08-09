@@ -1,0 +1,17 @@
+{
+  "type" : "record",
+  "name" : "Array3d",
+  "fields" : [ {
+    "name" : "coordinates",
+    "type" : {
+      "type" : "array",
+      "items" : {
+        "type" : "array",
+        "items" : {
+          "type" : "array",
+          "items" : "double"
+        }
+      }
+    }
+  } ]
+}

@@ -3,7 +3,7 @@
 #[serde(default)]
 pub struct BytesData {
     #[serde(deserialize_with = "nullable_bytesdata_b")]
-    #[serde(serialize_with = "serde_bytes::serialize")]
+    #[serde(serialize_with = "apache_avro::serde_avro_bytes::serialize")]
     pub b: Vec<u8>,
     pub nb: Option<Vec<u8>>,
 }
@@ -15,7 +15,7 @@ where
 {
     use serde::Deserialize;
     #[derive(serde::Deserialize)]
-    struct Wrapper(#[serde(with = "serde_bytes")] Vec<u8>);
+    struct Wrapper(#[serde(with = "apache_avro::serde_avro_bytes")] Vec<u8>);
     let opt = Option::<Wrapper>::deserialize(deserializer)?.map(|w| w.0);
     Ok(opt.unwrap_or_else(|| default_bytesdata_b() ))
 }

@@ -44,7 +44,7 @@ fn deser_nullable_logical_dates() {
     let val = serde_json::from_str::<schemas::nullable_logical_dates::DateLogicalType>(serialized)
         .unwrap();
     assert!(
-        val.birthday == chrono::NaiveDateTime::from_timestamp_opt(1681601653, 0).unwrap(),
+        val.birthday == chrono::DateTime::<chrono::Utc>::from_timestamp(1681601653, 0).unwrap(),
         "Should use schema-defined default value when null"
     );
     assert!(
@@ -53,7 +53,7 @@ fn deser_nullable_logical_dates() {
     );
     assert!(
         val.release_datetime_micro
-            == chrono::NaiveDateTime::from_timestamp_micros(1681601301000000).unwrap(),
+            == chrono::DateTime::<chrono::Utc>::from_timestamp_micros(1681601301000000).unwrap(),
         "Deserialized value is different from payload value"
     );
 }

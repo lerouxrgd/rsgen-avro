@@ -8,7 +8,7 @@
     "name": "meeting_time",
     "type": ["null", {"type": "long", "logicalType": "timestamp-millis"}],
     "default": null
-  },     {
+  }, {
     "name": "release_datetime_micro",
     "type": {"type": "long", "logicalType": "timestamp-micros"},
     "default": 1570903062000000

@@ -60,6 +60,11 @@ fn gen_optional_arrays() {
 }
 
 #[test]
+fn gen_array_3d() {
+    validate_generation("array_3d", Generator::new().unwrap());
+}
+
+#[test]
 fn gen_mono_valued_union() {
     validate_generation("mono_valued_union", Generator::new().unwrap());
 }
@@ -131,7 +136,12 @@ fn gen_nullable_logical_dates() {
 }
 
 #[test]
-fn logical_dates() {
+fn gen_decimals() {
+    validate_generation("decimals", Generator::builder().build().unwrap());
+}
+
+#[test]
+fn gen_logical_dates() {
     validate_generation(
         "logical_dates",
         Generator::builder().use_chrono_dates(true).build().unwrap(),
@@ -189,6 +199,16 @@ fn gen_fixed() {
 }
 
 #[test]
-fn nested_with_float() {
+fn gen_nested_with_float() {
     validate_generation("nested_with_float", Generator::new().unwrap());
+}
+
+#[test]
+fn gen_recursive() {
+    validate_generation("recursive", Generator::new().unwrap());
+}
+
+#[test]
+fn gen_interop() {
+    validate_generation("interop", Generator::new().unwrap());
 }

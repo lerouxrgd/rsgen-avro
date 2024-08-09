@@ -1,0 +1,12 @@
+{
+  "type": "record",
+  "name": "Decimals",
+  "fields": [ {
+    "name": "a_decimal",
+    "type": {"type": "bytes", "logicalType": "decimal", "precision": 4, "scale": 2}
+  }, {
+    "name": "a_big_decimal",
+    "type": ["null", {"type": "bytes", "logicalType": "big-decimal"}],
+    "default": null
+  } ]
+}

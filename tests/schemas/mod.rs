@@ -1,10 +1,13 @@
+pub mod array_3d;
 pub mod complex;
+pub mod decimals;
 pub mod enums;
 pub mod enums_casing;
 pub mod enums_multiline_doc;
 pub mod enums_sanitize;
 #[allow(dead_code)]
 pub mod fixed;
+pub mod interop;
 pub mod logical_dates;
 pub mod map_default;
 pub mod map_multiple_def;
@@ -24,6 +27,7 @@ pub mod optional_arrays;
 pub mod record;
 pub mod record_default;
 pub mod record_multiline_doc;
+pub mod recursive;
 pub mod simple;
 pub mod simple_with_builders;
 pub mod simple_with_schemas;

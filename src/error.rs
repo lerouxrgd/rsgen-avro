@@ -21,12 +21,6 @@ impl From<tera::Error> for Error {
     }
 }
 
-impl From<uuid::Error> for Error {
-    fn from(source: uuid::Error) -> Self {
-        Error::Template(source.to_string())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

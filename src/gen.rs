@@ -2,7 +2,7 @@ use std::collections::{HashMap, VecDeque};
 use std::fs;
 use std::io::prelude::*;
 
-use apache_avro::schema::{DecimalSchema, RecordField, RecordSchema};
+use apache_avro::schema::{ArraySchema, DecimalSchema, MapSchema, RecordField, RecordSchema};
 
 use crate::error::{Error, Result};
 use crate::templates::*;
@@ -107,11 +107,15 @@ impl Generator {
                 }
 
                 // Register inner type for it to be used as a nested type later
-                Schema::Array(ref inner) => {
+                Schema::Array(ArraySchema {
+                    items: ref inner, ..
+                }) => {
                     let type_str = array_type(inner, &gs)?;
                     gs.put_type(&s, type_str)
                 }
-                Schema::Map(ref inner) => {
+                Schema::Map(MapSchema {
+                    types: ref inner, ..
+                }) => {
                     let type_str = map_type(inner, &gs)?;
                     gs.put_type(&s, type_str)
                 }
@@ -161,7 +165,7 @@ fn deps_stack(schema: &Schema, mut deps: Vec<Schema>) -> Vec<Schema> {
             Schema::Enum { .. } => push_unique(&mut deps, s.clone()),
             Schema::Fixed { .. } => push_unique(&mut deps, s.clone()),
             Schema::Decimal(DecimalSchema { inner, .. })
-                if matches!(**inner, Schema::Fixed { .. }) =>
+                if matches!(inner.as_ref(), Schema::Fixed { .. }) =>
             {
                 push_unique(&mut deps, s.clone())
             }
@@ -185,13 +189,17 @@ fn deps_stack(schema: &Schema, mut deps: Vec<Schema>) -> Vec<Schema> {
                         Schema::Record { .. } => q.push_back(sr),
 
                         // Push to the exploration queue, depending on the inner schema format
-                        Schema::Map(sc) | Schema::Array(sc) => match sc.as_ref() {
+                        Schema::Map(MapSchema { types: sc, .. })
+                        | Schema::Array(ArraySchema { items: sc, .. }) => match sc.as_ref() {
                             Schema::Fixed { .. }
                             | Schema::Enum { .. }
                             | Schema::Record { .. }
                             | Schema::Map(..)
                             | Schema::Array(..)
-                            | Schema::Union(..) => q.push_back(sc),
+                            | Schema::Union(..) => {
+                                q.push_back(sc);
+                                push_unique(&mut deps, s.clone());
+                            }
                             _ => (),
                         },
                         Schema::Union(union) => {
@@ -222,14 +230,18 @@ fn deps_stack(schema: &Schema, mut deps: Vec<Schema>) -> Vec<Schema> {
             }
 
             // Depending on the inner schema type ...
-            Schema::Map(sc) | Schema::Array(sc) => match &**sc {
+            Schema::Map(MapSchema { types: sc, .. })
+            | Schema::Array(ArraySchema { items: sc, .. }) => match sc.as_ref() {
                 // ... Needs further checks, push to the exploration queue
                 Schema::Fixed { .. }
                 | Schema::Enum { .. }
                 | Schema::Record { .. }
                 | Schema::Map(..)
                 | Schema::Array(..)
-                | Schema::Union(..) => q.push_back(&**sc),
+                | Schema::Union(..) => {
+                    q.push_back(sc.as_ref());
+                    push_unique(&mut deps, s.clone());
+                }
                 // ... Not nested, can be pushed to the result stack
                 _ => push_unique(&mut deps, s.clone()),
             },
@@ -248,7 +260,10 @@ fn deps_stack(schema: &Schema, mut deps: Vec<Schema>) -> Vec<Schema> {
                     | Schema::Record { .. }
                     | Schema::Map(..)
                     | Schema::Array(..)
-                    | Schema::Union(..) => q.push_back(sc),
+                    | Schema::Union(..) => {
+                        q.push_back(sc);
+                        push_unique(&mut deps, s.clone());
+                    }
                     // ... Not nested, can be pushed to the result stack
                     _ => push_unique(&mut deps, s.clone()),
                 });
@@ -352,6 +367,7 @@ impl GeneratorBuilder {
 #[cfg(test)]
 mod tests {
     use apache_avro::schema::{EnumSchema, Name};
+    use pretty_assertions::assert_eq;
 
     use super::*;
 
@@ -447,7 +463,6 @@ pub struct A {
         let mut buf = vec![];
         g.gen(&source, &mut buf)?;
         let res = String::from_utf8(buf)?;
-        println!("{}", res);
 
         assert_eq!(expected, res);
 
