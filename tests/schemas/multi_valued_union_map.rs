@@ -1,24 +1,25 @@
 
 /// Auto-generated type for unnamed Avro union variants.
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
-pub enum UnionStringLongDoubleBoolean {
+pub enum UnionStringLongDoubleBooleanBytes {
     String(String),
     Long(i64),
     Double(f64),
     Boolean(bool),
+    Bytes(#[serde(with = "apache_avro::serde_avro_bytes")] Vec<u8>),
 }
 
-impl From<String> for UnionStringLongDoubleBoolean {
+impl From<String> for UnionStringLongDoubleBooleanBytes {
     fn from(v: String) -> Self {
         Self::String(v)
     }
 }
 
-impl TryFrom<UnionStringLongDoubleBoolean> for String {
-    type Error = UnionStringLongDoubleBoolean;
+impl TryFrom<UnionStringLongDoubleBooleanBytes> for String {
+    type Error = UnionStringLongDoubleBooleanBytes;
 
-    fn try_from(v: UnionStringLongDoubleBoolean) -> Result<Self, Self::Error> {
-        if let UnionStringLongDoubleBoolean::String(v) = v {
+    fn try_from(v: UnionStringLongDoubleBooleanBytes) -> Result<Self, Self::Error> {
+        if let UnionStringLongDoubleBooleanBytes::String(v) = v {
             Ok(v)
         } else {
             Err(v)
@@ -26,17 +27,17 @@ impl TryFrom<UnionStringLongDoubleBoolean> for String {
     }
 }
 
-impl From<i64> for UnionStringLongDoubleBoolean {
+impl From<i64> for UnionStringLongDoubleBooleanBytes {
     fn from(v: i64) -> Self {
         Self::Long(v)
     }
 }
 
-impl TryFrom<UnionStringLongDoubleBoolean> for i64 {
-    type Error = UnionStringLongDoubleBoolean;
+impl TryFrom<UnionStringLongDoubleBooleanBytes> for i64 {
+    type Error = UnionStringLongDoubleBooleanBytes;
 
-    fn try_from(v: UnionStringLongDoubleBoolean) -> Result<Self, Self::Error> {
-        if let UnionStringLongDoubleBoolean::Long(v) = v {
+    fn try_from(v: UnionStringLongDoubleBooleanBytes) -> Result<Self, Self::Error> {
+        if let UnionStringLongDoubleBooleanBytes::Long(v) = v {
             Ok(v)
         } else {
             Err(v)
@@ -44,17 +45,17 @@ impl TryFrom<UnionStringLongDoubleBoolean> for i64 {
     }
 }
 
-impl From<f64> for UnionStringLongDoubleBoolean {
+impl From<f64> for UnionStringLongDoubleBooleanBytes {
     fn from(v: f64) -> Self {
         Self::Double(v)
     }
 }
 
-impl TryFrom<UnionStringLongDoubleBoolean> for f64 {
-    type Error = UnionStringLongDoubleBoolean;
+impl TryFrom<UnionStringLongDoubleBooleanBytes> for f64 {
+    type Error = UnionStringLongDoubleBooleanBytes;
 
-    fn try_from(v: UnionStringLongDoubleBoolean) -> Result<Self, Self::Error> {
-        if let UnionStringLongDoubleBoolean::Double(v) = v {
+    fn try_from(v: UnionStringLongDoubleBooleanBytes) -> Result<Self, Self::Error> {
+        if let UnionStringLongDoubleBooleanBytes::Double(v) = v {
             Ok(v)
         } else {
             Err(v)
@@ -62,17 +63,35 @@ impl TryFrom<UnionStringLongDoubleBoolean> for f64 {
     }
 }
 
-impl From<bool> for UnionStringLongDoubleBoolean {
+impl From<bool> for UnionStringLongDoubleBooleanBytes {
     fn from(v: bool) -> Self {
         Self::Boolean(v)
     }
 }
 
-impl TryFrom<UnionStringLongDoubleBoolean> for bool {
-    type Error = UnionStringLongDoubleBoolean;
+impl TryFrom<UnionStringLongDoubleBooleanBytes> for bool {
+    type Error = UnionStringLongDoubleBooleanBytes;
 
-    fn try_from(v: UnionStringLongDoubleBoolean) -> Result<Self, Self::Error> {
-        if let UnionStringLongDoubleBoolean::Boolean(v) = v {
+    fn try_from(v: UnionStringLongDoubleBooleanBytes) -> Result<Self, Self::Error> {
+        if let UnionStringLongDoubleBooleanBytes::Boolean(v) = v {
+            Ok(v)
+        } else {
+            Err(v)
+        }
+    }
+}
+
+impl From<Vec<u8>> for UnionStringLongDoubleBooleanBytes {
+    fn from(v: Vec<u8>) -> Self {
+        Self::Bytes(v)
+    }
+}
+
+impl TryFrom<UnionStringLongDoubleBooleanBytes> for Vec<u8> {
+    type Error = UnionStringLongDoubleBooleanBytes;
+
+    fn try_from(v: UnionStringLongDoubleBooleanBytes) -> Result<Self, Self::Error> {
+        if let UnionStringLongDoubleBooleanBytes::Bytes(v) = v {
             Ok(v)
         } else {
             Err(v)
@@ -82,5 +101,5 @@ impl TryFrom<UnionStringLongDoubleBoolean> for bool {
 
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Contact {
-    pub extra: ::std::collections::HashMap<String, Option<UnionStringLongDoubleBoolean>>,
+    pub extra: ::std::collections::HashMap<String, Option<UnionStringLongDoubleBooleanBytes>>,
 }
