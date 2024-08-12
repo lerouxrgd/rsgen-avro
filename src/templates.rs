@@ -967,6 +967,11 @@ impl Templater {
                         rust_type: String::from("String"),
                         serde_visitor: String::from("&str").into(),
                     }),
+                    Schema::Bytes => visitors.push(GenUnionVisitor {
+                        variant: String::from("Bytes"),
+                        rust_type: String::from("Vec<u8>"),
+                        serde_visitor: String::from("&[u8]").into(),
+                    }),
                     _ => (),
                 };
             }
