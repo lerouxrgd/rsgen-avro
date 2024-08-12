@@ -4,6 +4,8 @@
 #[derive(Debug, PartialEq, Eq, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct User {
+    /// Yummy !
+    /// I love it !
     pub likes_pizza: bool,
 }
 

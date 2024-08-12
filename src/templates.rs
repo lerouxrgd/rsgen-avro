@@ -34,6 +34,12 @@ pub const RECORD_TEMPLATE: &str = r#"
 {%- endif %}
 pub struct {{ name }} {
     {%- for f in fields %}
+    {%- if docs[f] %}
+    {%- set doc_lines = docs[f] | split(pat="\n") %}
+    {%- for doc_line in doc_lines %}
+    /// {{ doc_line }}
+    {%- endfor %}
+    {%- endif %}
     {%- set type = types[f] %}
     {%- if f != originals[f] and not f is starting_with("r#") %}
     #[serde(rename = "{{ originals[f] }}")]
@@ -528,6 +534,7 @@ impl Templater {
             let mut o = HashMap::new(); // field name -> original name
             let mut d = HashMap::new(); // field name -> default value
             let mut w = HashMap::new(); // field name -> serde with
+            let mut c = HashMap::new(); // field name -> comment/doc
 
             let mut fields_by_pos = fields.iter().clone().collect::<Vec<_>>();
             fields_by_pos.sort_by_key(|f| f.position);
@@ -536,11 +543,15 @@ impl Templater {
                 schema,
                 name,
                 default,
+                doc,
                 ..
             } in fields_by_pos.iter()
             {
                 let name_std = sanitize(name.to_snake_case());
                 o.insert(name_std.clone(), name);
+                if let Some(d) = doc {
+                    c.insert(name_std.clone(), d);
+                }
 
                 let schema = if let Schema::Ref { ref name } = schema {
                     gen_state.get_schema(name).ok_or_else(|| {
@@ -812,6 +823,7 @@ impl Templater {
             ctx.insert("types", &t);
             ctx.insert("originals", &o);
             ctx.insert("defaults", &d);
+            ctx.insert("docs", &c);
             ctx.insert("serde_with", &w);
             ctx.insert("is_eq_derivable", &gen_state.is_eq_derivable(schema));
             if self.nullable {

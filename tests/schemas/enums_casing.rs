@@ -8,7 +8,9 @@ pub enum MeasurementUnit {
 /// Record doc
 #[derive(Debug, PartialEq, Eq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct MyRecord {
+    /// Identifier
     pub id: i32,
+    /// Measurement unit
     #[serde(default = "default_myrecord_unit")]
     pub unit: MeasurementUnit,
 }

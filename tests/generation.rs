@@ -159,6 +159,11 @@ fn gen_record_default() {
 }
 
 #[test]
+fn gen_record_multiline_doc() {
+    validate_generation("record_multiline_doc", Generator::new().unwrap());
+}
+
+#[test]
 fn gen_nested_record_default() {
     validate_generation("nested_record_default", Generator::new().unwrap());
 }
