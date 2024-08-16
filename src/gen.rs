@@ -323,7 +323,7 @@ impl GeneratorBuilder {
     /// Adds support for deserializing union types from the `apache-avro` crate.
     ///
     /// Only necessary for unions of 3 or more types or 2-type unions without "null".
-    /// Note that only int, long, float, double, and boolean values are currently supported.
+    /// Note that only int, long, float, double, boolean and bytes values are currently supported.
     pub fn use_avro_rs_unions(mut self, use_avro_rs_unions: bool) -> GeneratorBuilder {
         self.use_avro_rs_unions = use_avro_rs_unions;
         self
