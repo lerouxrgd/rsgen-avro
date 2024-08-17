@@ -179,7 +179,7 @@ impl<'de> serde::Deserialize<'de> for {{ name }} {
             {%- for v in visitors %}
             {%- if v.serde_visitor %}
 
-            fn visit_{{ v.serde_visitor | trim_start_matches(pat="&") }}<E>(self, value: {{ v.serde_visitor }}) -> Result<Self::Value, E>
+            fn visit_{{ v.serde_visitor | replace(from="&[u8]", to="bytes") | trim_start_matches(pat="&") }}<E>(self, value: {{ v.serde_visitor }}) -> Result<Self::Value, E>
             where
                 E: serde::de::Error,
             {

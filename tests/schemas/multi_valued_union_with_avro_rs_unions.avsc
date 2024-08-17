@@ -5,6 +5,6 @@
   "fields": [ {
     "name": "extra",
     "type": "map",
-    "values" : [ "null", "string", "long", "double", "boolean" ]
+    "values" : [ "null", "string", "long", "double", "boolean", "bytes" ]
   } ]
 }
