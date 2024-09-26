@@ -4,6 +4,7 @@
 pub struct DateLogicalType {
     #[serde(with = "chrono::serde::ts_seconds")]
     pub birthday: chrono::DateTime<chrono::Utc>,
+    #[serde(with = "chrono::serde::ts_milliseconds_option")]
     #[serde(default = "default_datelogicaltype_meeting_time")]
     pub meeting_time: Option<chrono::DateTime<chrono::Utc>>,
     #[serde(with = "chrono::serde::ts_microseconds")]

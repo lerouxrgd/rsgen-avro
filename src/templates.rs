@@ -883,7 +883,31 @@ impl Templater {
                             && matches!(union.variants()[1], Schema::Fixed(_))
                         {
                             w.insert(name_std.clone(), "apache_avro::serde_avro_fixed_opt");
-                        }
+                        } else if union.is_nullable()
+                            && union.variants().len() == 2
+                            && matches!(
+                                union.variants()[1],
+                                Schema::TimestampMillis | Schema::LocalTimestampMillis
+                            )
+                        {
+                            w.insert(name_std.clone(), "chrono::serde::ts_milliseconds_option");
+                        } else if union.is_nullable()
+                            && union.variants().len() == 2
+                            && matches!(
+                                union.variants()[1],
+                                Schema::TimestampMicros | Schema::LocalTimestampMicros
+                            )
+                        {
+                            w.insert(name_std.clone(), "chrono::serde::ts_microseconds_option");
+                        } else if union.is_nullable()
+                            && union.variants().len() == 2
+                            && matches!(
+                                union.variants()[1],
+                                Schema::TimestampNanos | Schema::LocalTimestampNanos
+                            )
+                        {
+                            w.insert(name_std.clone(), "chrono::serde::ts_nanoseconds_option");
+                        };
                     }
 
                     Schema::Null => err!("Invalid use of Schema::Null")?,
