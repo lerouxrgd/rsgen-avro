@@ -37,12 +37,13 @@ fn deser_nullable_bytes() {
 }
 
 #[test]
-fn deser_nullable_logical_dates() {
+fn deser_nullable_chrono_logical_dates() {
     let serialized =
         r#"{"birthday":null,"meeting_time":null,"release_datetime_micro":1681601301000000}"#;
 
-    let val = serde_json::from_str::<schemas::nullable_logical_dates::DateLogicalType>(serialized)
-        .unwrap();
+    let val =
+        serde_json::from_str::<schemas::nullable_chrono_logical_dates::DateLogicalType>(serialized)
+            .unwrap();
     assert!(
         val.birthday == chrono::DateTime::<chrono::Utc>::from_timestamp(1681601653, 0).unwrap(),
         "Should use schema-defined default value when null"
@@ -54,6 +55,27 @@ fn deser_nullable_logical_dates() {
     assert!(
         val.release_datetime_micro
             == chrono::DateTime::<chrono::Utc>::from_timestamp_micros(1681601301000000).unwrap(),
+        "Deserialized value is different from payload value"
+    );
+}
+
+#[test]
+fn deser_nullable_logical_dates() {
+    let serialized =
+        r#"{"birthday":null,"meeting_time":null,"release_datetime_micro":1681601301000000}"#;
+
+    let val = serde_json::from_str::<schemas::nullable_logical_dates::DateLogicalType>(serialized)
+        .unwrap();
+    assert!(
+        val.birthday == 1681601653,
+        "Should use schema-defined default value when null"
+    );
+    assert!(
+        val.meeting_time.is_none(),
+        "Schema-defined optional should remain optional in Rust"
+    );
+    assert!(
+        val.release_datetime_micro == 1681601301000000,
         "Deserialized value is different from payload value"
     );
 }

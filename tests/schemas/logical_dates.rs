@@ -2,18 +2,15 @@
 /// Date type
 #[derive(Debug, PartialEq, Eq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct DateLogicalType {
-    #[serde(with = "chrono::serde::ts_seconds")]
-    pub birthday: chrono::DateTime<chrono::Utc>,
-    #[serde(with = "chrono::serde::ts_milliseconds_option")]
+    pub birthday: i32,
     #[serde(default = "default_datelogicaltype_meeting_time")]
-    pub meeting_time: Option<chrono::DateTime<chrono::Utc>>,
-    #[serde(with = "chrono::serde::ts_microseconds")]
+    pub meeting_time: Option<i64>,
     #[serde(default = "default_datelogicaltype_release_datetime_micro")]
-    pub release_datetime_micro: chrono::DateTime<chrono::Utc>,
+    pub release_datetime_micro: i64,
 }
 
 #[inline(always)]
-fn default_datelogicaltype_meeting_time() -> Option<chrono::DateTime<chrono::Utc>> { None }
+fn default_datelogicaltype_meeting_time() -> Option<i64> { None }
 
 #[inline(always)]
-fn default_datelogicaltype_release_datetime_micro() -> chrono::DateTime<chrono::Utc> { chrono::DateTime::<chrono::Utc>::from_timestamp_micros(1570903062000000).unwrap() }
+fn default_datelogicaltype_release_datetime_micro() -> i64 { 1570903062000000 }
