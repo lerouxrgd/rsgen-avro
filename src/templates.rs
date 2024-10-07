@@ -889,6 +889,7 @@ impl Templater {
                                 union.variants()[1],
                                 Schema::TimestampMillis | Schema::LocalTimestampMillis
                             )
+                            && self.use_chrono_dates
                         {
                             w.insert(name_std.clone(), "chrono::serde::ts_milliseconds_option");
                         } else if union.is_nullable()
@@ -897,6 +898,7 @@ impl Templater {
                                 union.variants()[1],
                                 Schema::TimestampMicros | Schema::LocalTimestampMicros
                             )
+                            && self.use_chrono_dates
                         {
                             w.insert(name_std.clone(), "chrono::serde::ts_microseconds_option");
                         } else if union.is_nullable()
@@ -905,6 +907,7 @@ impl Templater {
                                 union.variants()[1],
                                 Schema::TimestampNanos | Schema::LocalTimestampNanos
                             )
+                            && self.use_chrono_dates
                         {
                             w.insert(name_std.clone(), "chrono::serde::ts_nanoseconds_option");
                         };

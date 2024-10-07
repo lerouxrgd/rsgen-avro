@@ -127,6 +127,14 @@ fn gen_nullable_bytes() {
 fn gen_nullable_logical_dates() {
     validate_generation(
         "nullable_logical_dates",
+        Generator::builder().nullable(true).build().unwrap(),
+    );
+}
+
+#[test]
+fn gen_nullable_chrono_logical_dates() {
+    validate_generation(
+        "nullable_chrono_logical_dates",
         Generator::builder()
             .nullable(true)
             .use_chrono_dates(true)
@@ -142,8 +150,13 @@ fn gen_decimals() {
 
 #[test]
 fn gen_logical_dates() {
+    validate_generation("logical_dates", Generator::builder().build().unwrap());
+}
+
+#[test]
+fn gen_chrono_logical_dates() {
     validate_generation(
-        "logical_dates",
+        "chrono_logical_dates",
         Generator::builder().use_chrono_dates(true).build().unwrap(),
     );
 }
