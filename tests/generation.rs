@@ -236,7 +236,7 @@ fn gen_one_extra_derives() {
     validate_generation(
         "one_extra_derive",
         Generator::builder()
-            .extra_derives(vec!["std::fmt::Display"])
+            .extra_derives(vec!["std::fmt::Display".to_string()])
             .build()
             .unwrap(),
     );
@@ -247,7 +247,10 @@ fn gen_two_extra_derives() {
     validate_generation(
         "two_extra_derives",
         Generator::builder()
-            .extra_derives(vec!["std::fmt::Display", "std::string::ToString"])
+            .extra_derives(vec![
+                "std::fmt::Display".to_string(),
+                "std::string::ToString".to_string(),
+            ])
             .build()
             .unwrap(),
     );
