@@ -236,7 +236,7 @@ fn gen_one_extra_derives() {
     validate_generation(
         "one_extra_derive",
         Generator::builder()
-            .extra_derives(vec!["std::fmt::Display".to_string()])
+            .extra_derive("std::fmt::Display")
             .build()
             .unwrap(),
     );
