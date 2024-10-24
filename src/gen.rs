@@ -356,8 +356,8 @@ impl GeneratorBuilder {
     /// Adds support to derive custom macros.
     ///
     /// Applies to record structs.
-    pub fn extra_derives(mut self, extra_derives: Vec<String>) -> GeneratorBuilder {
-        self.extra_derives = extra_derives;
+    pub fn extra_derives(mut self, extra_derives: Vec<&str>) -> GeneratorBuilder {
+        self.extra_derives = extra_derives.into_iter().map(String::from).collect();
         self
     }
 

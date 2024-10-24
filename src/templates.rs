@@ -25,7 +25,7 @@ pub const RECORD_TEMPLATE: &str = r#"
 /// {{ doc_line }}
 {%- endfor %}
 {%- endif %}
-#[derive(Debug, PartialEq{%- if is_eq_derivable %}, Eq{%- endif %}, Clone, serde::Deserialize, serde::Serialize{%- if derive_builders %}, derive_builder::Builder {%- endif %}{%- if derive_schemas %}, apache_avro::AvroSchema {%- endif %}  {%- if extra_derives %},{{ extra_derives}} {%- endif %})]
+#[derive(Debug, PartialEq{%- if is_eq_derivable %}, Eq{%- endif %}, Clone, serde::Deserialize, serde::Serialize{%- if derive_builders %}, derive_builder::Builder {%- endif %}{%- if derive_schemas %}, apache_avro::AvroSchema {%- endif %}  {%- if extra_derives %}, {{ extra_derives}} {%- endif %})]
 {%- if derive_builders %}
 #[builder(setter(into))]
 {%- endif %}
