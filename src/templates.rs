@@ -25,7 +25,7 @@ pub const RECORD_TEMPLATE: &str = r#"
 /// {{ doc_line }}
 {%- endfor %}
 {%- endif %}
-#[derive(Debug, PartialEq{%- if is_eq_derivable %}, Eq{%- endif %}, Clone, serde::Deserialize, serde::Serialize{%- if derive_builders %}, derive_builder::Builder {%- endif %}{%- if derive_schemas %}, apache_avro::AvroSchema {%- endif %})]
+#[derive(Debug, PartialEq{%- if is_eq_derivable %}, Eq{%- endif %}, Clone, serde::Deserialize, serde::Serialize{%- if derive_builders %}, derive_builder::Builder {%- endif %}{%- if derive_schemas %}, apache_avro::AvroSchema {%- endif %}  {%- if extra_derives %},{{ extra_derives}} {%- endif %})]
 {%- if derive_builders %}
 #[builder(setter(into))]
 {%- endif %}
@@ -509,6 +509,7 @@ pub struct Templater {
     pub use_chrono_dates: bool,
     pub derive_builders: bool,
     pub derive_schemas: bool,
+    pub extra_derives: Vec<String>,
 }
 
 impl Templater {
@@ -530,6 +531,7 @@ impl Templater {
             use_chrono_dates: false,
             derive_builders: false,
             derive_schemas: false,
+            extra_derives: vec![],
         })
     }
 
@@ -599,6 +601,9 @@ impl Templater {
             ctx.insert("doc", doc);
             ctx.insert("derive_builders", &self.derive_builders);
             ctx.insert("derive_schemas", &self.derive_schemas);
+            if !self.extra_derives.is_empty() {
+                ctx.insert("extra_derives", &self.extra_derives.join(", "));
+            }
 
             let mut f = Vec::new(); // field names;
             let mut t = HashMap::new(); // field name -> field type

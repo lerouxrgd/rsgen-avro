@@ -285,6 +285,7 @@ pub struct GeneratorBuilder {
     use_chrono_dates: bool,
     derive_builders: bool,
     derive_schemas: bool,
+    extra_derives: Vec<String>,
 }
 
 impl Default for GeneratorBuilder {
@@ -296,6 +297,7 @@ impl Default for GeneratorBuilder {
             use_chrono_dates: false,
             derive_builders: false,
             derive_schemas: false,
+            extra_derives: vec![],
         }
     }
 }
@@ -351,6 +353,14 @@ impl GeneratorBuilder {
         self
     }
 
+    /// Adds support to derive custom macros.
+    ///
+    /// Applies to record structs.
+    pub fn extra_derives(mut self, extra_derives: Vec<String>) -> GeneratorBuilder {
+        self.extra_derives = extra_derives;
+        self
+    }
+
     /// Create a [`Generator`](Generator) with the builder parameters.
     pub fn build(self) -> Result<Generator> {
         let mut templater = Templater::new()?;
@@ -360,6 +370,7 @@ impl GeneratorBuilder {
         templater.use_chrono_dates = self.use_chrono_dates;
         templater.derive_builders = self.derive_builders;
         templater.derive_schemas = self.derive_schemas;
+        templater.extra_derives = self.extra_derives;
         Ok(Generator { templater })
     }
 }
