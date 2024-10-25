@@ -361,14 +361,6 @@ impl GeneratorBuilder {
         self
     }
 
-    /// Adds support to derive custom macros.
-    ///
-    /// Applies to record structs.
-    pub fn extra_derive(mut self, extra_derive: &str) -> GeneratorBuilder {
-        self.extra_derives.push(extra_derive.to_string());
-        self
-    }
-
     /// Create a [`Generator`](Generator) with the builder parameters.
     pub fn build(self) -> Result<Generator> {
         let mut templater = Templater::new()?;

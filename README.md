@@ -32,7 +32,6 @@ Options:
       --chrono-dates     Use chrono::NaiveDateTime for date/timestamps logical types
       --derive-builders  Derive builders for generated record structs
       --derive-schemas   Derive AvroSchema for generated record structs
-      --extra_derive    Append one extra derive macros to the generated record structs
       --extra_derives    Append extra derive macros list to the generated record structs
   -h, --help             Print help
   -V, --version          Print version
