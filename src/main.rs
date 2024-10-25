@@ -45,8 +45,8 @@ struct Args {
     #[clap(long)]
     pub derive_schemas: bool,
 
-    /// Extract Derives for generated record structs, comma separated, e.g. `...`
-    #[clap(long)]
+    /// Extract Derives for generated record structs, comma separated, e.g. `std::fmt::Display,std::string::ToString`
+    #[clap(long, value_delimiter = ',')]
     pub extra_derives: Vec<String>,
 }
 
