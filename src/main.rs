@@ -45,7 +45,7 @@ struct Args {
     #[clap(long)]
     pub derive_schemas: bool,
 
-    /// Extract Derives for generated record structs
+    /// Extract Derives for generated record structs, comma separated, e.g. `...`
     #[clap(long)]
     pub extra_derives: Vec<String>,
 }
