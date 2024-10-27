@@ -230,3 +230,28 @@ fn gen_recursive() {
 fn gen_interop() {
     validate_generation("interop", Generator::new().unwrap());
 }
+
+#[test]
+fn gen_one_extra_derives() {
+    validate_generation(
+        "one_extra_derive",
+        Generator::builder()
+            .extra_derives(vec!["std::fmt::Display".to_string()])
+            .build()
+            .unwrap(),
+    );
+}
+
+#[test]
+fn gen_two_extra_derives() {
+    validate_generation(
+        "two_extra_derives",
+        Generator::builder()
+            .extra_derives(vec![
+                "std::fmt::Display".to_string(),
+                "std::string::ToString".to_string(),
+            ])
+            .build()
+            .unwrap(),
+    );
+}

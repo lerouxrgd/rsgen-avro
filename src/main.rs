@@ -44,6 +44,10 @@ struct Args {
     /// Derive AvroSchema for generated record structs
     #[clap(long)]
     pub derive_schemas: bool,
+
+    /// Extract Derives for generated record structs, comma separated, e.g. `std::fmt::Display,std::string::ToString`
+    #[clap(long, value_delimiter = ',')]
+    pub extra_derives: Vec<String>,
 }
 
 fn run() -> Result<(), Box<dyn Error>> {
@@ -70,6 +74,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         .use_chrono_dates(args.chrono_dates)
         .derive_builders(args.derive_builders)
         .derive_schemas(args.derive_schemas)
+        .extra_derives(args.extra_derives)
         .build()?;
 
     g.gen(&source, &mut out)?;
