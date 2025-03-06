@@ -4,9 +4,9 @@ use std::io::prelude::*;
 
 use apache_avro::schema::{ArraySchema, DecimalSchema, MapSchema, RecordField, RecordSchema};
 
+use crate::Schema;
 use crate::error::{Error, Result};
 use crate::templates::*;
-use crate::Schema;
 
 /// An input source for generating Rust types.
 pub enum Source<'a> {
@@ -41,7 +41,7 @@ impl Generator {
 
     /// Generates Rust code from an Avro schema [`Source`](Source).
     /// Writes all generated types to the output.
-    pub fn gen(&self, source: &Source, output: &mut impl Write) -> Result<()> {
+    pub fn generate(&self, source: &Source, output: &mut impl Write) -> Result<()> {
         match source {
             Source::Schema(schema) => {
                 let mut deps = deps_stack(schema, vec![]);
@@ -73,7 +73,7 @@ impl Generator {
 
                 let schemas = &raw_schemas.iter().map(|s| s.as_str()).collect::<Vec<_>>();
                 let schemas = Schema::parse_list(schemas)?;
-                self.gen(&Source::Schemas(&schemas), output)?;
+                self.generate(&Source::Schemas(&schemas), output)?;
             }
         }
 
@@ -472,7 +472,7 @@ pub struct A {
         let source = Source::GlobPattern(pattern.as_str());
         let g = Generator::new()?;
         let mut buf = vec![];
-        g.gen(&source, &mut buf)?;
+        g.generate(&source, &mut buf)?;
         let res = String::from_utf8(buf)?;
 
         assert_eq!(expected, res);
