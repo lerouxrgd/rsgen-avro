@@ -77,7 +77,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         .extra_derives(args.extra_derives)
         .build()?;
 
-    g.gen(&source, &mut out)?;
+    g.generate(&source, &mut out)?;
 
     if args.fmt && args.output_file != PathBuf::from("-") {
         Command::new("rustfmt").arg(&args.output_file).status()?;

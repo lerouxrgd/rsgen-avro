@@ -59,7 +59,7 @@ let source = Source::SchemaStr(&raw_schema);
 let mut out = std::io::stdout();
 
 let g = Generator::new().unwrap();
-g.gen(&source, &mut out).unwrap();
+g.generate(&source, &mut out).unwrap();
 ```
 
 This will generate the following output:
@@ -76,7 +76,7 @@ pub struct Test {
 fn default_test_a() -> i64 { 42 }
 ```
 
-Various `Schema` sources can be used with `Generator::gen(source, output)` method:
+Various `Schema` sources can be used with `Generator::generate(source, output)` method:
 
 ```rust
 pub enum Source<'a> {
@@ -90,7 +90,7 @@ pub enum Source<'a> {
 Note also that the `Generator` can be customized with a builder:
 
 ```rust
-let gen = rsgen_avro::Generator::builder()
+let generator = rsgen_avro::Generator::builder()
     .precision(2)
     .build()
     .unwrap();
@@ -102,12 +102,11 @@ See [GeneratorBuilder][gen-builder-doc] documentation for all available options.
 
 ## Limitations
 
-* Avro schema `namespace` fields are ignored, therefore record names within a schema
+- Avro schema `namespace` fields are ignored, therefore record names within a schema
   (and across schemas) must not conflict (i.e. must be unique).
-* Rust `Option<T>` are supported through Avro unions having `"null"` in their first
+- Rust `Option<T>` are supported through Avro unions having `"null"` in their first
   position only (See [#39](https://github.com/lerouxrgd/rsgen-avro/issues/39))
 
 [schemas]: https://avro.apache.org/docs/current/spec.html
 [apache-avro]: https://github.com/apache/avro/tree/master/lang/rust
 [serde]: https://serde.rs
-[derive-builder]: https://github.com/colin-kiegel/rust-derive-builder

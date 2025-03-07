@@ -2,7 +2,7 @@
 name = "rsgen-avro"
 version = "0.15.3"
 authors = ["Romain Leroux <romain@leroux.dev>"]
-edition = "2021"
+edition = "2024"
 description = "Command line and library for generating Rust types from Avro schemas"
 keywords = ["avro", "code-generation", "serde"]
 repository = "https://github.com/lerouxrgd/rsgen-avro"

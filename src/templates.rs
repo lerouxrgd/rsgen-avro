@@ -5,11 +5,11 @@
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 
+use apache_avro::Schema;
 use apache_avro::schema::{
     ArraySchema, DecimalSchema, EnumSchema, FixedSchema, MapSchema, Name, RecordField,
     RecordSchema, UnionSchema,
 };
-use apache_avro::Schema;
 use heck::{ToSnakeCase, ToUpperCamelCase};
 use lazy_static::lazy_static;
 use serde_json::Value;
@@ -629,7 +629,7 @@ impl Templater {
                     c.insert(name_std.clone(), d);
                 }
 
-                let schema = if let Schema::Ref { ref name } = schema {
+                let schema = if let Schema::Ref { name } = schema {
                     gen_state.get_schema(name).ok_or_else(|| {
                         Error::Template(format!("Schema reference '{name:?}' cannot be resolved"))
                     })?
@@ -961,7 +961,7 @@ impl Templater {
             let mut visitors = vec![];
             for mut sc in schemas {
                 // Resolve potentially nested schema ref
-                while let Schema::Ref { ref name } = sc {
+                while let Schema::Ref { name } = sc {
                     match gen_state.get_schema(name) {
                         Some(s) => sc = s,
                         None => err!("Schema reference '{:?}' cannot be resolved", name)?,
@@ -1301,7 +1301,7 @@ impl Templater {
                     .map(|s| sanitize(s.to_upper_camel_case()))
                     .collect();
                 match default {
-                    Value::String(ref s) => {
+                    Value::String(s) => {
                         let s = sanitize(s.to_upper_camel_case());
                         if valids.contains(&s) {
                             format!("{}::{}", e_name, s)
