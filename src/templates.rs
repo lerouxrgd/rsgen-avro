@@ -1734,11 +1734,22 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
             format!("Option<{}>", nested_type)
         }
 
-        Schema::Record(RecordSchema {
-            name: Name { name, .. },
-            ..
-        })
-        | Schema::Enum(EnumSchema {
+        Schema::Record(rec) => {
+            let recursive = rec.fields.iter().any(|f| {
+                matches!(&f.schema, Schema::Union(scm) if scm.variants().iter().any(|v|
+                    matches!(v, Schema::Ref { name } if name == &rec.name)
+                ))
+            });
+            if recursive {
+                format!(
+                    "Option<Box<{}>>",
+                    &sanitize(rec.name.name.to_upper_camel_case())
+                )
+            } else {
+                format!("Option<{}>", &sanitize(rec.name.name.to_upper_camel_case()))
+            }
+        }
+        Schema::Enum(EnumSchema {
             name: Name { name, .. },
             ..
         }) => format!("Option<{}>", &sanitize(name.to_upper_camel_case())),
