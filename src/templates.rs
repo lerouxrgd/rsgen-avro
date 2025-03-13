@@ -819,7 +819,7 @@ impl Templater {
                     }
 
                     Schema::Array(ArraySchema { items: inner, .. }) => match inner.as_ref() {
-                        Schema::Null => err!("Invalid use of Schema::Null")?,
+                        Schema::Null => err!("Invalid use of Schema::Null in {:?}", inner.name())?,
                         _ => {
                             let type_str = array_type(inner, gen_state)?;
                             f.push(name_std.clone());
@@ -832,7 +832,7 @@ impl Templater {
                     },
 
                     Schema::Map(MapSchema { types: inner, .. }) => match inner.as_ref() {
-                        Schema::Null => err!("Invalid use of Schema::Null")?,
+                        Schema::Null => err!("Invalid use of Schema::Null in {:?}", inner.name())?,
                         _ => {
                             let type_str = map_type(inner, gen_state)?;
                             f.push(name_std.clone());
@@ -918,7 +918,7 @@ impl Templater {
                         };
                     }
 
-                    Schema::Null => err!("Invalid use of Schema::Null")?,
+                    Schema::Null => err!("Invalid use of Schema::Null in {:?}", schema.name())?,
                 };
             }
 
@@ -1279,12 +1279,12 @@ impl Templater {
             },
 
             Schema::Array(ArraySchema { items: inner, .. }) => match inner.as_ref() {
-                Schema::Null => err!("Invalid use of Schema::Null")?,
+                Schema::Null => err!("Invalid use of Schema::Null in {:?}", inner.name())?,
                 _ => self.array_default(inner, gen_state, default)?,
             },
 
             Schema::Map(MapSchema { types: inner, .. }) => match inner.as_ref() {
-                Schema::Null => err!("Invalid use of Schema::Null")?,
+                Schema::Null => err!("Invalid use of Schema::Null in {:?}", inner.name())?,
                 _ => self.map_default(inner, gen_state, default)?,
             },
 
@@ -1315,7 +1315,7 @@ impl Templater {
 
             Schema::Union(union) => self.union_default(union, gen_state, default)?,
 
-            Schema::Null => err!("Invalid use of Schema::Null")?,
+            Schema::Null => err!("Invalid use of Schema::Null in {:?}", schema.name())?,
         };
 
         Ok(default_str)
@@ -1503,7 +1503,7 @@ pub(crate) fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String>
             ..
         }) => format!("Vec<{}>", &sanitize(name.to_upper_camel_case())),
 
-        Schema::Null => err!("Invalid use of Schema::Null")?,
+        Schema::Null => err!("Invalid use of Schema::Null in {:?}", inner.name())?,
     };
     Ok(type_str)
 }
@@ -1580,7 +1580,7 @@ pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
             ..
         }) => map_of(&sanitize(name.to_upper_camel_case())),
 
-        Schema::Null => err!("Invalid use of Schema::Null")?,
+        Schema::Null => err!("Invalid use of Schema::Null in {:?}", inner.name())?,
     };
     Ok(type_str)
 }
@@ -1754,7 +1754,7 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
             ..
         }) => format!("Option<{}>", &sanitize(name.to_upper_camel_case())),
 
-        Schema::Null => err!("Invalid use of Schema::Null")?,
+        Schema::Null => err!("Invalid use of Schema::Null in {:?}", inner.name())?,
     };
     Ok(type_str)
 }
