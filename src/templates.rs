@@ -1736,7 +1736,7 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
 
         Schema::Record(rec) => {
             let schema = Schema::Record(rec.clone());
-            if find_recursion(&rec.name.name, &schema) {
+            if find_recursion(&rec.name, &schema) {
                 format!(
                     "Option<Box<{}>>",
                     &sanitize(rec.name.name.to_upper_camel_case())
@@ -1755,16 +1755,12 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
     Ok(type_str)
 }
 
-fn find_recursion(name: &str, schema: &Schema) -> bool {
+fn find_recursion(name: &Name, schema: &Schema) -> bool {
     match schema {
         Schema::Record(rec) => {
-            if rec.name.name == name {
-                return true;
-            } else {
-                for field in rec.fields.iter() {
-                    if find_recursion(name, &field.schema) {
-                        return true;
-                    }
+            for field in rec.fields.iter() {
+                if find_recursion(name, &field.schema) {
+                    return true;
                 }
             }
         }
@@ -1776,13 +1772,11 @@ fn find_recursion(name: &str, schema: &Schema) -> bool {
             }
         }
         Schema::Ref { name: r_name } => {
-            if r_name.name == name {
+            if r_name == name {
                 return true;
             }
         }
-        _ => {
-            return false;
-        }
+        _ => {}
     }
     false
 }
