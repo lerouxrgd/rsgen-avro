@@ -1750,8 +1750,7 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
             ..
         }) => format!("Option<{}>", &sanitize(name.to_upper_camel_case())),
 
-        Schema::Null => {}
-        // Schema::Null => err!("Invalid use of Schema::Null in option")?,
+        Schema::Null => String::from("null"), // Schema::Null => err!("Invalid use of Schema::Null in option")?,
     };
     Ok(type_str)
 }
