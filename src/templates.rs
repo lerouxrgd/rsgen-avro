@@ -4,6 +4,7 @@
 
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
+use std::fmt::format;
 
 use apache_avro::Schema;
 use apache_avro::schema::{
@@ -510,6 +511,7 @@ pub struct Templater {
     pub derive_builders: bool,
     pub derive_schemas: bool,
     pub extra_derives: Vec<String>,
+    pub prefix_namespace: bool,
 }
 
 impl Templater {
@@ -532,19 +534,19 @@ impl Templater {
             derive_builders: false,
             derive_schemas: false,
             extra_derives: vec![],
+            prefix_namespace: false,
         })
     }
 
     /// Generates a Rust type based on a `Schema::Fixed` schema.
     pub fn str_fixed(&self, schema: &Schema) -> Result<String> {
-        if let Schema::Fixed(FixedSchema {
-            name: Name { name, .. },
-            size,
-            ..
-        }) = schema
-        {
+        if let Schema::Fixed(FixedSchema { name, size, .. }) = schema {
             let mut ctx = Context::new();
-            ctx.insert("name", &sanitize(name.to_upper_camel_case()));
+            if self.prefix_namespace {
+                ctx.insert("name", &sanitize(name.fullname(None).to_upper_camel_case()));
+            } else {
+                ctx.insert("name", &sanitize(name.name.to_upper_camel_case()));
+            }
             ctx.insert("size", size);
             Ok(self.tera.render(FIXED_TERA, &ctx)?)
         } else {
@@ -555,17 +557,18 @@ impl Templater {
     /// Generates a Rust enum based on a `Schema::Enum` schema
     pub fn str_enum(&self, schema: &Schema) -> Result<String> {
         if let Schema::Enum(EnumSchema {
-            name: Name { name, .. },
-            symbols,
-            doc,
-            ..
+            name, symbols, doc, ..
         }) = schema
         {
             if symbols.is_empty() {
                 err!("No symbol for enum: {:?}", name)?
             }
             let mut ctx = Context::new();
-            ctx.insert("name", &sanitize(name.to_upper_camel_case()));
+            if self.prefix_namespace {
+                ctx.insert("name", &sanitize(name.fullname(None).to_upper_camel_case()));
+            } else {
+                ctx.insert("name", &sanitize(name.name.to_upper_camel_case()));
+            }
             let doc = if let Some(d) = doc { d } else { "" };
             ctx.insert("doc", doc);
             let o: HashMap<_, _> = symbols
@@ -589,14 +592,15 @@ impl Templater {
     /// Makes use of a [`GenState`](GenState) for nested schemas (i.e. Array/Map/Union).
     pub fn str_record(&self, schema: &Schema, gen_state: &GenState) -> Result<String> {
         if let Schema::Record(RecordSchema {
-            name: Name { name, .. },
-            fields,
-            doc,
-            ..
+            name, fields, doc, ..
         }) = schema
         {
             let mut ctx = Context::new();
-            ctx.insert("name", &name.to_upper_camel_case());
+            if self.prefix_namespace {
+                ctx.insert("name", &sanitize(name.fullname(None).to_upper_camel_case()));
+            } else {
+                ctx.insert("name", &sanitize(name.name.to_upper_camel_case()));
+            }
             let doc = if let Some(d) = doc { d } else { "" };
             ctx.insert("doc", doc);
             ctx.insert("derive_builders", &self.derive_builders);

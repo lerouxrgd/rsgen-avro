@@ -286,6 +286,7 @@ pub struct GeneratorBuilder {
     derive_builders: bool,
     derive_schemas: bool,
     extra_derives: Vec<String>,
+    prefix_namespace: bool,
 }
 
 impl Default for GeneratorBuilder {
@@ -298,6 +299,7 @@ impl Default for GeneratorBuilder {
             derive_builders: false,
             derive_schemas: false,
             extra_derives: vec![],
+            prefix_namespace: false,
         }
     }
 }
@@ -361,6 +363,11 @@ impl GeneratorBuilder {
         self
     }
 
+    pub fn prefix_namespace(mut self, prefix_namespace: bool) -> GeneratorBuilder {
+        self.prefix_namespace = prefix_namespace;
+        self
+    }
+
     /// Create a [`Generator`](Generator) with the builder parameters.
     pub fn build(self) -> Result<Generator> {
         let mut templater = Templater::new()?;
@@ -371,6 +378,7 @@ impl GeneratorBuilder {
         templater.derive_builders = self.derive_builders;
         templater.derive_schemas = self.derive_schemas;
         templater.extra_derives = self.extra_derives;
+        templater.prefix_namespace = self.prefix_namespace;
         Ok(Generator { templater })
     }
 }
