@@ -1734,11 +1734,18 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
             format!("Option<{}>", nested_type)
         }
 
-        Schema::Record(RecordSchema {
-            name: Name { name, .. },
-            ..
-        })
-        | Schema::Enum(EnumSchema {
+        Schema::Record(rec) => {
+            let schema = Schema::Record(rec.clone());
+            if find_recursion(&rec.name, &schema) {
+                format!(
+                    "Option<Box<{}>>",
+                    &sanitize(rec.name.name.to_upper_camel_case())
+                )
+            } else {
+                format!("Option<{}>", &sanitize(rec.name.name.to_upper_camel_case()))
+            }
+        }
+        Schema::Enum(EnumSchema {
             name: Name { name, .. },
             ..
         }) => format!("Option<{}>", &sanitize(name.to_upper_camel_case())),
@@ -1746,4 +1753,30 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
         Schema::Null => err!("Invalid use of Schema::Null")?,
     };
     Ok(type_str)
+}
+
+fn find_recursion(name: &Name, schema: &Schema) -> bool {
+    match schema {
+        Schema::Record(rec) => {
+            for field in rec.fields.iter() {
+                if find_recursion(name, &field.schema) {
+                    return true;
+                }
+            }
+        }
+        Schema::Union(scm) => {
+            for variant in scm.variants().iter() {
+                if find_recursion(name, variant) {
+                    return true;
+                }
+            }
+        }
+        Schema::Ref { name: r_name } => {
+            if r_name == name {
+                return true;
+            }
+        }
+        _ => {}
+    }
+    false
 }
