@@ -854,7 +854,7 @@ impl Templater {
                     }
 
                     Schema::Union(union) => {
-                        let type_str = union_type(union, gen_state, true)?;
+                        let type_str = union_type(union, gen_state, true, self.prefix_namespace)?;
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), type_str);
                         if let Some(default) = default {
@@ -938,7 +938,7 @@ impl Templater {
                 variants
             };
 
-            let e_name = union_type(union, gen_state, false)?;
+            let e_name = union_type(union, gen_state, false, self.prefix_namespace)?;
 
             let mut symbols = vec![];
             let mut visitors = vec![];
@@ -974,7 +974,10 @@ impl Templater {
                         map_type(sc, gen_state, self.prefix_namespace)?
                     ),
                     Schema::Union(union) => {
-                        format!("{u}({u})", u = union_type(union, gen_state, false)?)
+                        format!(
+                            "{u}({u})",
+                            u = union_type(union, gen_state, false, self.prefix_namespace)?
+                        )
                     }
                     Schema::Record(RecordSchema {
                         name: Name { name, .. },
@@ -1408,7 +1411,7 @@ impl Templater {
             };
             Ok(default_str)
         } else {
-            let e_name = union_type(union, gen_state, false)?;
+            let e_name = union_type(union, gen_state, false, self.prefix_namespace)?;
             let e_variant = union_enum_variant(&union.variants()[0], gen_state)?;
             let default_str = self.parse_default(&union.variants()[0], gen_state, default)?;
             Ok(format!("{}::{}({})", e_name, e_variant, default_str))
@@ -1587,7 +1590,7 @@ fn union_enum_variant(schema: &Schema, gen_state: &GenState) -> Result<String> {
         Schema::Map(MapSchema { types: inner, .. }) => {
             format!("Map{}", union_enum_variant(inner.as_ref(), gen_state)?)
         }
-        Schema::Union(union) => union_type(union, gen_state, false)?,
+        Schema::Union(union) => union_type(union, gen_state, false, false)?,
         Schema::Record(RecordSchema {
             name: Name { name, .. },
             ..
@@ -1626,6 +1629,7 @@ pub(crate) fn union_type(
     union: &UnionSchema,
     gen_state: &GenState,
     wrap_if_optional: bool,
+    prefix_namespace: bool,
 ) -> Result<String> {
     let variants = union.variants();
 
@@ -1636,7 +1640,7 @@ pub(crate) fn union_type(
     }
 
     if union.is_nullable() && variants.len() == 2 {
-        return option_type(&variants[1], gen_state);
+        return option_type(&variants[1], gen_state, prefix_namespace);
     }
 
     let schemas = if variants[0] == Schema::Null {
@@ -1658,10 +1662,14 @@ pub(crate) fn union_type(
 }
 
 /// Generates the Rust type of the inner schema of an Avro optional union.
-pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
+pub(crate) fn option_type(
+    inner: &Schema,
+    gen_state: &GenState,
+    prefix_namespace: bool,
+) -> Result<String> {
     let type_str = match inner {
         Schema::Ref { name } => match gen_state.get_schema(name) {
-            Some(s) => option_type(s, gen_state)?,
+            Some(s) => option_type(s, gen_state, prefix_namespace)?,
             None => err!("Schema reference '{:?}' cannot be resolved", name)?,
         },
         Schema::Boolean => "Option<bool>".into(),
@@ -1699,11 +1707,8 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
         Schema::BigDecimal => "Option<apache_avro::BigDecimal>".into(),
         Schema::Duration { .. } => "Option<apache_avro::Duration>".into(),
 
-        Schema::Fixed(FixedSchema {
-            name: Name { name: f_name, .. },
-            ..
-        }) => {
-            let f_name = sanitize(f_name.to_upper_camel_case());
+        Schema::Fixed(FixedSchema { name, .. }) => {
+            let f_name = fullname(name, prefix_namespace);
             format!("Option<{}>", f_name)
         }
 
@@ -1720,18 +1725,14 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
         Schema::Record(rec) => {
             let schema = Schema::Record(rec.clone());
             if find_recursion(&rec.name, &schema) {
-                format!(
-                    "Option<Box<{}>>",
-                    &sanitize(rec.name.name.to_upper_camel_case())
-                )
+                format!("Option<Box<{}>>", &fullname(&rec.name, prefix_namespace))
             } else {
-                format!("Option<{}>", &sanitize(rec.name.name.to_upper_camel_case()))
+                format!("Option<{}>", &fullname(&rec.name, prefix_namespace))
             }
         }
-        Schema::Enum(EnumSchema {
-            name: Name { name, .. },
-            ..
-        }) => format!("Option<{}>", &sanitize(name.to_upper_camel_case())),
+        Schema::Enum(EnumSchema { name, .. }) => {
+            format!("Option<{}>", &fullname(name, prefix_namespace))
+        }
         Schema::Null => err!("Invalid use of Schema::Null in option")?,
     };
     Ok(type_str)

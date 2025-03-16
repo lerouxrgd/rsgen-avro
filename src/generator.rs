@@ -130,7 +130,7 @@ impl Generator {
                     }
 
                     // Register inner union for it to be used as a nested type later
-                    let type_str = union_type(union, &gs, true)?;
+                    let type_str = union_type(union, &gs, true, self.templater.prefix_namespace)?;
                     gs.put_type(&s, type_str)
                 }
 
