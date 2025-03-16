@@ -808,11 +808,13 @@ impl Templater {
                         }
                     }
 
-                    Schema::Fixed(FixedSchema {
-                        name: Name { name: f_name, .. },
-                        ..
-                    }) => {
-                        let f_name = sanitize(f_name.to_upper_camel_case());
+                    Schema::Fixed(FixedSchema { name, .. }) => {
+                        let f_name;
+                        if self.prefix_namespace {
+                            f_name = sanitize(name.fullname(None).to_upper_camel_case());
+                        } else {
+                            f_name = sanitize(name.name.to_upper_camel_case());
+                        }
                         f.push(name_std.clone());
                         w.insert(name_std.clone(), "apache_avro::serde_avro_fixed");
                         t.insert(name_std.clone(), f_name.clone());
@@ -848,11 +850,13 @@ impl Templater {
                         }
                     },
 
-                    Schema::Record(RecordSchema {
-                        name: Name { name: r_name, .. },
-                        ..
-                    }) => {
-                        let r_name = sanitize(r_name.to_upper_camel_case());
+                    Schema::Record(RecordSchema { name, .. }) => {
+                        let r_name;
+                        if self.prefix_namespace {
+                            r_name = sanitize(name.fullname(None).to_upper_camel_case());
+                        } else {
+                            r_name = sanitize(name.name.to_upper_camel_case());
+                        }
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), r_name.clone());
                         if let Some(default) = default {
@@ -861,11 +865,13 @@ impl Templater {
                         }
                     }
 
-                    Schema::Enum(EnumSchema {
-                        name: Name { name: e_name, .. },
-                        ..
-                    }) => {
-                        let e_name = sanitize(e_name.to_upper_camel_case());
+                    Schema::Enum(EnumSchema { name, .. }) => {
+                        let e_name;
+                        if self.prefix_namespace {
+                            e_name = sanitize(name.fullname(None).to_upper_camel_case());
+                        } else {
+                            e_name = sanitize(name.name.to_upper_camel_case());
+                        }
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), e_name);
                         if let Some(default) = default {
