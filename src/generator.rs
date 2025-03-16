@@ -110,13 +110,13 @@ impl Generator {
                 Schema::Array(ArraySchema {
                     items: ref inner, ..
                 }) => {
-                    let type_str = array_type(inner, &gs)?;
+                    let type_str = array_type(inner, &gs, self.templater.prefix_namespace)?;
                     gs.put_type(&s, type_str)
                 }
                 Schema::Map(MapSchema {
                     types: ref inner, ..
                 }) => {
-                    let type_str = map_type(inner, &gs)?;
+                    let type_str = map_type(inner, &gs, self.templater.prefix_namespace)?;
                     gs.put_type(&s, type_str)
                 }
 
