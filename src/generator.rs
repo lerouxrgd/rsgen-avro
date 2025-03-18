@@ -110,13 +110,13 @@ impl Generator {
                 Schema::Array(ArraySchema {
                     items: ref inner, ..
                 }) => {
-                    let type_str = array_type(inner, &gs)?;
+                    let type_str = array_type(inner, &gs, self.templater.prefix_namespace)?;
                     gs.put_type(&s, type_str)
                 }
                 Schema::Map(MapSchema {
                     types: ref inner, ..
                 }) => {
-                    let type_str = map_type(inner, &gs)?;
+                    let type_str = map_type(inner, &gs, self.templater.prefix_namespace)?;
                     gs.put_type(&s, type_str)
                 }
 
@@ -130,7 +130,7 @@ impl Generator {
                     }
 
                     // Register inner union for it to be used as a nested type later
-                    let type_str = union_type(union, &gs, true)?;
+                    let type_str = union_type(union, &gs, true, self.templater.prefix_namespace)?;
                     gs.put_type(&s, type_str)
                 }
 
@@ -286,6 +286,7 @@ pub struct GeneratorBuilder {
     derive_builders: bool,
     derive_schemas: bool,
     extra_derives: Vec<String>,
+    prefix_namespace: bool,
 }
 
 impl Default for GeneratorBuilder {
@@ -298,6 +299,7 @@ impl Default for GeneratorBuilder {
             derive_builders: false,
             derive_schemas: false,
             extra_derives: vec![],
+            prefix_namespace: false,
         }
     }
 }
@@ -361,6 +363,11 @@ impl GeneratorBuilder {
         self
     }
 
+    pub fn prefix_namespace(mut self, prefix_namespace: bool) -> GeneratorBuilder {
+        self.prefix_namespace = prefix_namespace;
+        self
+    }
+
     /// Create a [`Generator`](Generator) with the builder parameters.
     pub fn build(self) -> Result<Generator> {
         let mut templater = Templater::new()?;
@@ -371,6 +378,7 @@ impl GeneratorBuilder {
         templater.derive_builders = self.derive_builders;
         templater.derive_schemas = self.derive_schemas;
         templater.extra_derives = self.extra_derives;
+        templater.prefix_namespace = self.prefix_namespace;
         Ok(Generator { templater })
     }
 }

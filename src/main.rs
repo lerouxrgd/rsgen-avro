@@ -48,6 +48,10 @@ struct Args {
     /// Extract Derives for generated record structs, comma separated, e.g. `std::fmt::Display,std::string::ToString`
     #[clap(long, value_delimiter = ',')]
     pub extra_derives: Vec<String>,
+
+    /// Prefix namespace to name
+    #[clap(long)]
+    pub prefix_namespace: bool,
 }
 
 fn run() -> Result<(), Box<dyn Error>> {
@@ -75,6 +79,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         .derive_builders(args.derive_builders)
         .derive_schemas(args.derive_schemas)
         .extra_derives(args.extra_derives)
+        .prefix_namespace(args.prefix_namespace)
         .build()?;
 
     g.generate(&source, &mut out)?;
