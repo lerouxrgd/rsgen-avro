@@ -33,6 +33,7 @@ Options:
       --derive-builders  Derive builders for generated record structs
       --derive-schemas   Derive AvroSchema for generated record structs
       --extra_derives    Append extra derive macros list to the generated record structs
+      --prefix-namespace Prefix the namespace(if any) to generated types
   -h, --help             Print help
   -V, --version          Print version
 ```
