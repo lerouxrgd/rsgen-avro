@@ -72,6 +72,19 @@
       "default": {
         "label": "default_label"
       }
+    },
+    {
+      "name": "record_without_ns",
+      "type": {
+        "type": "record",
+        "name": "my_record",
+        "fields": [
+          {
+            "name": "some_field",
+            "type": "boolean"
+          }
+        ]
+      }
     }
   ]
 }

@@ -1,5 +1,10 @@
 
 #[derive(Debug, PartialEq, Eq, Clone, serde::Deserialize, serde::Serialize)]
+pub struct SomeNsMyRecord {
+    pub some_field: bool,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct SomeNsBMetadata {
     pub cost: i32,
 }
@@ -145,6 +150,7 @@ pub struct SomeNsSomeRecord {
     pub metadata_b: SomeNsBMetadata,
     #[serde(default = "default_somenssomerecord_union_field")]
     pub union_field: UnionSomeNsAMetadataSomeNsBMetadata,
+    pub record_without_ns: SomeNsMyRecord,
 }
 
 #[inline(always)]
