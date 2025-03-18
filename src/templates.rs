@@ -964,13 +964,13 @@ impl Templater {
                     Schema::Array(ArraySchema { items: inner, .. }) => {
                         format!(
                             "Array{}({})",
-                            union_enum_variant(inner.as_ref(), gen_state)?,
+                            union_enum_variant(inner.as_ref(), gen_state, self.prefix_namespace)?,
                             array_type(inner.as_ref(), gen_state, self.prefix_namespace)?
                         )
                     }
                     Schema::Map(MapSchema { types: inner, .. }) => format!(
                         "Map{}({})",
-                        union_enum_variant(inner.as_ref(), gen_state)?,
+                        union_enum_variant(inner.as_ref(), gen_state, self.prefix_namespace)?,
                         map_type(sc, gen_state, self.prefix_namespace)?
                     ),
                     Schema::Union(union) => {
@@ -979,23 +979,14 @@ impl Templater {
                             u = union_type(union, gen_state, false, self.prefix_namespace)?
                         )
                     }
-                    Schema::Record(RecordSchema {
-                        name: Name { name, .. },
-                        ..
-                    }) => {
-                        format!("{rec}({rec})", rec = name.to_upper_camel_case())
+                    Schema::Record(RecordSchema { name, .. }) => {
+                        format!("{rec}({rec})", rec = fullname(name, self.prefix_namespace))
                     }
-                    Schema::Enum(EnumSchema {
-                        name: Name { name, .. },
-                        ..
-                    }) => {
-                        format!("{e}({e})", e = sanitize(name.to_upper_camel_case()))
+                    Schema::Enum(EnumSchema { name, .. }) => {
+                        format!("{e}({e})", e = fullname(name, self.prefix_namespace))
                     }
-                    Schema::Fixed(FixedSchema {
-                        name: Name { name, .. },
-                        ..
-                    }) => {
-                        format!("{f}({f})", f = sanitize(name.to_upper_camel_case()))
+                    Schema::Fixed(FixedSchema { name, .. }) => {
+                        format!("{f}({f})", f = fullname(name, self.prefix_namespace))
                     }
                     Schema::Decimal { .. } => "Decimal(apache_avro::Decimal)".into(),
                     Schema::BigDecimal => "BigDecimal(apache_avro::BigDecimal)".into(),
@@ -1030,12 +1021,9 @@ impl Templater {
                 symbols.push(symbol_str);
 
                 match sc {
-                    Schema::Record(RecordSchema {
-                        name: Name { name, .. },
-                        ..
-                    }) => visitors.push(GenUnionVisitor {
-                        variant: name.to_upper_camel_case(),
-                        rust_type: name.to_upper_camel_case(),
+                    Schema::Record(RecordSchema { name, .. }) => visitors.push(GenUnionVisitor {
+                        variant: fullname(name, self.prefix_namespace),
+                        rust_type: fullname(name, self.prefix_namespace),
                         serde_visitor: None,
                     }),
                     Schema::Boolean => visitors.push(GenUnionVisitor {
@@ -1363,11 +1351,7 @@ impl Templater {
         default: &Value,
     ) -> Result<String> {
         match inner {
-            Schema::Record(RecordSchema {
-                name: Name { name, .. },
-                fields,
-                ..
-            }) => {
+            Schema::Record(RecordSchema { name, fields, .. }) => {
                 let default_str = if let Value::Object(o) = default {
                     if !o.is_empty() {
                         let vals = fields
@@ -1377,16 +1361,16 @@ impl Templater {
                                 let d = if let Some(v) = o.get(&rf.name) {
                                     self.parse_default(&rf.schema, gen_state, v)?
                                 } else {
-                                    format!("default_{}_{}()", name.to_lowercase(), f)
+                                    format!("default_{}_{}()", name.name.to_lowercase(), f)
                                 };
                                 Ok(format!("{}: {},", f, d))
                             })
                             .collect::<Result<Vec<String>>>()?
                             .as_slice()
                             .join(" ");
-                        format!("{} {{ {} }}", sanitize(name.to_upper_camel_case()), vals)
+                        format!("{} {{ {} }}", fullname(name, self.prefix_namespace), vals)
                     } else {
-                        format!("{}::default()", sanitize(name.to_upper_camel_case()))
+                        format!("{}::default()", fullname(name, self.prefix_namespace))
                     }
                 } else {
                     err!("Invalid default: {:?}, expected: Object", default)?
@@ -1412,7 +1396,8 @@ impl Templater {
             Ok(default_str)
         } else {
             let e_name = union_type(union, gen_state, false, self.prefix_namespace)?;
-            let e_variant = union_enum_variant(&union.variants()[0], gen_state)?;
+            let e_variant =
+                union_enum_variant(&union.variants()[0], gen_state, self.prefix_namespace)?;
             let default_str = self.parse_default(&union.variants()[0], gen_state, default)?;
             Ok(format!("{}::{}({})", e_name, e_variant, default_str))
         }
@@ -1571,10 +1556,14 @@ pub(crate) fn map_type(
     Ok(type_str)
 }
 
-fn union_enum_variant(schema: &Schema, gen_state: &GenState) -> Result<String> {
+fn union_enum_variant(
+    schema: &Schema,
+    gen_state: &GenState,
+    prefix_namespace: bool,
+) -> Result<String> {
     let variant_str = match schema {
         Schema::Ref { name } => match gen_state.get_schema(name) {
-            Some(s) => union_enum_variant(s, gen_state)?,
+            Some(s) => union_enum_variant(s, gen_state, prefix_namespace)?,
             None => err!("Schema reference '{:?}' cannot be resolved", name)?,
         },
         Schema::Boolean => "Boolean".into(),
@@ -1585,24 +1574,21 @@ fn union_enum_variant(schema: &Schema, gen_state: &GenState) -> Result<String> {
         Schema::Bytes => "Bytes".into(),
         Schema::String => "String".into(),
         Schema::Array(ArraySchema { items: inner, .. }) => {
-            format!("Array{}", union_enum_variant(inner.as_ref(), gen_state)?)
+            format!(
+                "Array{}",
+                union_enum_variant(inner.as_ref(), gen_state, prefix_namespace)?
+            )
         }
         Schema::Map(MapSchema { types: inner, .. }) => {
-            format!("Map{}", union_enum_variant(inner.as_ref(), gen_state)?)
+            format!(
+                "Map{}",
+                union_enum_variant(inner.as_ref(), gen_state, prefix_namespace)?
+            )
         }
         Schema::Union(union) => union_type(union, gen_state, false, false)?,
-        Schema::Record(RecordSchema {
-            name: Name { name, .. },
-            ..
-        }) => name.to_upper_camel_case(),
-        Schema::Enum(EnumSchema {
-            name: Name { name, .. },
-            ..
-        }) => sanitize(name.to_upper_camel_case()),
-        Schema::Fixed(FixedSchema {
-            name: Name { name, .. },
-            ..
-        }) => sanitize(name.to_upper_camel_case()),
+        Schema::Record(RecordSchema { name, .. }) => fullname(name, prefix_namespace),
+        Schema::Enum(EnumSchema { name, .. }) => fullname(name, prefix_namespace),
+        Schema::Fixed(FixedSchema { name, .. }) => fullname(name, prefix_namespace),
 
         Schema::Decimal { .. } => "Decimal".into(),
         Schema::BigDecimal => "BigDecimal".into(),
@@ -1651,7 +1637,7 @@ pub(crate) fn union_type(
 
     let mut type_str = String::from("Union");
     for sc in schemas {
-        type_str.push_str(&union_enum_variant(sc, gen_state)?);
+        type_str.push_str(&union_enum_variant(sc, gen_state, prefix_namespace)?);
     }
 
     if variants[0] == Schema::Null && wrap_if_optional {

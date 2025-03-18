@@ -255,3 +255,11 @@ fn gen_two_extra_derives() {
             .unwrap(),
     );
 }
+
+#[test]
+fn gen_prefixed_namespace() {
+    validate_generation(
+        "prefixed_namespaces",
+        Generator::builder().prefix_namespace(true).build().unwrap(),
+    );
+}
