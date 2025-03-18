@@ -131,6 +131,8 @@ impl<'de> serde::Deserialize<'de> for UnionSomeNsAMetadataSomeNsBMetadata {
 
 #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, serde::Deserialize, serde::Serialize)]
 pub enum AnotherNsStatus {
+    #[serde(rename = "UNKNOWN")]
+    Unknown,
     #[serde(rename = "ACTIVE")]
     Active,
     #[serde(rename = "PAUSED")]
@@ -145,6 +147,7 @@ pub struct SomeNsSomeRecord {
     #[serde(default = "default_somenssomerecord_parent")]
     pub parent: Option<Box<SomeNsSomeRecord>>,
     pub children: Vec<SomeNsSomeRecord>,
+    #[serde(default = "default_somenssomerecord_status")]
     pub status: AnotherNsStatus,
     pub metadata_a: SomeNsAMetadata,
     pub metadata_b: SomeNsBMetadata,
@@ -155,6 +158,9 @@ pub struct SomeNsSomeRecord {
 
 #[inline(always)]
 fn default_somenssomerecord_parent() -> Option<Box<SomeNsSomeRecord>> { None }
+
+#[inline(always)]
+fn default_somenssomerecord_status() -> AnotherNsStatus { AnotherNsStatus::Unknown }
 
 #[inline(always)]
 fn default_somenssomerecord_union_field() -> UnionSomeNsAMetadataSomeNsBMetadata { UnionSomeNsAMetadataSomeNsBMetadata::SomeNsAMetadata(SomeNsAMetadata { label: "default_label".to_owned(), }) }

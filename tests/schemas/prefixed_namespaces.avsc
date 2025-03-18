@@ -29,11 +29,13 @@
         "name": "Status",
         "namespace": "another.ns",
         "symbols": [
+          "UNKNOWN",
           "ACTIVE",
           "PAUSED",
           "INACTIVE"
         ]
-      }
+      },
+      "default": "UNKNOWN"
     },
     {
       "name": "metadata_a",

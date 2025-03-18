@@ -1263,12 +1263,8 @@ impl Templater {
 
             Schema::Record { .. } => self.record_default(schema, gen_state, default)?,
 
-            Schema::Enum(EnumSchema {
-                name: Name { name: e_name, .. },
-                symbols,
-                ..
-            }) => {
-                let e_name = sanitize(e_name.to_upper_camel_case());
+            Schema::Enum(EnumSchema { name, symbols, .. }) => {
+                let e_name = fullname(name, self.prefix_namespace);
                 let valids: HashSet<_> = symbols
                     .iter()
                     .map(|s| sanitize(s.to_upper_camel_case()))
