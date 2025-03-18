@@ -4,7 +4,6 @@
 
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
-use std::fmt::format;
 
 use apache_avro::Schema;
 use apache_avro::schema::{
