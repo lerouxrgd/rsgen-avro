@@ -1184,7 +1184,7 @@ impl Templater {
                 Value::Number(n) if n.is_f64() => {
                     let n = n.as_f64().unwrap() as f32;
                     if n == n.ceil() {
-                        format!("{:.1}", n)
+                        format!("{n:.1}")
                     } else {
                         format!("{:.*}", self.precision, n)
                     }
@@ -1196,7 +1196,7 @@ impl Templater {
                 Value::Number(n) if n.is_f64() => {
                     let n = n.as_f64().unwrap();
                     if n == n.ceil() {
-                        format!("{:.1}", n)
+                        format!("{n:.1}")
                     } else {
                         format!("{:.*}", self.precision, n)
                     }
@@ -1207,13 +1207,13 @@ impl Templater {
             Schema::Bytes => match default {
                 Value::String(s) => {
                     let bytes = s.clone().into_bytes();
-                    format!("vec!{:?}", bytes)
+                    format!("vec!{bytes:?}")
                 }
                 _ => err!("Invalid default: {:?}", default)?,
             },
 
             Schema::String => match default {
-                Value::String(s) => format!("\"{}\".to_owned()", s),
+                Value::String(s) => format!("\"{s}\".to_owned()"),
                 _ => err!("Invalid default: {:?}", default)?,
             },
 
@@ -1234,7 +1234,7 @@ impl Templater {
                     if bytes.len() != 12 {
                         err!("Invalid default: {:?}", bytes)?
                     }
-                    format!("{:?}", bytes)
+                    format!("{bytes:?}")
                 }
                 _ => err!("Invalid default: {:?}", default)?,
             },
@@ -1243,7 +1243,7 @@ impl Templater {
                 Schema::Bytes => match default {
                     Value::String(s) => {
                         let bytes = s.clone().into_bytes();
-                        format!("vec!{:?}", bytes)
+                        format!("vec!{bytes:?}")
                     }
                     _ => err!("Invalid default: {:?}", default)?,
                 },
@@ -1253,7 +1253,7 @@ impl Templater {
                         if bytes.len() != *size {
                             err!("Invalid default: {:?}", bytes)?
                         }
-                        format!("{:?}", bytes)
+                        format!("{bytes:?}")
                     }
                     _ => err!("Invalid default: {:?}", default)?,
                 },
@@ -1262,7 +1262,7 @@ impl Templater {
 
             Schema::BigDecimal => match default {
                 Value::String(s) => {
-                    format!(r#"apache_avro::BigDecimal::parse_str("{}").unwrap()"#, s)
+                    format!(r#"apache_avro::BigDecimal::parse_str("{s}").unwrap()"#)
                 }
                 _ => err!("Invalid default: {:?}", default)?,
             },
@@ -1273,7 +1273,7 @@ impl Templater {
                     if bytes.len() != *size {
                         err!("Invalid default: {:?}", bytes)?
                     }
-                    format!("{:?}", bytes)
+                    format!("{bytes:?}")
                 }
                 _ => err!("Invalid default: {:?}", default)?,
             },
@@ -1304,7 +1304,7 @@ impl Templater {
                     Value::String(s) => {
                         let s = sanitize(s.to_upper_camel_case());
                         if valids.contains(&s) {
-                            format!("{}::{}", e_name, s)
+                            format!("{e_name}::{s}")
                         } else {
                             err!("Invalid default: {:?}", default)?
                         }
@@ -1335,7 +1335,7 @@ impl Templater {
                 .collect::<Result<Vec<String>>>()?
                 .as_slice()
                 .join(", ");
-            Ok(format!("vec![{}]", vals))
+            Ok(format!("vec![{vals}]"))
         } else {
             err!("Invalid default: {:?}, expected: Array", default)
         }
@@ -1360,8 +1360,7 @@ impl Templater {
                     .as_slice()
                     .join(" ");
                 Ok(format!(
-                    "{{ let mut m = ::std::collections::HashMap::new(); {} m }}",
-                    vals
+                    "{{ let mut m = ::std::collections::HashMap::new(); {vals} m }}"
                 ))
             }
         } else {
@@ -1393,7 +1392,7 @@ impl Templater {
                                 } else {
                                     format!("default_{}_{}()", name.to_lowercase(), f)
                                 };
-                                Ok(format!("{}: {},", f, d))
+                                Ok(format!("{f}: {d},"))
                             })
                             .collect::<Result<Vec<String>>>()?
                             .as_slice()
@@ -1428,7 +1427,7 @@ impl Templater {
             let e_name = union_type(union, gen_state, false)?;
             let e_variant = union_enum_variant(&union.variants()[0], gen_state)?;
             let default_str = self.parse_default(&union.variants()[0], gen_state, default)?;
-            Ok(format!("{}::{}({})", e_name, e_variant, default_str))
+            Ok(format!("{e_name}::{e_variant}({default_str})"))
         }
     }
 }
@@ -1474,14 +1473,14 @@ pub(crate) fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String>
         Schema::Uuid => "Vec<apache_avro::Uuid>".into(),
         Schema::Decimal { .. } => "Vec<apache_avro::Decimal>".into(),
         Schema::BigDecimal => "Vec<apache_avro::BigDecimal>".into(),
-        Schema::Duration { .. } => "Vec<apache_avro::Duration>".into(),
+        Schema::Duration => "Vec<apache_avro::Duration>".into(),
 
         Schema::Fixed(FixedSchema {
             name: Name { name: f_name, .. },
             ..
         }) => {
             let f_name = sanitize(f_name.to_upper_camel_case());
-            format!("Vec<{}>", f_name)
+            format!("Vec<{f_name}>")
         }
 
         Schema::Array(..) | Schema::Map(..) | Schema::Union(..) => {
@@ -1491,7 +1490,7 @@ pub(crate) fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String>
                     inner, &gen_state
                 ))
             })?;
-            format!("Vec<{}>", nested_type)
+            format!("Vec<{nested_type}>")
         }
 
         Schema::Record(RecordSchema {
@@ -1511,7 +1510,7 @@ pub(crate) fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String>
 /// Generates the Rust type of the inner schema of an Avro map.
 pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
     fn map_of(t: &str) -> String {
-        format!("::std::collections::HashMap<String, {}>", t)
+        format!("::std::collections::HashMap<String, {t}>")
     }
 
     let type_str = match inner {
@@ -1551,7 +1550,7 @@ pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
         Schema::Uuid => map_of("apache_avro::Uuid"),
         Schema::Decimal { .. } => map_of("apache_avro::Decimal"),
         Schema::BigDecimal => map_of("apache_avro::BigDecimal"),
-        Schema::Duration { .. } => map_of("apache_avro::Duration"),
+        Schema::Duration => map_of("apache_avro::Duration"),
 
         Schema::Fixed(FixedSchema {
             name: Name { name: f_name, .. },
@@ -1668,7 +1667,7 @@ pub(crate) fn union_type(
     }
 
     if variants[0] == Schema::Null && wrap_if_optional {
-        Ok(format!("Option<{}>", type_str))
+        Ok(format!("Option<{type_str}>"))
     } else {
         Ok(type_str)
     }
@@ -1714,14 +1713,14 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
         Schema::Uuid => "Option<apache_avro::Uuid>".into(),
         Schema::Decimal { .. } => "Option<apache_avro::Decimal>".into(),
         Schema::BigDecimal => "Option<apache_avro::BigDecimal>".into(),
-        Schema::Duration { .. } => "Option<apache_avro::Duration>".into(),
+        Schema::Duration => "Option<apache_avro::Duration>".into(),
 
         Schema::Fixed(FixedSchema {
             name: Name { name: f_name, .. },
             ..
         }) => {
             let f_name = sanitize(f_name.to_upper_camel_case());
-            format!("Option<{}>", f_name)
+            format!("Option<{f_name}>")
         }
 
         Schema::Array(..) | Schema::Map(..) | Schema::Union(..) => {
@@ -1731,7 +1730,7 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
                     inner, &gen_state
                 ))
             })?;
-            format!("Option<{}>", nested_type)
+            format!("Option<{nested_type}>")
         }
 
         Schema::Record(rec) => {
