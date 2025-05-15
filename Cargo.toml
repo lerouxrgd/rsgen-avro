@@ -19,7 +19,7 @@ serde = { version = "1", features = ["serde_derive"] }
 serde_json = "1"
 tempfile = "3"
 tera = { version = "1", default-features = false }
-thiserror = "1"
+thiserror = "2"
 
 [dev-dependencies]
 chrono = { version = "0.4", default-features = false, features = ["serde"] }
