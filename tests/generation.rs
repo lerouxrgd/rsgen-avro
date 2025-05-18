@@ -81,13 +81,12 @@ fn gen_multi_valued_union_map() {
 
 #[test]
 fn gen_multi_valued_union_nested() {
-    let schemas = format!("tests/schemas/multi_valued_union_nested_*.avsc");
-    let src = Source::GlobPattern(&schemas);
+    let schemas = "tests/schemas/multi_valued_union_nested_*.avsc";
+    let src = Source::GlobPattern(schemas);
     let mut buf = vec![];
     Generator::new().unwrap().generate(&src, &mut buf).unwrap();
     let generated = String::from_utf8(buf).unwrap();
-    let expected =
-        std::fs::read_to_string(format!("tests/schemas/multi_valued_union_nested.rs")).unwrap();
+    let expected = std::fs::read_to_string("tests/schemas/multi_valued_union_nested.rs").unwrap();
     validate(expected, generated)
 }
 

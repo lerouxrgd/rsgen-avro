@@ -134,7 +134,7 @@ impl Generator {
                     gs.put_type(&s, type_str)
                 }
 
-                _ => return Err(Error::Schema(format!("Not a valid root schema: {:?}", s))),
+                _ => return Err(Error::Schema(format!("Not a valid root schema: {s:?}"))),
             }
         }
 
@@ -425,7 +425,7 @@ mod tests {
         );
 
         let s = deps.pop();
-        assert!(matches!(s, None));
+        assert!(s.is_none());
     }
 
     #[test]

@@ -1,3 +1,4 @@
+#![allow(clippy::all)]
 pub mod array_3d;
 pub mod complex;
 pub mod decimals;
