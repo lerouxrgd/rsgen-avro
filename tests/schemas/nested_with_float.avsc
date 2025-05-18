@@ -1,29 +1,88 @@
 {
   "type": "record",
   "name": "Foo",
-  "fields": [ {
+  "fields": [
+    {
       "name": "Bar",
-      "type": "record",
-      "fields": [ {
-          "name": "Baz",
-          "type": "record",
-          "fields": [ {
-              "name": "FooFoo",
+      "type": {
+        "type": "record",
+        "name": "Bar",
+        "fields": [
+          {
+            "name": "Baz",
+            "type": {
               "type": "record",
-              "fields": [ {"name": "test_map", "type": "map", "values": "float"} ]
-            }, {
-              "name": "FooBar",
-              "type": "record",
+              "name": "Baz",
               "fields": [
-                {"name": "test_vec", "type": "array", "items": "float"},
-                {"name": "float_union", "type": ["float", "int"]},
-                {"name": "int_union", "type": ["int", "long"]}
+                {
+                  "name": "FooFoo",
+                  "type": {
+                    "type": "record",
+                    "name": "FooFoo",
+                    "fields": [
+                      {
+                        "name": "test_map",
+                        "type": "map",
+                        "values": "float"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "name": "FooBar",
+                  "type": {
+                    "type": "record",
+                    "name": "FooBar",
+                    "fields": [
+                      {
+                        "name": "test_vec",
+                        "type": "array",
+                        "items": "float"
+                      },
+                      {
+                        "name": "float_union",
+                        "type": [
+                          "float",
+                          "int"
+                        ]
+                      },
+                      {
+                        "name": "int_union",
+                        "type": [
+                          "int",
+                          "long"
+                        ]
+                      }
+                    ]
+                  }
+                }
               ]
-          } ]
-        } ]
-    }, {
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "FooBaz",
-      "type": "record",
-      "fields": [ {"name": "BarFoo", "type": "record", "fields": [ {"name": "nested_int", "type": "int"} ]} ]
+      "type": {
+        "type": "record",
+        "name": "FooBaz",
+        "fields": [
+          {
+            "name": "BarFoo",
+            "type": {
+              "type": "record",
+              "name": "BarFoo",
+              "fields": [
+                {
+                  "name": "nested_int",
+                  "type": "int"
+                }
+              ]
+            }
+          }
+        ]
+      }
     }
-] }
+  ]
+}
