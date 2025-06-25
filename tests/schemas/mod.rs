@@ -34,4 +34,5 @@ pub mod recursive;
 pub mod simple;
 pub mod simple_with_builders;
 pub mod simple_with_schemas;
+pub mod simple_with_schemas_impl;
 pub mod nested_with_float;
