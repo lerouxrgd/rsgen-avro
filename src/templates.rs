@@ -611,12 +611,16 @@ impl Templater {
             ctx.insert("derive_builders", &self.derive_builders);
             ctx.insert("derive_schemas", &self.derive_schemas);
             ctx.insert("impl_schemas", &self.impl_schemas);
-            let canonical_form = schema.canonical_form();
-            ctx.insert("schema", &canonical_form);
-            if self.impl_schemas && canonical_form.contains("#\"") {
-                // Only check this if impl_schemas is true, because otherwise it doesn't matter
-                return Err(Error::Schema("implement_avro_schema is set to CopyBuildSchema but canonical form contains '#'".to_string()));
+            let mut canonical_form = None;
+            if self.impl_schemas {
+                let unchecked = schema.canonical_form();
+                if unchecked.contains("#\"") {
+                    // Only check this if impl_schemas is true, because otherwise it doesn't matter
+                    return Err(Error::Schema("implement_avro_schema is set to CopyBuildSchema but canonical form contains '#'".to_string()));
+                }
+                canonical_form = Some(unchecked);
             }
+            ctx.insert("schema", &canonical_form);
             if !self.extra_derives.is_empty() {
                 ctx.insert("extra_derives", &self.extra_derives.join(", "));
             }
