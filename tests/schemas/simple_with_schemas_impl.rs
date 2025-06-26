@@ -13,3 +13,8 @@ impl ::apache_avro::schema::AvroSchema for Test {
         ::apache_avro::schema::Schema::parse_str(r#"{"name":"test","type":"record","fields":[{"name":"a","type":"long"},{"name":"b","type":"string"}]}"#).expect("parsing of canonical form cannot fail")
     }
 }
+#[cfg(test)]
+#[test]
+fn test_test_avro_schema_impl() {
+    <Test as ::apache_avro::schema::AvroSchema>::get_schema();
+}

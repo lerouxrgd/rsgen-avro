@@ -59,6 +59,22 @@ fn gen_simple_with_schema_impl() {
 }
 
 #[test]
+fn gen_nested_with_schema_impl() {
+    let schemas = "tests/schemas/multi_valued_union_nested_*.avsc";
+    let src = Source::GlobPattern(schemas);
+    let mut buf = vec![];
+    Generator::builder()
+        .implement_avro_schema(ImplementAvroSchema::CopyBuildSchema)
+        .build()
+        .unwrap()
+        .generate(&src, &mut buf)
+        .unwrap();
+    let generated = String::from_utf8(buf).unwrap();
+    let expected = std::fs::read_to_string("tests/schemas/nested_with_schemas_impl.rs").unwrap();
+    validate(expected, generated)
+}
+
+#[test]
 fn gen_complex() {
     validate_generation("complex", Generator::new().unwrap());
 }

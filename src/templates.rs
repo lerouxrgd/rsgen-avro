@@ -107,6 +107,11 @@ impl ::apache_avro::schema::AvroSchema for {{ name }} {
         ::apache_avro::schema::Schema::parse_str(r#"{{ schema }}"#).expect("parsing of canonical form cannot fail")
     }
 }
+#[cfg(test)]
+#[test]
+fn test_{{ name | lower }}_avro_schema_impl() {
+    <{{ name }} as ::apache_avro::schema::AvroSchema>::get_schema();
+}
 {%- endif %}
 "##;
 
@@ -613,7 +618,14 @@ impl Templater {
             ctx.insert("impl_schemas", &self.impl_schemas);
             let mut canonical_form = None;
             if self.impl_schemas {
-                let unchecked = schema.canonical_form();
+                let schemata = gen_state
+                    .schemata_by_name
+                    .values()
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let unchecked = schema
+                    .independent_canonical_form(&schemata)
+                    .expect("This has already been parsed before");
                 if unchecked.contains("#\"") {
                     // Only check this if impl_schemas is true, because otherwise it doesn't matter
                     return Err(Error::Schema("implement_avro_schema is set to CopyBuildSchema but canonical form contains '#'".to_string()));
