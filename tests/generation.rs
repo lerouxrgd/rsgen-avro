@@ -2,7 +2,7 @@
 mod schemas;
 
 use pretty_assertions::assert_eq;
-use rsgen_avro::{Generator, Source};
+use rsgen_avro::{Generator, ImplementAvroSchema, Source};
 
 fn validate_generation(file_name: &str, g: Generator) {
     let schema = format!("tests/schemas/{file_name}.avsc");
@@ -40,8 +40,38 @@ fn gen_simple_with_builder() {
 fn gen_simple_with_schema() {
     validate_generation(
         "simple_with_schemas",
-        Generator::builder().derive_schemas(true).build().unwrap(),
+        Generator::builder()
+            .implement_avro_schema(ImplementAvroSchema::Derive)
+            .build()
+            .unwrap(),
     );
+}
+
+#[test]
+fn gen_simple_with_schema_impl() {
+    validate_generation(
+        "simple_with_schemas_impl",
+        Generator::builder()
+            .implement_avro_schema(ImplementAvroSchema::CopyBuildSchema)
+            .build()
+            .unwrap(),
+    );
+}
+
+#[test]
+fn gen_nested_with_schema_impl() {
+    let schemas = "tests/schemas/multi_valued_union_nested_*.avsc";
+    let src = Source::GlobPattern(schemas);
+    let mut buf = vec![];
+    Generator::builder()
+        .implement_avro_schema(ImplementAvroSchema::CopyBuildSchema)
+        .build()
+        .unwrap()
+        .generate(&src, &mut buf)
+        .unwrap();
+    let generated = String::from_utf8(buf).unwrap();
+    let expected = std::fs::read_to_string("tests/schemas/nested_with_schemas_impl.rs").unwrap();
+    validate(expected, generated)
 }
 
 #[test]

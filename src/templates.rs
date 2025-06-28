@@ -18,7 +18,7 @@ use tera::{Context, Tera};
 use crate::error::{Error, Result};
 
 pub const RECORD_TERA: &str = "record.tera";
-pub const RECORD_TEMPLATE: &str = r#"
+pub const RECORD_TEMPLATE: &str = r##"
 {%- if doc %}
 {%- set doc_lines = doc | split(pat="\n") %}
 {%- for doc_line in doc_lines %}
@@ -101,7 +101,19 @@ impl Default for {{ name }} {
     }
 }
 {%- endif %}
-"#;
+{%- if impl_schemas %}
+impl ::apache_avro::schema::AvroSchema for {{ name }} {
+    fn get_schema() -> ::apache_avro::schema::Schema {
+        ::apache_avro::schema::Schema::parse_str(r#"{{ schema }}"#).expect("parsing of canonical form cannot fail")
+    }
+}
+#[cfg(test)]
+#[test]
+fn test_{{ name | lower }}_avro_schema_impl() {
+    <{{ name }} as ::apache_avro::schema::AvroSchema>::get_schema();
+}
+{%- endif %}
+"##;
 
 pub const ENUM_TERA: &str = "enum.tera";
 pub const ENUM_TEMPLATE: &str = r#"
@@ -509,6 +521,7 @@ pub struct Templater {
     pub use_chrono_dates: bool,
     pub derive_builders: bool,
     pub derive_schemas: bool,
+    pub impl_schemas: bool,
     pub extra_derives: Vec<String>,
 }
 
@@ -531,6 +544,7 @@ impl Templater {
             use_chrono_dates: false,
             derive_builders: false,
             derive_schemas: false,
+            impl_schemas: false,
             extra_derives: vec![],
         })
     }
@@ -601,6 +615,24 @@ impl Templater {
             ctx.insert("doc", doc);
             ctx.insert("derive_builders", &self.derive_builders);
             ctx.insert("derive_schemas", &self.derive_schemas);
+            ctx.insert("impl_schemas", &self.impl_schemas);
+            let mut canonical_form = None;
+            if self.impl_schemas {
+                let schemata = gen_state
+                    .schemata_by_name
+                    .values()
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let unchecked = schema
+                    .independent_canonical_form(&schemata)
+                    .expect("This has already been parsed before");
+                if unchecked.contains("#\"") {
+                    // Only check this if impl_schemas is true, because otherwise it doesn't matter
+                    return Err(Error::Schema("implement_avro_schema is set to CopyBuildSchema but canonical form contains '#'".to_string()));
+                }
+                canonical_form = Some(unchecked);
+            }
+            ctx.insert("schema", &canonical_form);
             if !self.extra_derives.is_empty() {
                 ctx.insert("extra_derives", &self.extra_derives.join(", "));
             }
@@ -638,7 +670,7 @@ impl Templater {
                 };
 
                 match schema {
-                    Schema::Ref { .. } => {} // already resolved above
+                    Schema::Ref { .. } => unreachable!("already resolved above"),
                     Schema::Boolean => {
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), "bool".to_string());

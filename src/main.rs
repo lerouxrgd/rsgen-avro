@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::process::{self, Command};
 
 use clap::Parser;
-use rsgen_avro::{Generator, Source};
+use rsgen_avro::{Generator, ImplementAvroSchema, Source};
 
 /// Generate Rust types from Avro schemas
 #[derive(Debug, Parser)]
@@ -43,7 +43,7 @@ struct Args {
 
     /// Derive AvroSchema for generated record structs
     #[clap(long)]
-    pub derive_schemas: bool,
+    pub impl_schemas: ImplementAvroSchema,
 
     /// Extract Derives for generated record structs, comma separated, e.g. `std::fmt::Display,std::string::ToString`
     #[clap(long, value_delimiter = ',')]
@@ -73,7 +73,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         .use_avro_rs_unions(args.union_deser)
         .use_chrono_dates(args.chrono_dates)
         .derive_builders(args.derive_builders)
-        .derive_schemas(args.derive_schemas)
+        .implement_avro_schema(args.impl_schemas)
         .extra_derives(args.extra_derives)
         .build()?;
 
