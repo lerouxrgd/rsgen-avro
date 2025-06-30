@@ -41,12 +41,12 @@ struct Args {
     #[clap(long)]
     pub derive_builders: bool,
 
-    /// Derive AvroSchema for generated record structs
-    #[clap(long)]
+    /// Implement AvroSchema for generated record structs
+    #[clap(long, value_name = "METHOD", default_value_t = Default::default())]
     pub impl_schemas: ImplementAvroSchema,
 
     /// Extract Derives for generated record structs, comma separated, e.g. `std::fmt::Display,std::string::ToString`
-    #[clap(long, value_delimiter = ',')]
+    #[clap(long, value_name = "DERIVES", value_delimiter = ',')]
     pub extra_derives: Vec<String>,
 }
 

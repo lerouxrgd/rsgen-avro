@@ -25,16 +25,16 @@ Arguments:
   <OUTPUT_FILE>   The file where Rust types will be written, '-' for stdout
 
 Options:
-      --fmt              Run rustfmt on the resulting <output-file>
-      --nullable         Replace null fields with their default value when deserializing
-      --precision <P>    Precision for f32/f64 default values that aren't round numbers [default: 3]
-      --union-deser      Custom deserialization for apache-avro multi-valued union types
-      --chrono-dates     Use chrono::NaiveDateTime for date/timestamps logical types
-      --derive-builders  Derive builders for generated record structs
-      --derive-schemas   Derive AvroSchema for generated record structs
-      --extra_derives    Append extra derive macros list to the generated record structs
-  -h, --help             Print help
-  -V, --version          Print version
+      --fmt                      Run rustfmt on the resulting <output-file>
+      --nullable                 Replace null fields with their default value when deserializing
+      --precision <P>            Precision for f32/f64 default values that aren't round numbers [default: 3]
+      --union-deser              Custom deserialization for apache-avro multi-valued union types
+      --chrono-dates             Use chrono::NaiveDateTime for date/timestamps logical types
+      --derive-builders          Derive builders for generated record structs
+      --impl-schemas <METHOD>    Implement AvroSchema for generated record structs [default: None] [possible values: derive, copy-build-schema, none]
+      --extra-derives <DERIVES>  Extract Derives for generated record structs, comma separated, e.g. `std::fmt::Display,std::string::ToString`
+  -h, --help                     Print help (see more with '--help')
+  -V, --version                  Print version
 ```
 
 ## Library usage
