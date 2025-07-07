@@ -1,0 +1,9 @@
+{
+  "type": "record",
+  "name": "test_override",
+  "fields": [
+    {"name": "a", "type": "long", "default": 42},
+    {"name": "b", "type": "string"},
+    {"name": "ip_addr", "type": "bytes"}
+  ]
+}
