@@ -86,8 +86,12 @@ impl Generator {
     /// * Keeps tracks of nested schema->name with `GenState` mapping
     /// * Appends generated Rust types to the output
     fn gen_in_order(&self, deps: &mut Vec<Schema>, output: &mut impl Write) -> Result<()> {
-        let mut gs = GenState::new(deps, &self.templater.field_overrides)?
-            .with_chrono_dates(self.templater.use_chrono_dates);
+        let mut gs = GenState::new(deps)?.with_chrono_dates(self.templater.use_chrono_dates);
+
+        if !self.templater.field_overrides.is_empty() {
+            // This rechecks no_eq for all schemas, so only do it if there are actually overrides.
+            gs = gs.with_field_overrides(deps, &self.templater.field_overrides)?;
+        }
 
         while let Some(s) = deps.pop() {
             match s {

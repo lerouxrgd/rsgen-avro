@@ -344,10 +344,7 @@ pub struct GenState {
 }
 
 impl GenState {
-    pub fn new(
-        deps: &[Schema],
-        field_overrides: &HashMap<Name, Vec<FieldOverride>>,
-    ) -> Result<Self> {
+    pub fn new(deps: &[Schema]) -> Result<Self> {
         let schemata_by_name: HashMap<Name, Schema> = deps
             .iter()
             .filter_map(|s| match s {
@@ -357,13 +354,22 @@ impl GenState {
                 _ => None,
             })
             .collect::<HashMap<_, _>>();
-        let not_eq = Self::get_not_eq_schemata(deps, &schemata_by_name, field_overrides)?;
+        let not_eq = Self::get_not_eq_schemata(deps, &schemata_by_name, &HashMap::new())?;
         Ok(GenState {
             types_by_schema: HashMap::new(),
             schemata_by_name,
             not_eq,
             use_chrono_dates: false,
         })
+    }
+
+    pub fn with_field_overrides(
+        mut self,
+        deps: &[Schema],
+        field_overrides: &HashMap<Name, Vec<FieldOverride>>,
+    ) -> Result<Self> {
+        self.not_eq = Self::get_not_eq_schemata(deps, &self.schemata_by_name, field_overrides)?;
+        Ok(self)
     }
 
     pub fn with_chrono_dates(mut self, use_chrono_dates: bool) -> Self {
