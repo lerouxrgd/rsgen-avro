@@ -1,8 +1,9 @@
 #[rustfmt::skip]
 mod schemas;
 
+use apache_avro::schema::Name;
 use pretty_assertions::assert_eq;
-use rsgen_avro::{Generator, ImplementAvroSchema, Source};
+use rsgen_avro::{FieldOverride, Generator, ImplementAvroSchema, Source};
 
 fn validate_generation(file_name: &str, g: Generator) {
     let schema = format!("tests/schemas/{file_name}.avsc");
@@ -53,6 +54,50 @@ fn gen_simple_with_schema_impl() {
         "simple_with_schemas_impl",
         Generator::builder()
             .implement_avro_schema(ImplementAvroSchema::CopyBuildSchema)
+            .build()
+            .unwrap(),
+    );
+}
+
+#[test]
+fn gen_simple_with_field_override() {
+    validate_generation(
+        "simple_with_override",
+        Generator::builder()
+            .override_field(FieldOverride {
+                schema: Name {
+                    name: "test_override".to_string(),
+                    namespace: None,
+                },
+                field: "ip_addr".to_string(),
+                docstring: Some("The IP-address associated with this Avro".to_string()),
+                type_name: Some("std::net::IpAddr".to_string()),
+                implements_eq: Some(true),
+                serde_with: Some("super::utils::ip_addr_serde".to_string()),
+                default: None,
+            })
+            .build()
+            .unwrap(),
+    );
+}
+
+#[test]
+fn gen_simple_with_field_override_no_eq() {
+    validate_generation(
+        "simple_with_override_no_eq",
+        Generator::builder()
+            .override_field(FieldOverride {
+                schema: Name {
+                    name: "test_override_no_eq".to_string(),
+                    namespace: None,
+                },
+                field: "a".to_string(),
+                docstring: None,
+                type_name: Some("f64".to_string()),
+                implements_eq: Some(false),
+                serde_with: None,
+                default: Some("42.0".to_string()),
+            })
             .build()
             .unwrap(),
     );

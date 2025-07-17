@@ -2,7 +2,7 @@ use std::collections::{HashMap, VecDeque};
 use std::fs;
 use std::io::prelude::*;
 
-use apache_avro::schema::{ArraySchema, DecimalSchema, MapSchema, RecordField, RecordSchema};
+use apache_avro::schema::{ArraySchema, DecimalSchema, MapSchema, Name, RecordField, RecordSchema};
 
 use crate::Schema;
 use crate::error::{Error, Result};
@@ -87,6 +87,11 @@ impl Generator {
     /// * Appends generated Rust types to the output
     fn gen_in_order(&self, deps: &mut Vec<Schema>, output: &mut impl Write) -> Result<()> {
         let mut gs = GenState::new(deps)?.with_chrono_dates(self.templater.use_chrono_dates);
+
+        if !self.templater.field_overrides.is_empty() {
+            // This rechecks no_eq for all schemas, so only do it if there are actually overrides.
+            gs = gs.with_field_overrides(deps, &self.templater.field_overrides)?;
+        }
 
         while let Some(s) = deps.pop() {
             match s {
@@ -286,6 +291,7 @@ pub struct GeneratorBuilder {
     derive_builders: bool,
     impl_schemas: ImplementAvroSchema,
     extra_derives: Vec<String>,
+    field_overrides: HashMap<Name, Vec<FieldOverride>>,
 }
 
 impl Default for GeneratorBuilder {
@@ -298,6 +304,7 @@ impl Default for GeneratorBuilder {
             derive_builders: false,
             impl_schemas: ImplementAvroSchema::None,
             extra_derives: vec![],
+            field_overrides: HashMap::new(),
         }
     }
 }
@@ -336,6 +343,42 @@ impl std::fmt::Display for ImplementAvroSchema {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{self:?}")
     }
+}
+
+/// Override (part of) the generated code for a [`Schema`] field.
+///
+/// Currently only possible for Record schemas.
+///
+/// When changing the type of the field, `implements_eq` must also be changed.
+/// `serde_with` and `default` might also need to be changed. If this is not done
+/// it will result in a compiler error.
+#[derive(Debug, Clone)]
+
+pub struct FieldOverride {
+    /// Name of the schema the field is in.
+    pub schema: Name,
+    /// Name of the field as in the schema.
+    pub field: String,
+    /// Change the documentation of the field.
+    pub docstring: Option<String>,
+    /// Change the type of the field.
+    ///
+    /// This type *must* implement [`Debug`], [`PartialEq`], and [`Clone`].
+    /// If extra derives are configured (including `Builder` and [`AvroSchema`](apache_avro::AvroSchema))
+    /// then the type *must* also implement these.
+    pub type_name: Option<String>,
+    /// Does the type implement [`Eq`].
+    ///
+    /// This *must* be set if the type is changed.
+    pub implements_eq: Option<bool>,
+    /// Module name to use for `#[serde(with = ...)]`.
+    ///
+    /// This *must* be set if the type was changed and the type does not implement `Serialize` or `Deserialize`.
+    pub serde_with: Option<String>,
+    /// Default value for this field, can be a function call that generates the default value.
+    ///
+    /// This *must* be set if the field is nullable and the type was changed and the outer type is not an [`Option`].
+    pub default: Option<String>,
 }
 
 impl GeneratorBuilder {
@@ -402,6 +445,30 @@ impl GeneratorBuilder {
         self
     }
 
+    /// Override (part of) the code generated for a field.
+    ///
+    /// Applies to record structs.
+    pub fn override_fields(mut self, overrides: Vec<FieldOverride>) -> GeneratorBuilder {
+        for over in overrides {
+            self.field_overrides
+                .entry(over.schema.clone())
+                .or_default()
+                .push(over);
+        }
+        self
+    }
+
+    /// Override (part of) the code generated for a field.
+    ///
+    /// Applies to record structs.
+    pub fn override_field(mut self, over: FieldOverride) -> GeneratorBuilder {
+        self.field_overrides
+            .entry(over.schema.clone())
+            .or_default()
+            .push(over);
+        self
+    }
+
     /// Create a [`Generator`](Generator) with the builder parameters.
     pub fn build(self) -> Result<Generator> {
         let mut templater = Templater::new()?;
@@ -413,6 +480,7 @@ impl GeneratorBuilder {
         templater.derive_schemas = self.impl_schemas == ImplementAvroSchema::Derive;
         templater.impl_schemas = self.impl_schemas == ImplementAvroSchema::CopyBuildSchema;
         templater.extra_derives = self.extra_derives;
+        templater.field_overrides = self.field_overrides;
         Ok(Generator { templater })
     }
 }

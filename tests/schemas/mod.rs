@@ -33,7 +33,10 @@ pub mod record_multiline_doc;
 pub mod recursive;
 pub mod simple;
 pub mod simple_with_builders;
+pub mod simple_with_override;
 pub mod simple_with_schemas;
 pub mod simple_with_schemas_impl;
 pub mod nested_with_schemas_impl;
 pub mod nested_with_float;
+
+pub mod utils;

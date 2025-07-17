@@ -1,0 +1,8 @@
+{
+  "type": "record",
+  "name": "test_override_no_eq",
+  "fields": [
+    {"name": "a", "type": "long", "default": 42},
+    {"name": "b", "type": "string"}
+  ]
+}

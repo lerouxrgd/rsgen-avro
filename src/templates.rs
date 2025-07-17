@@ -16,6 +16,7 @@ use serde_json::Value;
 use tera::{Context, Tera};
 
 use crate::error::{Error, Result};
+use crate::generator::FieldOverride;
 
 pub const RECORD_TERA: &str = "record.tera";
 pub const RECORD_TEMPLATE: &str = r##"
@@ -44,10 +45,10 @@ pub struct {{ name }} {
     {%- if f != originals[f] and not f is starting_with("r#") %}
     #[serde(rename = "{{ originals[f] }}")]
     {%- endif %}
-    {%- if nullable and not type is starting_with("Option") %}
+    {%- if nullable and not type is starting_with("Option<") %}
     #[serde(deserialize_with = "nullable_{{ name|lower }}_{{ f }}")]
     {%- endif %}
-    {%- if nullable and not type is starting_with("Option") and serde_with is containing(f) %}
+    {%- if nullable and not type is starting_with("Option<") and serde_with is containing(f) %}
     #[serde(serialize_with = "{{ serde_with[f] }}::serialize")]
     {%- endif %}
     {%- if not nullable and serde_with is containing(f) %}
@@ -62,7 +63,7 @@ pub struct {{ name }} {
 
 {%- for f in fields %}
 {%- set type = types[f] %}
-{%- if nullable and not type is starting_with("Option") %}
+{%- if nullable and not type is starting_with("Option<") %}
 {# #}
 #[inline(always)]
 fn nullable_{{ name|lower }}_{{ f }}<'de, D>(deserializer: D) -> Result<{{ type }}, D::Error>
@@ -353,13 +354,22 @@ impl GenState {
                 _ => None,
             })
             .collect::<HashMap<_, _>>();
-        let not_eq = Self::get_not_eq_schemata(deps, &schemata_by_name)?;
+        let not_eq = Self::get_not_eq_schemata(deps, &schemata_by_name, &HashMap::new())?;
         Ok(GenState {
             types_by_schema: HashMap::new(),
             schemata_by_name,
             not_eq,
             use_chrono_dates: false,
         })
+    }
+
+    pub fn with_field_overrides(
+        mut self,
+        deps: &[Schema],
+        field_overrides: &HashMap<Name, Vec<FieldOverride>>,
+    ) -> Result<Self> {
+        self.not_eq = Self::get_not_eq_schemata(deps, &self.schemata_by_name, field_overrides)?;
+        Ok(self)
     }
 
     pub fn with_chrono_dates(mut self, use_chrono_dates: bool) -> Self {
@@ -398,6 +408,7 @@ impl GenState {
     fn deep_search_not_eq(
         schema: &Schema,
         schemata_by_name: &HashMap<Name, Schema>,
+        field_overrides: &HashMap<Name, Vec<FieldOverride>>,
         inner_not_eq: &mut HashMap<Name, bool>,
         outer_not_eq: &mut HashMap<Name, bool>,
     ) -> Result<bool> {
@@ -408,12 +419,26 @@ impl GenState {
                     not_eq.insert(false);
                 }
             }
+            if let Some(overrides) = field_overrides.get(name) {
+                for over in overrides {
+                    if let Some(impls_eq) = over.implements_eq {
+                        inner_not_eq.insert(name.clone(), !impls_eq);
+                        outer_not_eq.insert(name.clone(), !impls_eq);
+                        return Ok(!impls_eq);
+                    }
+                }
+            }
         }
         match schema {
             Schema::Array(ArraySchema { items: inner, .. })
             | Schema::Map(MapSchema { types: inner, .. }) => {
-                let not_eq =
-                    Self::deep_search_not_eq(inner, schemata_by_name, inner_not_eq, outer_not_eq)?;
+                let not_eq = Self::deep_search_not_eq(
+                    inner,
+                    schemata_by_name,
+                    field_overrides,
+                    inner_not_eq,
+                    outer_not_eq,
+                )?;
                 match schema.name() {
                     Some(schema_name) if not_eq => {
                         inner_not_eq.insert(schema_name.clone(), true);
@@ -428,6 +453,7 @@ impl GenState {
                     let not_eq = Self::deep_search_not_eq(
                         &f.schema,
                         schemata_by_name,
+                        field_overrides,
                         inner_not_eq,
                         outer_not_eq,
                     )?;
@@ -448,7 +474,13 @@ impl GenState {
             }
             Schema::Union(union) => {
                 for s in union.variants() {
-                    if Self::deep_search_not_eq(s, schemata_by_name, inner_not_eq, outer_not_eq)? {
+                    if Self::deep_search_not_eq(
+                        s,
+                        schemata_by_name,
+                        field_overrides,
+                        inner_not_eq,
+                        outer_not_eq,
+                    )? {
                         return Ok(true);
                     }
                 }
@@ -462,8 +494,13 @@ impl GenState {
                 })?;
                 inner_not_eq.remove(name); // Force re-exploration of the ref schema
                 outer_not_eq.remove(name); // Force re-exploration of the ref schema
-                let not_eq =
-                    Self::deep_search_not_eq(schema, schemata_by_name, inner_not_eq, outer_not_eq)?;
+                let not_eq = Self::deep_search_not_eq(
+                    schema,
+                    schemata_by_name,
+                    field_overrides,
+                    inner_not_eq,
+                    outer_not_eq,
+                )?;
                 match schema.name() {
                     Some(schema_name) if not_eq => {
                         inner_not_eq.insert(schema_name.clone(), true);
@@ -482,6 +519,7 @@ impl GenState {
     fn get_not_eq_schemata(
         deps: &[Schema],
         schemata_by_name: &HashMap<Name, Schema>,
+        field_overrides: &HashMap<Name, Vec<FieldOverride>>,
     ) -> Result<HashSet<String>> {
         let mut schemata_not_eq = HashSet::new();
         let mut outer_not_eq = HashMap::new();
@@ -490,6 +528,7 @@ impl GenState {
             let not_eq = Self::deep_search_not_eq(
                 dep,
                 schemata_by_name,
+                field_overrides,
                 &mut inner_not_eq,
                 &mut outer_not_eq,
             )?;
@@ -523,6 +562,7 @@ pub struct Templater {
     pub derive_schemas: bool,
     pub impl_schemas: bool,
     pub extra_derives: Vec<String>,
+    pub field_overrides: HashMap<Name, Vec<FieldOverride>>,
 }
 
 impl Templater {
@@ -546,6 +586,7 @@ impl Templater {
             derive_schemas: false,
             impl_schemas: false,
             extra_derives: vec![],
+            field_overrides: HashMap::new(),
         })
     }
 
@@ -603,12 +644,11 @@ impl Templater {
     /// Makes use of a [`GenState`](GenState) for nested schemas (i.e. Array/Map/Union).
     pub fn str_record(&self, schema: &Schema, gen_state: &GenState) -> Result<String> {
         if let Schema::Record(RecordSchema {
-            name: Name { name, .. },
-            fields,
-            doc,
-            ..
+            name, fields, doc, ..
         }) = schema
         {
+            let full_name = name;
+            let name = &full_name.name;
             let mut ctx = Context::new();
             ctx.insert("name", &name.to_upper_camel_case());
             let doc = if let Some(d) = doc { d } else { "" };
@@ -657,8 +697,31 @@ impl Templater {
             {
                 let name_std = sanitize(name.to_snake_case());
                 o.insert(name_std.clone(), name);
-                if let Some(d) = doc {
+
+                let field_override = self
+                    .field_overrides
+                    .get(full_name)
+                    .and_then(|fs| fs.iter().find(|f| &f.field == name));
+                if let Some(over) = field_override
+                    && let Some(d) = &over.docstring
+                {
                     c.insert(name_std.clone(), d);
+                } else if let Some(d) = doc {
+                    c.insert(name_std.clone(), d);
+                }
+
+                if let Some(field_override) = field_override
+                    && let Some(type_name) = &field_override.type_name
+                {
+                    f.push(name_std.clone());
+                    t.insert(name_std.clone(), type_name.to_string());
+                    if let Some(with) = &field_override.serde_with {
+                        w.insert(name_std.clone(), with.clone());
+                    }
+                    if let Some(default) = &field_override.default {
+                        d.insert(name_std.clone(), default.clone());
+                    }
+                    continue;
                 }
 
                 let schema = if let Schema::Ref { name } = schema {
@@ -686,7 +749,7 @@ impl Templater {
                             name_std.clone(),
                             "chrono::DateTime<chrono::Utc>".to_string(),
                         );
-                        w.insert(name_std.clone(), "chrono::serde::ts_seconds");
+                        w.insert(name_std.clone(), "chrono::serde::ts_seconds".to_string());
                         if let Some(default) = default {
                             let default = self.parse_default(schema, gen_state, default)?;
                             d.insert(name_std.clone(), default);
@@ -701,7 +764,10 @@ impl Templater {
                             name_std.clone(),
                             "chrono::DateTime<chrono::Utc>".to_string(),
                         );
-                        w.insert(name_std.clone(), "chrono::serde::ts_milliseconds");
+                        w.insert(
+                            name_std.clone(),
+                            "chrono::serde::ts_milliseconds".to_string(),
+                        );
                         if let Some(default) = default {
                             let default = self.parse_default(schema, gen_state, default)?;
                             d.insert(name_std.clone(), default);
@@ -716,7 +782,10 @@ impl Templater {
                             name_std.clone(),
                             "chrono::DateTime<chrono::Utc>".to_string(),
                         );
-                        w.insert(name_std.clone(), "chrono::serde::ts_microseconds");
+                        w.insert(
+                            name_std.clone(),
+                            "chrono::serde::ts_microseconds".to_string(),
+                        );
                         if let Some(default) = default {
                             let default = self.parse_default(schema, gen_state, default)?;
                             d.insert(name_std.clone(), default);
@@ -731,7 +800,10 @@ impl Templater {
                             name_std.clone(),
                             "chrono::DateTime<chrono::Utc>".to_string(),
                         );
-                        w.insert(name_std.clone(), "chrono::serde::ts_nanoseconds");
+                        w.insert(
+                            name_std.clone(),
+                            "chrono::serde::ts_nanoseconds".to_string(),
+                        );
                         if let Some(default) = default {
                             let default = self.parse_default(schema, gen_state, default)?;
                             d.insert(name_std.clone(), default);
@@ -784,7 +856,10 @@ impl Templater {
                     Schema::Bytes => {
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), "Vec<u8>".to_string());
-                        w.insert(name_std.clone(), "apache_avro::serde_avro_bytes");
+                        w.insert(
+                            name_std.clone(),
+                            "apache_avro::serde_avro_bytes".to_string(),
+                        );
                         if let Some(default) = default {
                             let default = self.parse_default(schema, gen_state, default)?;
                             d.insert(name_std.clone(), default);
@@ -842,7 +917,10 @@ impl Templater {
                     }) => {
                         let f_name = sanitize(f_name.to_upper_camel_case());
                         f.push(name_std.clone());
-                        w.insert(name_std.clone(), "apache_avro::serde_avro_fixed");
+                        w.insert(
+                            name_std.clone(),
+                            "apache_avro::serde_avro_fixed".to_string(),
+                        );
                         t.insert(name_std.clone(), f_name.clone());
                         if let Some(default) = default {
                             let default = self.parse_default(schema, gen_state, default)?;
@@ -914,12 +992,18 @@ impl Templater {
                             && union.variants().len() == 2
                             && matches!(union.variants()[1], Schema::Bytes)
                         {
-                            w.insert(name_std.clone(), "apache_avro::serde_avro_bytes_opt");
+                            w.insert(
+                                name_std.clone(),
+                                "apache_avro::serde_avro_bytes_opt".to_string(),
+                            );
                         } else if union.is_nullable()
                             && union.variants().len() == 2
                             && matches!(union.variants()[1], Schema::Fixed(_))
                         {
-                            w.insert(name_std.clone(), "apache_avro::serde_avro_fixed_opt");
+                            w.insert(
+                                name_std.clone(),
+                                "apache_avro::serde_avro_fixed_opt".to_string(),
+                            );
                         } else if union.is_nullable()
                             && union.variants().len() == 2
                             && matches!(
@@ -928,7 +1012,10 @@ impl Templater {
                             )
                             && self.use_chrono_dates
                         {
-                            w.insert(name_std.clone(), "chrono::serde::ts_milliseconds_option");
+                            w.insert(
+                                name_std.clone(),
+                                "chrono::serde::ts_milliseconds_option".to_string(),
+                            );
                         } else if union.is_nullable()
                             && union.variants().len() == 2
                             && matches!(
@@ -937,7 +1024,10 @@ impl Templater {
                             )
                             && self.use_chrono_dates
                         {
-                            w.insert(name_std.clone(), "chrono::serde::ts_microseconds_option");
+                            w.insert(
+                                name_std.clone(),
+                                "chrono::serde::ts_microseconds_option".to_string(),
+                            );
                         } else if union.is_nullable()
                             && union.variants().len() == 2
                             && matches!(
@@ -946,7 +1036,10 @@ impl Templater {
                             )
                             && self.use_chrono_dates
                         {
-                            w.insert(name_std.clone(), "chrono::serde::ts_nanoseconds_option");
+                            w.insert(
+                                name_std.clone(),
+                                "chrono::serde::ts_nanoseconds_option".to_string(),
+                            );
                         };
                     }
 
