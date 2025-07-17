@@ -73,7 +73,7 @@ fn gen_simple_with_field_override() {
                 docstring: Some("The IP-address associated with this Avro".to_string()),
                 type_name: Some("std::net::IpAddr".to_string()),
                 implements_eq: Some(true),
-                serde_with: Some("super::ip_addr_serde".to_string()),
+                serde_with: Some("super::utils::ip_addr_serde".to_string()),
                 default: None,
             })
             .build()

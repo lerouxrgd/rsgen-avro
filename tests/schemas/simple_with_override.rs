@@ -5,7 +5,7 @@ pub struct TestOverride {
     pub a: i64,
     pub b: String,
     /// The IP-address associated with this Avro
-    #[serde(with = "super::ip_addr_serde")]
+    #[serde(with = "super::utils::ip_addr_serde")]
     pub ip_addr: std::net::IpAddr,
 }
 
