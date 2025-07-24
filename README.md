@@ -31,7 +31,7 @@ Options:
       --union-deser              Custom deserialization for apache-avro multi-valued union types
       --chrono-dates             Use chrono::NaiveDateTime for date/timestamps logical types
       --derive-builders          Derive builders for generated record structs
-      --impl-schemas <METHOD>    Implement AvroSchema for generated record structs [default: None] [possible values: derive, copy-build-schema, none]
+      --impl-schemas <METHOD>    Implement AvroSchema for generated record structs [default: none] [possible values: derive, copy-build-schema, none]
       --extra-derives <DERIVES>  Extract Derives for generated record structs, comma separated, e.g. `std::fmt::Display,std::string::ToString`
   -h, --help                     Print help (see more with '--help')
   -V, --version                  Print version
