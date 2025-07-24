@@ -42,7 +42,7 @@ struct Args {
     pub derive_builders: bool,
 
     /// Implement AvroSchema for generated record structs
-    #[clap(long, value_name = "METHOD", default_value_t = Default::default())]
+    #[clap(long, value_name = "METHOD", default_value_t, value_enum)]
     pub impl_schemas: ImplementAvroSchema,
 
     /// Extract Derives for generated record structs, comma separated, e.g. `std::fmt::Display,std::string::ToString`
