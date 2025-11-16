@@ -53,7 +53,7 @@ struct Args {
 fn run() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
-    let mut out: Box<dyn Write> = if args.output_file == PathBuf::from("-") {
+    let mut out: Box<dyn Write> = if *args.output_file == *"-" {
         Box::new(stdout())
     } else {
         Box::new(
@@ -79,7 +79,7 @@ fn run() -> Result<(), Box<dyn Error>> {
 
     g.generate(&source, &mut out)?;
 
-    if args.fmt && args.output_file != PathBuf::from("-") {
+    if args.fmt && *args.output_file != *"-" {
         Command::new("rustfmt").arg(&args.output_file).status()?;
     }
 

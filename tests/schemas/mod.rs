@@ -1,4 +1,6 @@
 #![allow(clippy::all)]
+#![allow(dead_code)]
+
 pub mod array_3d;
 pub mod complex;
 pub mod decimals;
@@ -6,7 +8,6 @@ pub mod enums;
 pub mod enums_casing;
 pub mod enums_multiline_doc;
 pub mod enums_sanitize;
-#[allow(dead_code)]
 pub mod fixed;
 pub mod interop;
 pub mod logical_dates;
