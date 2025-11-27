@@ -153,7 +153,20 @@ impl Generator {
 /// tree in a post-order fashion.
 fn deps_stack(schema: &Schema, mut deps: Vec<Schema>) -> Vec<Schema> {
     fn push_unique(deps: &mut Vec<Schema>, s: Schema) {
-        if let Some(i) = deps.iter().position(|d| d == &s) {
+        // Check if the schema is already in the stack.
+        // For named types (Record, Enum, Fixed), we check if the name is the same.
+        // This is important because sometimes `apache-avro` produces unequal schema objects
+        // for the same named type (e.g. when resolving references or loading from different files),
+        // which would result in duplicate code generation if we only checked for object equality.
+        // For other types, we fallback to object equality.
+        let existing = deps.iter().position(|d| match (d, &s) {
+            (Schema::Record(r1), Schema::Record(r2)) => r1.name == r2.name,
+            (Schema::Enum(e1), Schema::Enum(e2)) => e1.name == e2.name,
+            (Schema::Fixed(f1), Schema::Fixed(f2)) => f1.name == f2.name,
+            _ => d == &s,
+        });
+
+        if let Some(i) = existing {
             deps.remove(i);
         }
         deps.push(s);
