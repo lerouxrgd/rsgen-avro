@@ -23,6 +23,7 @@ thiserror = "2"
 
 [dev-dependencies]
 chrono = { version = "0.4", default-features = false, features = ["serde"] }
+criterion = "0.5"
 derive_builder = "0.20"
 pretty_assertions = "1"
 tempfile = "3"
@@ -40,3 +41,7 @@ build-cli = ["dep:clap"]
 [[bin]]
 name = "rsgen-avro"
 required-features = ["build-cli"]
+
+[[bench]]
+name = "schema_cache"
+harness = false
