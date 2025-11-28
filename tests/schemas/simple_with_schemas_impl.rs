@@ -10,10 +10,10 @@ pub struct Test {
 fn default_test_a() -> i64 { 42 }
 impl ::apache_avro::schema::AvroSchema for Test {
     fn get_schema() -> ::apache_avro::schema::Schema {
-        static SCHEMA: std::sync::OnceLock::<apache_avro::Schema> = std::sync::OnceLock::new();
-        SCHEMA.get_or_init(|| {
+        static SCHEMA: ::std::sync::LazyLock::<apache_avro::Schema> = ::std::sync::LazyLock::new(|| {
             ::apache_avro::schema::Schema::parse_str(r#"{"name":"test","type":"record","fields":[{"name":"a","type":"long"},{"name":"b","type":"string"}]}"#).expect("parsing of canonical form cannot fail")
-        }).clone()
+        });
+        SCHEMA.clone()
     }
 }
 #[cfg(test)]
