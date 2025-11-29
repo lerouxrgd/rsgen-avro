@@ -1,5 +1,5 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use apache_avro::Schema;
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 // Simulate old behavior: parse every time
 fn get_schema_no_cache() -> Schema {
