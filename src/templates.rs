@@ -105,7 +105,10 @@ impl Default for {{ name }} {
 {%- if impl_schemas %}
 impl ::apache_avro::schema::AvroSchema for {{ name }} {
     fn get_schema() -> ::apache_avro::schema::Schema {
-        ::apache_avro::schema::Schema::parse_str(r#"{{ schema }}"#).expect("parsing of canonical form cannot fail")
+        static SCHEMA: ::std::sync::LazyLock::<apache_avro::Schema> = ::std::sync::LazyLock::new(|| {
+            ::apache_avro::schema::Schema::parse_str(r#"{{ schema }}"#).expect("parsing of canonical form cannot fail")
+        });
+        SCHEMA.clone()
     }
 }
 #[cfg(test)]

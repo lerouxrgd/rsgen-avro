@@ -14,7 +14,10 @@ pub struct B {
 }
 impl ::apache_avro::schema::AvroSchema for B {
     fn get_schema() -> ::apache_avro::schema::Schema {
-        ::apache_avro::schema::Schema::parse_str(r#"{"name":"B","type":"record","fields":[{"name":"pass","type":"long"},{"name":"direction","type":{"name":"C","type":"enum","symbols":["U","S","D"]}},{"name":"depth","type":"double"}]}"#).expect("parsing of canonical form cannot fail")
+        static SCHEMA: ::std::sync::LazyLock::<apache_avro::Schema> = ::std::sync::LazyLock::new(|| {
+            ::apache_avro::schema::Schema::parse_str(r#"{"name":"B","type":"record","fields":[{"name":"pass","type":"long"},{"name":"direction","type":{"name":"C","type":"enum","symbols":["U","S","D"]}},{"name":"depth","type":"double"}]}"#).expect("parsing of canonical form cannot fail")
+        });
+        SCHEMA.clone()
     }
 }
 #[cfg(test)]
@@ -163,7 +166,10 @@ pub struct A {
 }
 impl ::apache_avro::schema::AvroSchema for A {
     fn get_schema() -> ::apache_avro::schema::Schema {
-        ::apache_avro::schema::Schema::parse_str(r#"{"name":"A","type":"record","fields":[{"name":"item","type":["null","long","double",{"name":"B","type":"record","fields":[{"name":"pass","type":"long"},{"name":"direction","type":{"name":"C","type":"enum","symbols":["U","S","D"]}},{"name":"depth","type":"double"}]}]}]}"#).expect("parsing of canonical form cannot fail")
+        static SCHEMA: ::std::sync::LazyLock::<apache_avro::Schema> = ::std::sync::LazyLock::new(|| {
+            ::apache_avro::schema::Schema::parse_str(r#"{"name":"A","type":"record","fields":[{"name":"item","type":["null","long","double",{"name":"B","type":"record","fields":[{"name":"pass","type":"long"},{"name":"direction","type":{"name":"C","type":"enum","symbols":["U","S","D"]}},{"name":"depth","type":"double"}]}]}]}"#).expect("parsing of canonical form cannot fail")
+        });
+        SCHEMA.clone()
     }
 }
 #[cfg(test)]
