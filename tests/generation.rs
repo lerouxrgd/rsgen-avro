@@ -3,17 +3,23 @@ mod schemas;
 
 use apache_avro::schema::Name;
 use pretty_assertions::assert_eq;
-use rsgen_avro::{FieldOverride, Generator, ImplementAvroSchema, Source};
+use rsgen_avro::{Error, FieldOverride, Generator, ImplementAvroSchema, Result, Source};
 
 fn validate_generation(file_name: &str, g: Generator) {
-    let schema = format!("tests/schemas/{file_name}.avsc");
-    let src = Source::GlobPattern(&schema);
-    let mut buf = vec![];
-    g.generate(&src, &mut buf).unwrap();
+    let buf = generate(file_name, g).unwrap();
 
     let generated = String::from_utf8(buf).unwrap();
     let expected = std::fs::read_to_string(format!("tests/schemas/{file_name}.rs")).unwrap();
     validate(expected, generated)
+}
+
+fn generate(file_name: &str, g: Generator) -> Result<Vec<u8>> {
+    let schema = format!("tests/schemas/{file_name}.avsc");
+    let src = Source::GlobPattern(&schema);
+    let mut buf = vec![];
+    g.generate(&src, &mut buf)?;
+
+    Ok(buf)
 }
 
 fn validate(expected: String, generated: String) {
@@ -328,4 +334,11 @@ fn gen_two_extra_derives() {
             .build()
             .unwrap(),
     );
+}
+
+#[test]
+fn gen_invalid_schema_file_should_err() {
+    let error = generate("no/schema/is/found*.avsc", Generator::new().unwrap()).unwrap_err();
+
+    assert!(matches!(error, Error::GlobPattern(..)));
 }

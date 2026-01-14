@@ -64,8 +64,15 @@ impl Generator {
 
             Source::GlobPattern(pattern) => {
                 let mut raw_schemas = vec![];
-                for entry in glob::glob(pattern)? {
-                    let path = entry.map_err(|e| e.into_error())?;
+                let mut paths = glob::glob(pattern)?.peekable();
+                if paths.peek().is_none() {
+                    return Err(Error::GlobPattern(glob::PatternError {
+                        pos: 0,
+                        msg: "No files with the given glob pattern were found",
+                    }));
+                }
+                for path in paths {
+                    let path = path.map_err(|e| e.into_error())?;
                     if !path.is_dir() {
                         raw_schemas.push(fs::read_to_string(path)?);
                     }
