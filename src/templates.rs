@@ -127,7 +127,7 @@ pub const ENUM_TEMPLATE: &str = r#"
 /// {{ doc_line }}
 {%- endfor %}
 {%- endif %}
-#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Copy, serde::Deserialize, serde::Serialize)]
 pub enum {{ name }} {
     {%- for s in symbols %}
     {%- if s != originals[s] %}
