@@ -12,7 +12,7 @@ pub struct Foo {
 
 pub type Md5 = [u8; 16];
 
-#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Copy, serde::Deserialize, serde::Serialize)]
 pub enum Kind {
     A,
     B,
