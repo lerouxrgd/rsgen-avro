@@ -42,7 +42,8 @@ pub struct {{ name }} {
     {%- endfor %}
     {%- endif %}
     {%- set type = types[f] %}
-    {%- if f != originals[f] and not f is starting_with("r#") %}
+    {%- set cleaned = f | trim_start_matches(pat="r#") %}
+    {%- if cleaned != originals[f] %}
     #[serde(rename = "{{ originals[f] }}")]
     {%- endif %}
     {%- if nullable and not type is starting_with("Option<") %}
@@ -538,9 +539,9 @@ impl GenState {
             let not_eq = not_eq
                 || inner_not_eq.values().any(|&not_eq| not_eq)
                 || inner_not_eq
-                    .keys()
-                    .filter_map(|n| outer_not_eq.get(n))
-                    .any(|&not_eq| not_eq);
+                .keys()
+                .filter_map(|n| outer_not_eq.get(n))
+                .any(|&not_eq| not_eq);
             if not_eq {
                 let str_schema = serde_json::to_string(dep).expect("Unexpected invalid schema");
                 schemata_not_eq.insert(str_schema);
@@ -596,10 +597,10 @@ impl Templater {
     /// Generates a Rust type based on a `Schema::Fixed` schema.
     pub fn str_fixed(&self, schema: &Schema) -> Result<String> {
         if let Schema::Fixed(FixedSchema {
-            name: Name { name, .. },
-            size,
-            ..
-        }) = schema
+                                 name: Name { name, .. },
+                                 size,
+                                 ..
+                             }) = schema
         {
             let mut ctx = Context::new();
             ctx.insert("name", &sanitize(name.to_upper_camel_case()));
@@ -613,11 +614,11 @@ impl Templater {
     /// Generates a Rust enum based on a `Schema::Enum` schema
     pub fn str_enum(&self, schema: &Schema) -> Result<String> {
         if let Schema::Enum(EnumSchema {
-            name: Name { name, .. },
-            symbols,
-            doc,
-            ..
-        }) = schema
+                                name: Name { name, .. },
+                                symbols,
+                                doc,
+                                ..
+                            }) = schema
         {
             if symbols.is_empty() {
                 err!("No symbol for enum: {:?}", name)?
@@ -647,8 +648,8 @@ impl Templater {
     /// Makes use of a [`GenState`](GenState) for nested schemas (i.e. Array/Map/Union).
     pub fn str_record(&self, schema: &Schema, gen_state: &GenState) -> Result<String> {
         if let Schema::Record(RecordSchema {
-            name, fields, doc, ..
-        }) = schema
+                                  name, fields, doc, ..
+                              }) = schema
         {
             let full_name = name;
             let name = &full_name.name;
@@ -760,58 +761,58 @@ impl Templater {
                     }
 
                     Schema::TimeMillis | Schema::TimestampMillis | Schema::LocalTimestampMillis
-                        if self.use_chrono_dates =>
-                    {
-                        f.push(name_std.clone());
-                        t.insert(
-                            name_std.clone(),
-                            "chrono::DateTime<chrono::Utc>".to_string(),
-                        );
-                        w.insert(
-                            name_std.clone(),
-                            "chrono::serde::ts_milliseconds".to_string(),
-                        );
-                        if let Some(default) = default {
-                            let default = self.parse_default(schema, gen_state, default)?;
-                            d.insert(name_std.clone(), default);
+                    if self.use_chrono_dates =>
+                        {
+                            f.push(name_std.clone());
+                            t.insert(
+                                name_std.clone(),
+                                "chrono::DateTime<chrono::Utc>".to_string(),
+                            );
+                            w.insert(
+                                name_std.clone(),
+                                "chrono::serde::ts_milliseconds".to_string(),
+                            );
+                            if let Some(default) = default {
+                                let default = self.parse_default(schema, gen_state, default)?;
+                                d.insert(name_std.clone(), default);
+                            }
                         }
-                    }
 
                     Schema::TimeMicros | Schema::TimestampMicros | Schema::LocalTimestampMicros
-                        if self.use_chrono_dates =>
-                    {
-                        f.push(name_std.clone());
-                        t.insert(
-                            name_std.clone(),
-                            "chrono::DateTime<chrono::Utc>".to_string(),
-                        );
-                        w.insert(
-                            name_std.clone(),
-                            "chrono::serde::ts_microseconds".to_string(),
-                        );
-                        if let Some(default) = default {
-                            let default = self.parse_default(schema, gen_state, default)?;
-                            d.insert(name_std.clone(), default);
+                    if self.use_chrono_dates =>
+                        {
+                            f.push(name_std.clone());
+                            t.insert(
+                                name_std.clone(),
+                                "chrono::DateTime<chrono::Utc>".to_string(),
+                            );
+                            w.insert(
+                                name_std.clone(),
+                                "chrono::serde::ts_microseconds".to_string(),
+                            );
+                            if let Some(default) = default {
+                                let default = self.parse_default(schema, gen_state, default)?;
+                                d.insert(name_std.clone(), default);
+                            }
                         }
-                    }
 
                     Schema::TimestampNanos | Schema::LocalTimestampNanos
-                        if self.use_chrono_dates =>
-                    {
-                        f.push(name_std.clone());
-                        t.insert(
-                            name_std.clone(),
-                            "chrono::DateTime<chrono::Utc>".to_string(),
-                        );
-                        w.insert(
-                            name_std.clone(),
-                            "chrono::serde::ts_nanoseconds".to_string(),
-                        );
-                        if let Some(default) = default {
-                            let default = self.parse_default(schema, gen_state, default)?;
-                            d.insert(name_std.clone(), default);
+                    if self.use_chrono_dates =>
+                        {
+                            f.push(name_std.clone());
+                            t.insert(
+                                name_std.clone(),
+                                "chrono::DateTime<chrono::Utc>".to_string(),
+                            );
+                            w.insert(
+                                name_std.clone(),
+                                "chrono::serde::ts_nanoseconds".to_string(),
+                            );
+                            if let Some(default) = default {
+                                let default = self.parse_default(schema, gen_state, default)?;
+                                d.insert(name_std.clone(), default);
+                            }
                         }
-                    }
 
                     Schema::Int | Schema::Date | Schema::TimeMillis => {
                         f.push(name_std.clone());
@@ -915,9 +916,9 @@ impl Templater {
                     }
 
                     Schema::Fixed(FixedSchema {
-                        name: Name { name: f_name, .. },
-                        ..
-                    }) => {
+                                      name: Name { name: f_name, .. },
+                                      ..
+                                  }) => {
                         let f_name = sanitize(f_name.to_upper_camel_case());
                         f.push(name_std.clone());
                         w.insert(
@@ -958,9 +959,9 @@ impl Templater {
                     },
 
                     Schema::Record(RecordSchema {
-                        name: Name { name: r_name, .. },
-                        ..
-                    }) => {
+                                       name: Name { name: r_name, .. },
+                                       ..
+                                   }) => {
                         let r_name = sanitize(r_name.to_upper_camel_case());
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), r_name.clone());
@@ -971,9 +972,9 @@ impl Templater {
                     }
 
                     Schema::Enum(EnumSchema {
-                        name: Name { name: e_name, .. },
-                        ..
-                    }) => {
+                                     name: Name { name: e_name, .. },
+                                     ..
+                                 }) => {
                         let e_name = sanitize(e_name.to_upper_camel_case());
                         f.push(name_std.clone());
                         t.insert(name_std.clone(), e_name);
@@ -1122,21 +1123,21 @@ impl Templater {
                         format!("{u}({u})", u = union_type(union, gen_state, false)?)
                     }
                     Schema::Record(RecordSchema {
-                        name: Name { name, .. },
-                        ..
-                    }) => {
+                                       name: Name { name, .. },
+                                       ..
+                                   }) => {
                         format!("{rec}({rec})", rec = name.to_upper_camel_case())
                     }
                     Schema::Enum(EnumSchema {
-                        name: Name { name, .. },
-                        ..
-                    }) => {
+                                     name: Name { name, .. },
+                                     ..
+                                 }) => {
                         format!("{e}({e})", e = sanitize(name.to_upper_camel_case()))
                     }
                     Schema::Fixed(FixedSchema {
-                        name: Name { name, .. },
-                        ..
-                    }) => {
+                                      name: Name { name, .. },
+                                      ..
+                                  }) => {
                         format!("{f}({f})", f = sanitize(name.to_upper_camel_case()))
                     }
                     Schema::Decimal { .. } => "Decimal(apache_avro::Decimal)".into(),
@@ -1151,10 +1152,10 @@ impl Templater {
                     | Schema::LocalTimestampMillis
                     | Schema::LocalTimestampMicros
                     | Schema::LocalTimestampNanos
-                        if self.use_chrono_dates =>
-                    {
-                        "NaiveDateTime(chrono::DateTime<chrono::Utc>)".into()
-                    }
+                    if self.use_chrono_dates =>
+                        {
+                            "NaiveDateTime(chrono::DateTime<chrono::Utc>)".into()
+                        }
                     Schema::Date => "Date(i32)".into(),
                     Schema::TimeMillis => "TimeMillis(i32)".into(),
                     Schema::TimeMicros => "TimeMicros(i64)".into(),
@@ -1173,9 +1174,9 @@ impl Templater {
 
                 match sc {
                     Schema::Record(RecordSchema {
-                        name: Name { name, .. },
-                        ..
-                    }) => visitors.push(GenUnionVisitor {
+                                       name: Name { name, .. },
+                                       ..
+                                   }) => visitors.push(GenUnionVisitor {
                         variant: name.to_upper_camel_case(),
                         rust_type: name.to_upper_camel_case(),
                         serde_visitor: None,
@@ -1258,28 +1259,28 @@ impl Templater {
             },
 
             Schema::TimeMillis | Schema::TimestampMillis | Schema::LocalTimestampMillis
-                if self.use_chrono_dates =>
-            {
-                match default {
-                    Value::Number(n) if n.is_i64() => format!(
-                        "chrono::DateTime::<chrono::Utc>::from_timestamp_millis({}).unwrap()",
-                        n.as_i64().unwrap()
-                    ),
-                    _ => err!("Invalid default: {:?}", default)?,
+            if self.use_chrono_dates =>
+                {
+                    match default {
+                        Value::Number(n) if n.is_i64() => format!(
+                            "chrono::DateTime::<chrono::Utc>::from_timestamp_millis({}).unwrap()",
+                            n.as_i64().unwrap()
+                        ),
+                        _ => err!("Invalid default: {:?}", default)?,
+                    }
                 }
-            }
 
             Schema::TimeMicros | Schema::TimestampMicros | Schema::LocalTimestampMicros
-                if self.use_chrono_dates =>
-            {
-                match default {
-                    Value::Number(n) if n.is_i64() => format!(
-                        "chrono::DateTime::<chrono::Utc>::from_timestamp_micros({}).unwrap()",
-                        n.as_i64().unwrap()
-                    ),
-                    _ => err!("Invalid default: {:?}", default)?,
+            if self.use_chrono_dates =>
+                {
+                    match default {
+                        Value::Number(n) if n.is_i64() => format!(
+                            "chrono::DateTime::<chrono::Utc>::from_timestamp_micros({}).unwrap()",
+                            n.as_i64().unwrap()
+                        ),
+                        _ => err!("Invalid default: {:?}", default)?,
+                    }
                 }
-            }
 
             Schema::TimestampNanos | Schema::LocalTimestampNanos if self.use_chrono_dates => {
                 match default {
@@ -1419,10 +1420,10 @@ impl Templater {
             Schema::Record { .. } => self.record_default(schema, gen_state, default)?,
 
             Schema::Enum(EnumSchema {
-                name: Name { name: e_name, .. },
-                symbols,
-                ..
-            }) => {
+                             name: Name { name: e_name, .. },
+                             symbols,
+                             ..
+                         }) => {
                 let e_name = sanitize(e_name.to_upper_camel_case());
                 let valids: HashSet<_> = symbols
                     .iter()
@@ -1505,10 +1506,10 @@ impl Templater {
     ) -> Result<String> {
         match inner {
             Schema::Record(RecordSchema {
-                name: Name { name, .. },
-                fields,
-                ..
-            }) => {
+                               name: Name { name, .. },
+                               fields,
+                               ..
+                           }) => {
                 let default_str = if let Value::Object(o) = default {
                     if !o.is_empty() {
                         let vals = fields
@@ -1584,10 +1585,10 @@ pub(crate) fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String>
         | Schema::LocalTimestampMillis
         | Schema::LocalTimestampMicros
         | Schema::LocalTimestampNanos
-            if gen_state.use_chrono_dates =>
-        {
-            "Vec<chrono::DateTime<chrono::Utc>>".into()
-        }
+        if gen_state.use_chrono_dates =>
+            {
+                "Vec<chrono::DateTime<chrono::Utc>>".into()
+            }
 
         Schema::Date | Schema::TimeMillis => "Vec<i32>".into(),
         Schema::TimeMicros
@@ -1604,9 +1605,9 @@ pub(crate) fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String>
         Schema::Duration => "Vec<apache_avro::Duration>".into(),
 
         Schema::Fixed(FixedSchema {
-            name: Name { name: f_name, .. },
-            ..
-        }) => {
+                          name: Name { name: f_name, .. },
+                          ..
+                      }) => {
             let f_name = sanitize(f_name.to_upper_camel_case());
             format!("Vec<{f_name}>")
         }
@@ -1622,13 +1623,13 @@ pub(crate) fn array_type(inner: &Schema, gen_state: &GenState) -> Result<String>
         }
 
         Schema::Record(RecordSchema {
-            name: Name { name, .. },
-            ..
-        })
+                           name: Name { name, .. },
+                           ..
+                       })
         | Schema::Enum(EnumSchema {
-            name: Name { name, .. },
-            ..
-        }) => format!("Vec<{}>", &sanitize(name.to_upper_camel_case())),
+                           name: Name { name, .. },
+                           ..
+                       }) => format!("Vec<{}>", &sanitize(name.to_upper_camel_case())),
 
         Schema::Null => err!("Invalid use of Schema::Null")?,
     };
@@ -1661,10 +1662,10 @@ pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
         | Schema::TimestampMicros
         | Schema::LocalTimestampMillis
         | Schema::LocalTimestampMicros
-            if gen_state.use_chrono_dates =>
-        {
-            map_of("chrono::DateTime<chrono::Utc>")
-        }
+        if gen_state.use_chrono_dates =>
+            {
+                map_of("chrono::DateTime<chrono::Utc>")
+            }
 
         Schema::Date | Schema::TimeMillis => map_of("i32"),
         Schema::TimeMicros
@@ -1681,9 +1682,9 @@ pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
         Schema::Duration => map_of("apache_avro::Duration"),
 
         Schema::Fixed(FixedSchema {
-            name: Name { name: f_name, .. },
-            ..
-        }) => {
+                          name: Name { name: f_name, .. },
+                          ..
+                      }) => {
             let f_name = sanitize(f_name.to_upper_camel_case());
             map_of(&f_name)
         }
@@ -1699,13 +1700,13 @@ pub(crate) fn map_type(inner: &Schema, gen_state: &GenState) -> Result<String> {
         }
 
         Schema::Record(RecordSchema {
-            name: Name { name, .. },
-            ..
-        })
+                           name: Name { name, .. },
+                           ..
+                       })
         | Schema::Enum(EnumSchema {
-            name: Name { name, .. },
-            ..
-        }) => map_of(&sanitize(name.to_upper_camel_case())),
+                           name: Name { name, .. },
+                           ..
+                       }) => map_of(&sanitize(name.to_upper_camel_case())),
 
         Schema::Null => err!("Invalid use of Schema::Null")?,
     };
@@ -1733,17 +1734,17 @@ fn union_enum_variant(schema: &Schema, gen_state: &GenState) -> Result<String> {
         }
         Schema::Union(union) => union_type(union, gen_state, false)?,
         Schema::Record(RecordSchema {
-            name: Name { name, .. },
-            ..
-        }) => name.to_upper_camel_case(),
+                           name: Name { name, .. },
+                           ..
+                       }) => name.to_upper_camel_case(),
         Schema::Enum(EnumSchema {
-            name: Name { name, .. },
-            ..
-        }) => sanitize(name.to_upper_camel_case()),
+                         name: Name { name, .. },
+                         ..
+                     }) => sanitize(name.to_upper_camel_case()),
         Schema::Fixed(FixedSchema {
-            name: Name { name, .. },
-            ..
-        }) => sanitize(name.to_upper_camel_case()),
+                          name: Name { name, .. },
+                          ..
+                      }) => sanitize(name.to_upper_camel_case()),
 
         Schema::Decimal { .. } => "Decimal".into(),
         Schema::BigDecimal => "BigDecimal".into(),
@@ -1825,10 +1826,10 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
         | Schema::LocalTimestampMillis
         | Schema::LocalTimestampMicros
         | Schema::LocalTimestampNanos
-            if gen_state.use_chrono_dates =>
-        {
-            "Option<chrono::DateTime<chrono::Utc>>".into()
-        }
+        if gen_state.use_chrono_dates =>
+            {
+                "Option<chrono::DateTime<chrono::Utc>>".into()
+            }
         Schema::Date | Schema::TimeMillis => "Option<i32>".into(),
         Schema::TimeMicros
         | Schema::TimestampMillis
@@ -1844,9 +1845,9 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
         Schema::Duration => "Option<apache_avro::Duration>".into(),
 
         Schema::Fixed(FixedSchema {
-            name: Name { name: f_name, .. },
-            ..
-        }) => {
+                          name: Name { name: f_name, .. },
+                          ..
+                      }) => {
             let f_name = sanitize(f_name.to_upper_camel_case());
             format!("Option<{f_name}>")
         }
@@ -1873,9 +1874,9 @@ pub(crate) fn option_type(inner: &Schema, gen_state: &GenState) -> Result<String
             }
         }
         Schema::Enum(EnumSchema {
-            name: Name { name, .. },
-            ..
-        }) => format!("Option<{}>", &sanitize(name.to_upper_camel_case())),
+                         name: Name { name, .. },
+                         ..
+                     }) => format!("Option<{}>", &sanitize(name.to_upper_camel_case())),
 
         Schema::Null => err!("Invalid use of Schema::Null")?,
     };
