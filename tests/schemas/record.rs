@@ -2,6 +2,9 @@
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct User {
     pub r#as: String,
+    /// field which conflicts with the Rust keyword but has a different case
+    #[serde(rename = "Type")]
+    pub r#type: String,
     #[serde(rename = "favoriteNumber")]
     #[serde(default = "default_user_favorite_number")]
     pub favorite_number: i32,

@@ -42,7 +42,8 @@ pub struct {{ name }} {
     {%- endfor %}
     {%- endif %}
     {%- set type = types[f] %}
-    {%- if f != originals[f] and not f is starting_with("r#") %}
+    {%- set cleaned = f | trim_start_matches(pat="r#") %}
+    {%- if cleaned != originals[f] %}
     #[serde(rename = "{{ originals[f] }}")]
     {%- endif %}
     {%- if nullable and not type is starting_with("Option<") %}

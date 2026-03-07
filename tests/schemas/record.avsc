@@ -3,6 +3,7 @@
   "name": "User",
   "fields": [
     {"name": "as", "type": "string"},
+    {"name": "Type", "type": "string", "doc": "field which conflicts with the Rust keyword but has a different case"},
     {"name": "favoriteNumber",  "type": "int", "default": 7},
     {"name": "likes_pizza", "type": "boolean", "default": false},
     {"name": "b", "type": "bytes", "default": "\u00FF"},
