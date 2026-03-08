@@ -146,6 +146,9 @@ pub const UNION_TEMPLATE: &str = r#"
 #[serde(remote = "Self")]
 pub enum {{ name }} {
     {%- for s in symbols %}
+    {%- if aliases[s] %}
+    #[serde(alias = "{{ aliases[s] }}")]
+    {%- endif %}
     {{ s }},
     {%- endfor %}
 }
@@ -1087,6 +1090,7 @@ impl Templater {
             let e_name = union_type(union, gen_state, false)?;
 
             let mut symbols = vec![];
+            let mut aliases = HashMap::new();
             let mut visitors = vec![];
             for mut sc in schemas {
                 // Resolve potentially nested schema ref
@@ -1123,22 +1127,43 @@ impl Templater {
                         format!("{u}({u})", u = union_type(union, gen_state, false)?)
                     }
                     Schema::Record(RecordSchema {
-                        name: Name { name, .. },
+                        name: Name { name, namespace },
                         ..
                     }) => {
-                        format!("{rec}({rec})", rec = name.to_upper_camel_case())
+                        let symbol = format!("{rec}({rec})", rec = name.to_upper_camel_case());
+                        if let Some(namespace) = namespace {
+                            let full_name = format!("{}.{}", namespace, name);
+                            if aliases.insert(symbol.clone(), full_name).is_some() {
+                                err!("Names must be unique within a Union: '{}'", name)?
+                            }
+                        }
+                        symbol
                     }
                     Schema::Enum(EnumSchema {
-                        name: Name { name, .. },
+                        name: Name { name, namespace },
                         ..
                     }) => {
-                        format!("{e}({e})", e = sanitize(name.to_upper_camel_case()))
+                        let symbol = format!("{e}({e})", e = sanitize(name.to_upper_camel_case()));
+                        if let Some(namespace) = namespace {
+                            let full_name = format!("{}.{}", namespace, name);
+                            if aliases.insert(symbol.clone(), full_name).is_some() {
+                                err!("Names must be unique within a Union: '{}'", name)?
+                            }
+                        }
+                        symbol
                     }
                     Schema::Fixed(FixedSchema {
-                        name: Name { name, .. },
+                        name: Name { name, namespace },
                         ..
                     }) => {
-                        format!("{f}({f})", f = sanitize(name.to_upper_camel_case()))
+                        let symbol = format!("{f}({f})", f = sanitize(name.to_upper_camel_case()));
+                        if let Some(namespace) = namespace {
+                            let full_name = format!("{}.{}", namespace, name);
+                            if aliases.insert(symbol.clone(), full_name).is_some() {
+                                err!("Names must be unique within a Union: '{}'", name)?
+                            }
+                        }
+                        symbol
                     }
                     Schema::Decimal { .. } => "Decimal(apache_avro::Decimal)".into(),
                     Schema::BigDecimal => "BigDecimal(apache_avro::BigDecimal)".into(),
@@ -1223,6 +1248,7 @@ impl Templater {
             let mut ctx = Context::new();
             ctx.insert("name", &e_name);
             ctx.insert("symbols", &symbols);
+            ctx.insert("aliases", &aliases);
             ctx.insert("visitors", &visitors);
             ctx.insert("use_avro_rs_unions", &self.use_avro_rs_unions);
             ctx.insert("is_eq_derivable", &gen_state.is_eq_derivable(schema));
