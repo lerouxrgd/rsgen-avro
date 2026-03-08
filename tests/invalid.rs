@@ -75,3 +75,33 @@ fn bad_default_for_record() {
     let mut buf = vec![];
     g.generate(&src, &mut buf).map_err(|e| panic!("{e}")).ok();
 }
+
+#[test]
+#[should_panic(expected = r#"Names must be unique within a Union: 'MyRecord'"#)]
+fn duplicate_names_for_union() {
+    let raw_schema = r#"
+[
+  {
+    "type": "record",
+    "name": "MyRecord",
+    "namespace": "com.foo",
+    "fields": [
+      { "name": "foo", "type": "string" }
+    ]
+  },
+  {
+    "type": "record",
+    "name": "MyRecord",
+    "namespace": "com.bar",
+    "fields": [
+      { "name": "bar", "type": "string" }
+    ]
+  }
+]
+"#;
+
+    let g = Generator::new().unwrap();
+    let src = Source::SchemaStr(raw_schema);
+    let mut buf = vec![];
+    g.generate(&src, &mut buf).unwrap();
+}

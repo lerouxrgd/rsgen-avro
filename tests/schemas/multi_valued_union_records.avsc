@@ -10,10 +10,12 @@
     {
       "type": "record",
       "name": "Bar",
+      "namespace": "com.bar",
       "fields": [ {"name": "c", "type": "long"} ]
     }, {
       "type": "record",
       "name": "Baz",
+      "namespace": "com.baz",
       "fields": [ {"name": "d", "type": "float"} ]
     } ]
   } ]

@@ -13,7 +13,9 @@ pub struct Bar {
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(remote = "Self")]
 pub enum UnionBarBaz {
+    #[serde(alias = "com.bar.Bar")]
     Bar(Bar),
+    #[serde(alias = "com.baz.Baz")]
     Baz(Baz),
 }
 
